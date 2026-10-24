@@ -1,74 +1,152 @@
-import { useCallback, useEffect, useState } from "react";
-import { DEMO_USERS, api } from "./api.js";
-import NewApplication from "./components/NewApplication.jsx";
-import ApplicationList from "./components/ApplicationList.jsx";
-import CaseDetail from "./components/CaseDetail.jsx";
+import { useEffect, useMemo, useState } from "react";
+import { DEMO_USERS, api, publicApi } from "./api.js";
+import { clearSession, completeSignIn, hasSession, signIn, signOut } from "./auth/oidc.js";
+import { Sidebar, TopBar } from "./components/Layout.jsx";
+import { ErrorBox, Loading } from "./components/ui.jsx";
+import { navFor } from "./nav.js";
+import ApplicationsView from "./views/ApplicationsView.jsx";
+import AuditView from "./views/AuditView.jsx";
+import DashboardView from "./views/DashboardView.jsx";
+import DeliveryView from "./views/DeliveryView.jsx";
+import InboxView from "./views/InboxView.jsx";
+import OcrReviewView from "./views/OcrReviewView.jsx";
+import { ComplianceView, EvcView } from "./views/PreviewViews.jsx";
+import ScorecardView from "./views/ScorecardView.jsx";
 
-export default function App() {
-  const [who, setWho] = useState(DEMO_USERS[0]);
-  const [apps, setApps] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [error, setError] = useState(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+const VIEWS = {
+  dashboard: DashboardView,
+  applications: ApplicationsView,
+  inbox: InboxView,
+  ocr: OcrReviewView,
+  evc: EvcView,
+  compliance: ComplianceView,
+  audit: AuditView,
+  delivery: DeliveryView,
+  scorecard: ScorecardView,
+};
 
-  const load = useCallback(async () => {
+const remembered = {
+  get: (k) => {
     try {
-      setApps(await api(who, "/applications"));
-      setError(null);
-    } catch (e) {
-      setError(e.message);
+      return localStorage.getItem(k);
+    } catch {
+      return null;
     }
-  }, [who]);
+  },
+  set: (k, v) => {
+    try {
+      localStorage.setItem(k, v);
+    } catch {
+      /* convenience only */
+    }
+  },
+};
 
+export function Workspace({ who, me, config, identityControl }) {
+  const items = useMemo(() => navFor(me.role), [me.role]);
+  const [view, setView] = useState(items[0]?.key);
   useEffect(() => {
-    load();
-  }, [load, refreshKey]);
-
-  const changed = (id) => {
-    if (id) setSelected(id);
-    setRefreshKey((k) => k + 1);
-  };
+    if (!items.some((i) => i.key === view)) setView(items[0]?.key);
+  }, [items, view]);
+  const View = VIEWS[view];
+  const title = items.find((i) => i.key === view)?.label;
 
   return (
-    <div className="page">
-      <header className="top">
-        <div>
-          <h1>Approval Workflow</h1>
-          <p className="sub">Synthetic demo data only</p>
-        </div>
-        <label className="who">
-          Acting as
-          <select
-            value={who.key}
-            onChange={(e) => {
-              setWho(DEMO_USERS.find((u) => u.key === e.target.value));
-              setSelected(null);
-            }}
-          >
-            {DEMO_USERS.map((u) => (
-              <option key={u.key} value={u.key}>
-                {u.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-
-      {error && <p className="error">{error}</p>}
-
-      <main className="grid">
-        <section>
-          {who.role === "INSTITUTION" && <NewApplication who={who} onChanged={changed} />}
-          <ApplicationList apps={apps} selected={selected} onSelect={setSelected} />
-        </section>
-        <section>
-          {selected ? (
-            <CaseDetail key={`${selected}-${refreshKey}`} who={who} id={selected} onChanged={changed} />
-          ) : (
-            <p className="muted">Select an application to see its route, clocks and audit timeline.</p>
-          )}
-        </section>
-      </main>
+    <div className="shell">
+      <Sidebar items={items} current={view} onNavigate={setView} />
+      <div className="main">
+        <TopBar me={me} who={who} config={config} identityControl={identityControl} />
+        <main className="content" id="content">
+          <h1>{title}</h1>
+          {View && <View key={`${view}-${me.user_id}`} who={who} me={me} />}
+        </main>
+      </div>
     </div>
   );
+}
+
+function DemoApp({ config }) {
+  const [key, setKey] = useState(() => remembered.get("awoc.demo-user") || DEMO_USERS[0].key);
+  const who = DEMO_USERS.find((u) => u.key === key) ?? DEMO_USERS[0];
+  const [me, setMe] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setMe(null);
+    api(who, "/auth/me").then(setMe).catch(setError);
+  }, [who]);
+
+  const switcher = (
+    <label className="inline">
+      Acting as
+      <select
+        value={key}
+        onChange={(e) => {
+          setKey(e.target.value);
+          remembered.set("awoc.demo-user", e.target.value);
+        }}
+      >
+        {DEMO_USERS.map((u) => (
+          <option key={u.key} value={u.key}>
+            {u.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  if (error) return <ErrorBox error={error} />;
+  if (!me) return <Loading what="Signing in" />;
+  return <Workspace who={who} me={me} config={config} identityControl={switcher} />;
+}
+
+export function SignIn({ config, message }) {
+  return (
+    <div className="sign-in">
+      <div className="card">
+        <h1>Approval Workflow</h1>
+        <p className="muted">Compliance monitoring and alerts</p>
+        {message && <div className="alert error" role="alert">{message}</div>}
+        <button onClick={() => signIn(config)}>Sign in</button>
+        <p className="muted small">You will be sent to the identity provider and returned here.</p>
+      </div>
+    </div>
+  );
+}
+
+function OidcApp({ config }) {
+  const who = useMemo(() => ({ mode: "oidc", config }), [config]);
+  const [state, setState] = useState({ phase: "loading" });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await completeSignIn(config);
+        if (!hasSession()) return setState({ phase: "signed-out" });
+        setState({ phase: "ready", me: await api(who, "/auth/me") });
+      } catch (e) {
+        if (e.status === 401) clearSession();
+        setState({ phase: "signed-out", message: e.message });
+      }
+    })();
+  }, [config, who]);
+
+  if (state.phase === "loading") return <Loading what="Signing in" />;
+  if (state.phase === "signed-out") return <SignIn config={config} message={state.message} />;
+  const logout = (
+    <button className="secondary small" onClick={() => signOut(config)}>
+      Sign out
+    </button>
+  );
+  return <Workspace who={who} me={state.me} config={config} identityControl={logout} />;
+}
+
+export default function App() {
+  const [config, setConfig] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    publicApi("/auth/config").then(setConfig).catch(setError);
+  }, []);
+  if (error) return <ErrorBox error={new Error("The server cannot be reached. Try again shortly.")} />;
+  if (!config) return <Loading />;
+  return config.mode === "oidc" ? <OidcApp config={config} /> : <DemoApp config={config} />;
 }

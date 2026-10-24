@@ -68,7 +68,7 @@ class ProjectionResult:
     skipped_versions: dict[str, int] = field(default_factory=dict)
 
 
-def _events(session: Session) -> Iterable[EventRecord]:
+def stored_events(session: Session) -> Iterable[EventRecord]:
     for e in session.scalars(select(DomainEvent).order_by(DomainEvent.seq)).yield_per(500):
         yield EventRecord(e.seq, e.at, e.aggregate_type, e.aggregate_id, e.event_type, e.event_version,
                           e.payload, e.ruleset_rev)
@@ -117,7 +117,7 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
     with new_session() as session:
         session.execute(text("SET TRANSACTION READ ONLY"))
         try:
-            states, applied, unhandled, skipped = project(events if events is not None else _events(session), selected)
+            states, applied, unhandled, skipped = project(events if events is not None else stored_events(session), selected)
             results = []
             for name, p in selected.items():
                 live = p.live(session)

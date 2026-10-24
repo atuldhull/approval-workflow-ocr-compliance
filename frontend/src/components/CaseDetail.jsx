@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
-import { api } from "../api.js";
+import { useEffect, useRef, useState } from "react";
+import { api, newIdempotencyKey } from "../api.js";
+import { humanise } from "../nav.js";
 
-export default function CaseDetail({ who, id, onChanged }) {
+export default function CaseDetail({ who, me, id, onChanged }) {
   const [app, setApp] = useState(null);
   const [deadlines, setDeadlines] = useState([]);
   const [timeline, setTimeline] = useState([]);
-  const [verify, setVerify] = useState(null);
   const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const submitKey = useRef(null);
 
   useEffect(() => {
     Promise.all([
@@ -23,40 +25,45 @@ export default function CaseDetail({ who, id, onChanged }) {
   }, [who, id]);
 
   async function submit() {
+    setBusy(true);
+    submitKey.current ??= newIdempotencyKey();
     try {
-      await api(who, `/applications/${id}/submit`, { method: "POST" });
+      await api(who, `/applications/${id}/submit`, { method: "POST", headers: { "Idempotency-Key": submitKey.current } });
       onChanged(id);
     } catch (e) {
+      if (e.status && e.status < 500) submitKey.current = null;
       setError(e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function checkLedger() {
-    try {
-      setVerify(await api(who, "/ledger/verify"));
-    } catch (e) {
-      setVerify({ ok: false, detail: e.message });
-    }
-  }
-
-  if (error) return <p className="error">{error}</p>;
-  if (!app) return <p className="muted">Loading…</p>;
+  if (error) return <p className="error" role="alert">{error}</p>;
+  if (!app) return <p className="muted" role="status">Loading…</p>;
 
   return (
     <div className="card">
-      <h2>{app.category.replaceAll("_", " ").toLowerCase()}</h2>
+      <h2>{humanise(app.category)}</h2>
       <p className="muted">
         {app.academic_year} · {app.status} {app.ruleset_rev && `· ruleset ${app.ruleset_rev}`}
       </p>
 
-      {app.status === "DRAFT" && who.role === "INSTITUTION" && <button onClick={submit}>Submit application</button>}
+      {app.status === "DRAFT" && me.role === "INSTITUTION" && (
+        <button onClick={submit} disabled={busy}>
+          {busy ? "Submitting…" : "Submit application"}
+        </button>
+      )}
 
       {app.route && (
         <>
           <h3>Route</h3>
           <ol className="route">
             {app.route.map((s) => (
-              <li key={s.stage} className={s.stage === app.current_stage ? "current" : ""}>
+              <li
+                key={s.stage}
+                className={s.stage === app.current_stage ? "current" : ""}
+                aria-current={s.stage === app.current_stage ? "step" : undefined}
+              >
                 {s.stage}
                 {s.when === "as_applicable" && <small> as applicable</small>}
               </li>
@@ -65,13 +72,16 @@ export default function CaseDetail({ who, id, onChanged }) {
         </>
       )}
 
-      <h3>Clocks</h3>
-      {deadlines.length === 0 && <p className="muted">No clocks running.</p>}
+      <h3>Deadlines</h3>
+      {deadlines.length === 0 && <p className="muted">No deadlines running.</p>}
       {deadlines.map((d) => (
         <div key={d.id} className="clock">
-          <strong>{d.rule_id}</strong> <span className="badge">{d.clock_kind}</span>{" "}
-          <span className="badge">{d.status}</span> due <strong>{d.due_date}</strong>
-          <p className="why">Why: {d.explanation}</p>
+          <strong>{d.rule_id}</strong> <span className="badge neutral">{d.clock_kind}</span>{" "}
+          <span className="badge neutral">{d.status}</span> due <strong>{d.due_date}</strong>
+          <details>
+            <summary>Why is this due then?</summary>
+            <p className="why">{d.explanation}</p>
+          </details>
         </div>
       ))}
 
@@ -84,16 +94,6 @@ export default function CaseDetail({ who, id, onChanged }) {
           </li>
         ))}
       </ol>
-
-      <button className="secondary" onClick={checkLedger}>
-        Verify ledger
-      </button>
-      {verify && (
-        <p className={verify.ok ? "ok" : "error"}>
-          {verify.ok ? `Ledger intact (${verify.checked} entries checked)` : `Not verified: ${verify.detail}`}
-          {verify.first_bad_seq && ` at entry #${verify.first_bad_seq}`}
-        </p>
-      )}
     </div>
   );
 }
