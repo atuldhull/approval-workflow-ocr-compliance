@@ -1,6 +1,6 @@
 # Proposed contract changes from Person 3
 
-Nothing here is active until all three approve the pull request that contains it (`all-three-approve` check).
+Nothing here is active until all three approve the pull request that contains it (`contracts-approval/designated-approvals` status).
 Items are independent and can be approved one by one.
 
 | # | Change | Files | Why | State |

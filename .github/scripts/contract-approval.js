@@ -1,16 +1,20 @@
 // Decides whether a pull request has the approvals that changes to shared contracts need.
 //
-// Kept free of GitHub API calls so it can be unit tested (contract-approval.test.js).
-// The workflow runs this file from the BASE branch, never from the pull request.
+// evaluate() is pure and unit tested (contract-approval.test.js). main() is the thin GitHub API layer.
+// The workflow runs this file from the DEFAULT branch (pull_request_target / workflow_run), never from the PR.
 
 const TEAM = ["atuldhull", "gundatharuntej2006-hue", "ritikakulkarni06-art"];
 
-// Changing these needs the whole team. The enforcement files themselves are included,
-// so the rule cannot be weakened by the same pull request it is judging.
+// The commit status that branch protection must require. Only the trusted workflow posts it.
+const STATUS_CONTEXT = "contracts-approval/designated-approvals";
+
+// Changing these needs the whole team. All workflows and scripts are included: any workflow with a write token
+// could post a status, and the enforcement files must not be weakened by the pull request they judge.
 const PROTECTED = [
   "contracts/",
-  ".github/workflows/contracts-approval.yml",
-  ".github/scripts/contract-approval.js",
+  ".github/workflows/",
+  ".github/scripts/",
+  ".github/CODEOWNERS",
 ];
 
 const norm = (login) => String(login || "").toLowerCase();
@@ -86,4 +90,44 @@ function evaluate({ author, headSha, files, changedFiles, reviews, team = TEAM }
   return { ok, required, approved, missing, files: touched, message };
 }
 
-module.exports = { TEAM, PROTECTED, evaluate, isProtected, protectedFiles };
+// GitHub limits a status description to 140 characters.
+function statusFor(result) {
+  const text = result.message.length > 140 ? `${result.message.slice(0, 137)}...` : result.message;
+  return { state: result.ok ? "success" : "failure", context: STATUS_CONTEXT, description: text };
+}
+
+// Which open pull requests to judge. pull_request_target names its PR. For workflow_run (a review changed),
+// GitHub lists same-repository PRs on the run; fork PRs are not listed, so open PRs are matched by head commit.
+async function pullRequestsToJudge(github, context) {
+  const repo = { owner: context.repo.owner, repo: context.repo.repo };
+  if (context.eventName === "pull_request_target") return [context.payload.pull_request.number];
+  if (context.eventName !== "workflow_run") return [];
+  const run = context.payload.workflow_run;
+  const listed = (run.pull_requests || []).map((p) => p.number);
+  if (listed.length) return listed;
+  const open = await github.paginate(github.rest.pulls.list, { ...repo, state: "open", per_page: 100 });
+  return open.filter((p) => p.head.sha === run.head_sha).map((p) => p.number);
+}
+
+// Evaluates each affected pull request on its CURRENT head and records the result as a commit status there.
+// Nothing from the pull request is executed; only GitHub's records of files and reviews are read.
+async function main({ github, context, core }) {
+  const repo = { owner: context.repo.owner, repo: context.repo.repo };
+  const numbers = await pullRequestsToJudge(github, context);
+  if (numbers.length === 0) core.info("No open pull request to evaluate.");
+  let allOk = true;
+  for (const number of numbers) {
+    const base = { ...repo, pull_number: number };
+    const { data: pr } = await github.rest.pulls.get(base);
+    if (pr.state !== "open") continue;
+    const files = await github.paginate(github.rest.pulls.listFiles, { ...base, per_page: 100 });
+    const reviews = await github.paginate(github.rest.pulls.listReviews, { ...base, per_page: 100 });
+    const result = evaluate({ author: pr.user.login, headSha: pr.head.sha, files, changedFiles: pr.changed_files, reviews });
+    await github.rest.repos.createCommitStatus({ ...repo, sha: pr.head.sha, ...statusFor(result) });
+    core.info(`#${number}: ${result.message}`);
+    allOk &&= result.ok;
+  }
+  return allOk;
+}
+
+module.exports = { TEAM, PROTECTED, STATUS_CONTEXT, evaluate, isProtected, protectedFiles, statusFor, pullRequestsToJudge, main };
