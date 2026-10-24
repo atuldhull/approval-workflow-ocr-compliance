@@ -572,3 +572,24 @@ describe("audit evidence presentation", () => {
     expect(await screen.findByText(/security service is unavailable/)).toBeInTheDocument();
   });
 });
+
+describe("navigation matrix (mirrors backend/app/platform/policy.py)", () => {
+  // Hiding a screen is not security - the server decides - but showing one the server always refuses is a defect.
+  const EXPECTED = {
+    INSTITUTION: ["applications", "inbox", "compliance"],
+    SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "ocr"],
+    RO_OFFICER: ["dashboard", "applications", "inbox", "ocr", "compliance"],
+    BUREAU_OFFICER: ["dashboard", "applications", "inbox", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
+    BUREAU_HEAD: ["dashboard", "applications", "inbox", "evc", "compliance", "audit", "delivery", "scorecard"],
+    AUDITOR: ["dashboard", "applications", "inbox", "audit", "delivery", "scorecard"],
+  };
+  for (const [role, keys] of Object.entries(EXPECTED)) {
+    it(`${role} sees exactly its screens`, () => {
+      expect(navFor(role).map((i) => i.key)).toEqual(keys);
+    });
+  }
+  it("an unknown role sees nothing", () => {
+    expect(navFor("SYSTEM")).toEqual([]);
+    expect(navFor(undefined)).toEqual([]);
+  });
+});
