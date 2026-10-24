@@ -7,12 +7,14 @@ from sqlalchemy import select
 from app.platform.auth import current_principal
 from app.platform.db import new_session
 from app.platform.models import DomainEvent
+from app.platform.notifications_api import router as notifications_router
 from app.platform.registry import port
 from app.platform.settings import settings
 from contracts.ports import AuthzPort, CasePort, LedgerPort
 from contracts.types import Principal, ResourceRef
 
 router = APIRouter(tags=["audit"])
+router.include_router(notifications_router)
 
 
 class TimelineEvent(BaseModel):
