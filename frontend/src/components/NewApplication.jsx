@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
+import { useSingleFlight } from "./ui.jsx";
 
 export default function NewApplication({ who, institution, onChanged }) {
   const [routes, setRoutes] = useState([]);
@@ -8,6 +9,7 @@ export default function NewApplication({ who, institution, onChanged }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const pendingKey = useRef(null); // reused if this same submission is retried after a failure
+  const once = useSingleFlight();
 
   useEffect(() => {
     api(who, "/rulesets/aph-2024-27@r1")
@@ -21,8 +23,12 @@ export default function NewApplication({ who, institution, onChanged }) {
     pendingKey.current = null; // a different request needs a different key
   };
 
-  async function create(e) {
+  const create = (e) => {
     e.preventDefault();
+    return once(() => send());
+  };
+
+  async function send() {
     setBusy(true);
     pendingKey.current ??= newIdempotencyKey();
     try {

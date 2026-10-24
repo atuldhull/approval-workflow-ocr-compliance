@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BarList, Card, ErrorBox, Loading, NotAvailable, StatTile, useApi, when } from "../components/ui.jsx";
+import { Badge, BarList, Card, ErrorBox, Loading, NotAvailable, StatTile, useApi, when } from "../components/ui.jsx";
 
 function Section({ s }) {
   if (s.status === "NOT_AVAILABLE") {
@@ -11,7 +11,7 @@ function Section({ s }) {
   }
   const d = s.data;
   return (
-    <Card title={s.title}>
+    <Card title={s.title} actions={s.status === "PARTIAL" && <Badge tone="warn">Partial</Badge>}>
       {s.key === "applications" && (
         <>
           <div className="stats">
@@ -61,7 +61,7 @@ export default function DashboardView({ who }) {
   }, [reload]);
 
   if (loading && !data) return <Loading what="Building dashboard" />;
-  if (error) return <ErrorBox error={error} />;
+  if (error) return <ErrorBox error={error} onRetry={reload} />;
   return (
     <div>
       <p className="muted">

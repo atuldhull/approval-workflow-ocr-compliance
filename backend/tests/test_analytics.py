@@ -93,3 +93,17 @@ def test_scorecard_evaluates_answer_keys_when_present(client, tmp_path, monkeypa
     assert (routing["cases"], routing["correct"], routing["accuracy"]) == (2, 1, 0.5)
     assert routing["mismatches"][0]["got"] == ["SELF_DISCLOSURE"]
     assert items["ocr"]["result"] == {"lease_end": {"cases": 2, "exact_match": 0.5}}
+
+
+def test_events_the_dashboard_does_not_understand_make_it_partial(client):
+    """If Person 1 stores a new kind of workflow event, stage counts must not silently go stale."""
+    from sqlalchemy import text
+    from app.platform.db import get_engine
+    file(client, SUNRISE_H, SUNRISE)
+    with get_engine().begin() as c:   # simulate a future event type; test-only direct insert
+        c.execute(text("INSERT INTO plat.domain_event (id, at, aggregate_type, aggregate_id, event_type, event_version, "
+                       "actor_id, role, payload) VALUES (gen_random_uuid(), now(), 'application', gen_random_uuid(), "
+                       "'wf.stage_changed', 1, gen_random_uuid(), 'SYSTEM', '{}')"))
+    apps = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "applications")
+    assert apps["status"] == "PARTIAL" and "1 wf.stage_changed event(s)" in apps["note"]
+    assert apps["data"]["total"] == 1

@@ -1,18 +1,31 @@
+import { useState } from "react";
 import { api } from "../api.js";
-import { Card, Empty, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
+import { Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 
 export default function InboxView({ who }) {
   const { data, error, loading, reload } = useApi(who, "/notifications/inbox");
+  const [busy, setBusy] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const once = useSingleFlight();
 
-  async function markRead(id) {
-    await api(who, `/notifications/inbox/${id}/read`, { method: "POST" });
-    reload();
-  }
+  const markRead = (id) => once(async () => {
+    setBusy(id);
+    setActionError(null);
+    try {
+      await api(who, `/notifications/inbox/${id}/read`, { method: "POST" });
+      reload();
+    } catch (e) {
+      setActionError(e);
+    } finally {
+      setBusy(null);
+    }
+  });
 
   return (
     <Card title="Inbox">
       {loading && !data && <Loading />}
-      <ErrorBox error={error} />
+      <ErrorBox error={error} onRetry={reload} />
+      <ErrorBox error={actionError} />
       {data && data.length === 0 && <Empty>No notifications.</Empty>}
       {data && data.length > 0 && (
         <table className="table">
@@ -34,8 +47,8 @@ export default function InboxView({ who }) {
                 </td>
                 <td className="actions">
                   {!n.read_at && (
-                    <button className="secondary small" onClick={() => markRead(n.id)}>
-                      Mark read
+                    <button className="secondary small" disabled={busy !== null} onClick={() => markRead(n.id)}>
+                      {busy === n.id ? "Marking…" : "Mark read"}
                     </button>
                   )}
                   <button className="secondary small" disabled title="Acknowledgement is recorded by the alerts module (Person 2), not built yet">

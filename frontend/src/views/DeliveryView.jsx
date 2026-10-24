@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
-import { Badge, Card, Empty, ErrorBox, Loading, StatTile, useApi, when } from "../components/ui.jsx";
+import { Badge, Card, Empty, ErrorBox, Loading, StatTile, useApi, useSingleFlight, when } from "../components/ui.jsx";
 
 const TONE = { DELIVERED: "ok", PENDING: "warn", SENDING: "warn", DEAD: "bad" };
 
@@ -10,6 +10,8 @@ export default function DeliveryView({ who, me }) {
   const outbox = useApi(who, `/notifications/outbox${status ? `?status=${status}` : ""}`);
   const [attempts, setAttempts] = useState(null);
   const [error, setError] = useState(null);
+  const [retrying, setRetrying] = useState(null);
+  const once = useSingleFlight();
 
   async function showAttempts(id) {
     try {
@@ -19,22 +21,26 @@ export default function DeliveryView({ who, me }) {
     }
   }
 
-  async function retry(id) {
+  const retry = (id) => once(async () => {
+    setRetrying(id);
+    setError(null);
     try {
       await api(who, `/notifications/outbox/${id}/retry`, { method: "POST" });
       outbox.reload();
       health.reload();
     } catch (e) {
       setError(e);
+    } finally {
+      setRetrying(null);
     }
-  }
+  });
 
   const h = health.data;
   return (
     <div>
       <Card title="Delivery health">
         {health.loading && !h && <Loading />}
-        <ErrorBox error={health.error} />
+        <ErrorBox error={health.error} onRetry={health.reload} />
         {h && (
           <div className="stats">
             <StatTile label="Delivered" value={h.by_status.DELIVERED} />
@@ -96,7 +102,7 @@ export default function DeliveryView({ who, me }) {
                   <td className="actions">
                     <button className="secondary small" onClick={() => showAttempts(o.id)}>Attempts</button>
                     {o.status === "DEAD" && me.role === "BUREAU_HEAD" && (
-                      <button className="small" onClick={() => retry(o.id)}>Retry</button>
+                      <button className="small" disabled={retrying !== null} onClick={() => retry(o.id)}>{retrying === o.id ? "Retrying…" : "Retry"}</button>
                     )}
                   </td>
                 </tr>

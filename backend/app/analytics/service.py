@@ -39,7 +39,7 @@ def dashboard(region: str | None) -> dict:
 
     with new_session() as s:
         s.execute(text("SET TRANSACTION READ ONLY"))
-        states, *_ = project(stored_events(s), {"applications": apps_p, "deadlines": dl_p})
+        states, _, unhandled, skipped = project(stored_events(s), {"applications": apps_p, "deadlines": dl_p})
         region_of: dict[str, str] = {}
         cases = port(CasePort)
         for app_id in states["applications"]:
@@ -53,23 +53,34 @@ def dashboard(region: str | None) -> dict:
     in_process = [a for a in apps.values() if a["status"] == "IN_PROCESS" and a["submitted_at"]]
     ageing = Counter(_bucket((now - datetime.fromisoformat(a["submitted_at"])).days) for a in in_process)
 
+    def coverage(section: dict, prefix: str, projection: str) -> dict:
+        """Marks a section PARTIAL when stored events of its module were not understood by the projection."""
+        missed = {k: v for k, v in unhandled.items() if k.startswith(prefix)} | skipped[projection]
+        if missed:
+            section["status"] = "PARTIAL"
+            section["note"] = (section.get("note", "") + " Not reflected: " + ", ".join(
+                f"{n} {k} event(s)" for k, n in sorted(missed.items())) + ". Figures may be out of date.").strip()
+        return section
+
     sections = [
-        {"key": "applications", "title": "Applications", "status": "AVAILABLE",
+        coverage({"key": "applications", "title": "Applications", "status": "AVAILABLE",
          "source": "Replayed from workflow events",
          "data": {"total": len(apps),
                   "by_status": dict(Counter(a["status"] for a in apps.values())),
                   "by_stage": dict(Counter(a["current_stage"] for a in apps.values() if a["current_stage"])),
-                  "by_region": dict(Counter(region_of[k] for k in apps))}},
+                  "by_region": dict(Counter(region_of[k] for k in apps))},
+         "note": "Stage is the stage entered at submission; later transitions appear once they are recorded as events."},
+                 "wf.", "applications"),
         {"key": "ageing", "title": "Time since submission (applications in process)", "status": "AVAILABLE",
          "source": "Replayed from workflow events",
          "data": {"buckets": {label: ageing.get(label, 0) for _, label in AGE_BUCKETS}}},
-        {"key": "deadlines", "title": "Deadlines", "status": "PARTIAL", "source": "Replayed from deadline events",
+        coverage({"key": "deadlines", "title": "Deadlines", "status": "PARTIAL", "source": "Replayed from deadline events",
          "note": "Whether a deadline was met is not reported by events yet, so 'due date passed' may include "
                  f"deadlines that were met. {IST_OFFSET_NOTE}",
          "depends_on": "Person 2: events for deadline closure (met / breached / extended)",
          "data": {"opened": len(deadlines),
                   "due_date_passed": sum(1 for d in deadlines.values() if date.fromisoformat(d["due_date"]) < today),
-                  "by_rule": dict(Counter(d["rule_id"] for d in deadlines.values()))}},
+                  "by_rule": dict(Counter(d["rule_id"] for d in deadlines.values()))}}, "dl.", "deadlines"),
         _not_available("workload", "Officer workload", "Person 1: case assignment data and assignment events"),
         _not_available("evc", "EVC queue", "Person 1: EVC request and slot events"),
         _not_available("compliance", "Compliance and obligations", "Person 2: obligation and evidence events"),

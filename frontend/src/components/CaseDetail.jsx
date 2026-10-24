@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { humanise } from "../nav.js";
+import { useSingleFlight } from "./ui.jsx";
 
 export default function CaseDetail({ who, me, id, onChanged }) {
   const [app, setApp] = useState(null);
@@ -9,6 +10,7 @@ export default function CaseDetail({ who, me, id, onChanged }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const submitKey = useRef(null);
+  const once = useSingleFlight();
 
   useEffect(() => {
     Promise.all([
@@ -24,7 +26,9 @@ export default function CaseDetail({ who, me, id, onChanged }) {
       .catch((e) => setError(e.message));
   }, [who, id]);
 
-  async function submit() {
+  const submit = () => once(send);
+
+  async function send() {
     setBusy(true);
     submitKey.current ??= newIdempotencyKey();
     try {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
-import { Badge, Card, Empty, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
+import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 
 // Each layer reports what it actually proves. Green appears only for a layer that is fully verified; the headline
 // is green only when every layer is.
@@ -38,8 +38,11 @@ export default function AuditView({ who, me }) {
   const [busy, setBusy] = useState(null);
   const [actionError, setActionError] = useState(null);
   const canSign = ["AUDITOR", "BUREAU_HEAD"].includes(me.role);
+  const once = useSingleFlight();
 
-  async function run(name, fn) {
+  const run = (name, fn) => once(() => perform(name, fn));
+
+  async function perform(name, fn) {
     setActionError(null);
     setBusy(name);
     try {

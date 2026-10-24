@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-// Replaces fetch with canned responses: routes = { "GET /api/x": body | (req) => [status, body] }.
+// Replaces fetch with canned responses: routes = { "GET /api/x": body | (req) => [status, body] | Promise of that }.
 export function fakeServer(routes) {
   const calls = [];
   const fetchMock = vi.fn(async (url, init = {}) => {
@@ -10,7 +10,7 @@ export function fakeServer(routes) {
     const handler = routes[`${method} ${path}`];
     let status = 200;
     let body = handler;
-    if (typeof handler === "function") [status, body] = handler(init);
+    if (typeof handler === "function") [status, body] = await handler(init);
     if (handler === undefined) [status, body] = [404, { detail: `no fake for ${method} ${path}` }];
     return {
       ok: status >= 200 && status < 300,

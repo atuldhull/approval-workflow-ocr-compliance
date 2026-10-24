@@ -32,9 +32,9 @@ function Result({ item }) {
 }
 
 export default function ScorecardView({ who }) {
-  const { data, error, loading } = useApi(who, "/analytics/scorecard");
+  const { data, error, loading, reload } = useApi(who, "/analytics/scorecard");
   if (loading && !data) return <Loading what="Computing scorecard" />;
-  if (error) return <ErrorBox error={error} />;
+  if (error) return <ErrorBox error={error} onRetry={reload} />;
   return (
     <div>
       <p className="muted">

@@ -53,10 +53,11 @@ export function Workspace({ who, me, config, identityControl }) {
 
   return (
     <div className="shell">
+      <a className="skip-link" href="#content">Skip to content</a>
       <Sidebar items={items} current={view} onNavigate={setView} />
       <div className="main">
         <TopBar me={me} who={who} config={config} identityControl={identityControl} />
-        <main className="content" id="content">
+        <main className="content" id="content" tabIndex={-1}>
           <h1>{title}</h1>
           {View && <View key={`${view}-${me.user_id}`} who={who} me={me} />}
         </main>

@@ -597,3 +597,53 @@ mark {
 .alert.summary.bad {
   border-left: 4px solid var(--bad);
 }
+
+/* ---- accessibility and resilience ---- */
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 10;
+  background: var(--card);
+  color: var(--accent);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.skip-link:focus {
+  left: 8px;
+}
+
+.alert .retry {
+  margin-left: 10px;
+}
+
+/* ---- document facsimile ---- */
+
+.facsimile {
+  margin: 0;
+}
+
+.facsimile-frame {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--line);
+}
+
+.facsimile-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ocr-box {
+  position: absolute;
+  border: 2px solid var(--focus);
+  background: rgba(240, 165, 0, 0.15);
+}
+
+.facsimile figcaption {
+  color: var(--bad);
+  margin-top: 4px;
+}

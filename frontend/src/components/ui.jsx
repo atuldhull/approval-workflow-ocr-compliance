@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 
 // Loads `path` for `who`; reload() fetches again. Pass path=null to skip.
@@ -31,11 +31,18 @@ export function Empty({ children }) {
   return <p className="empty">{children}</p>;
 }
 
-export function ErrorBox({ error }) {
+export function ErrorBox({ error, onRetry }) {
   if (!error) return null;
+  // 401 and 403 are not fixed by trying again; everything else (network, 5xx) may be
+  const retryable = onRetry && error.status !== 401 && error.status !== 403;
   return (
     <div className="alert error" role="alert">
       {error.message || String(error)}
+      {retryable && (
+        <button className="secondary small retry" onClick={onRetry}>
+          Try again
+        </button>
+      )}
     </div>
   );
 }
@@ -109,3 +116,17 @@ export function Card({ title, actions, children }) {
 }
 
 export const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+
+// Runs an async action at most once at a time. A ref, not state: two clicks in the same tick both see stale state.
+export function useSingleFlight() {
+  const inFlight = useRef(false);
+  return useCallback(async (fn) => {
+    if (inFlight.current) return undefined;
+    inFlight.current = true;
+    try {
+      return await fn();
+    } finally {
+      inFlight.current = false;
+    }
+  }, []);
+}

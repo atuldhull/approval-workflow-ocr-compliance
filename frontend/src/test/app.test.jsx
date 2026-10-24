@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup as cleanupRender, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import App, { Workspace } from "../App.jsx";
@@ -6,8 +6,11 @@ import { DEMO_USERS, api } from "../api.js";
 import { navFor } from "../nav.js";
 import DashboardView from "../views/DashboardView.jsx";
 import ApplicationsView from "../views/ApplicationsView.jsx";
-import { FieldReview } from "../views/OcrReviewView.jsx";
-import { OCR_SAMPLE } from "../fixtures/previews.js";
+import OcrReviewView from "../views/OcrReviewView.jsx";
+import { fixtureAdapter } from "../integrations/documentReview.js";
+import ScorecardView from "../views/ScorecardView.jsx";
+import InboxView from "../views/InboxView.jsx";
+import NewApplication from "../components/NewApplication.jsx";
 import { fakeServer } from "./fakeServer.js";
 import { adoptTokens, clearSession, hasSession } from "../auth/oidc.js";
 
@@ -139,19 +142,107 @@ describe("regional officers", () => {
 });
 
 describe("document review: commit before reveal", () => {
-  it("keeps the machine reading hidden until the officer commits their own", async () => {
+  it("shows only the page image until the officer commits, then reveals the machine reading", async () => {
     const user = userEvent.setup();
-    render(<FieldReview field={OCR_SAMPLE.fields[1]} text={OCR_SAMPLE.text} />);
-    expect(screen.getByText("31-03-2031", { selector: "mark" })).toBeInTheDocument();
-    expect(screen.queryByText("2031-03-31")).toBeNull();
-    const commit = screen.getByRole("button", { name: "Commit my reading" });
-    expect(commit).toBeDisabled();
+    const { container } = render(<OcrReviewView />);
+    expect(await screen.findByRole("img", { name: /Synthetic facsimile/ })).toBeInTheDocument();
+    expect(screen.getByText(/Synthetic facsimile - demo only/)).toBeInTheDocument();
+    // nothing machine-generated anywhere on the screen yet: no values, OCR text, confidence or location boxes
+    const before = container.textContent;
+    for (const leak of ["2031-03-31", "31-03-2031", "2001-04-01", "01-04-2001", "confidence"]) expect(before).not.toContain(leak);
+    expect(container.querySelector(".ocr-box")).toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm facts" })).toBeDisabled();
 
-    await user.type(screen.getByLabelText(/Your reading/), "2031-03-30");
+    const end = screen.getByRole("group", { name: "Lease end date" });
+    const commit = within(end).getByRole("button", { name: "Commit my reading" });
+    expect(commit).toBeDisabled();
+    await user.type(within(end).getByLabelText(/Your reading/), "2031-03-30");
     await user.click(commit);
-    expect(screen.getByText("2031-03-31")).toBeInTheDocument();
-    expect(screen.getByText("Differs - check the document")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Your reading/)).toBeDisabled();
+
+    expect(await within(end).findByText("2031-03-31")).toBeInTheDocument();
+    expect(within(end).getByText("Differs - check the document")).toBeInTheDocument();
+    expect(within(end).getByLabelText(/Your reading/)).toBeDisabled();
+    expect(screen.getByTestId("box-lease_end")).toBeInTheDocument();
+    // the other field is still hidden
+    const start = screen.getByRole("group", { name: "Lease start date" });
+    expect(start.textContent).not.toContain("2001-04-01");
+    expect(screen.queryByTestId("box-lease_start")).toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm facts" })).toBeDisabled(); // no backend to save to
+  });
+
+  it("the adapter itself withholds suggestions until a reading is committed", async () => {
+    const review = await fixtureAdapter.loadReview("SAMPLE-LEASE-001");
+    // the page image is the document itself and may show the dates; nothing else may carry machine output
+    const { pages, ...rest } = review;
+    expect(JSON.stringify(rest)).not.toMatch(/2031|2001|confidence|suggestion|box|sourceText/);
+    expect(Object.keys(pages[0])).toEqual(["imageUrl", "width", "height"]);
+    await expect(fixtureAdapter.commitReading(review.documentId, "lease_end", "")).rejects.toThrow();
+    expect(fixtureAdapter.confirmFact).toBeNull();
+  });
+});
+
+describe("resilience", () => {
+  it("offers a retry for server errors but not for refusals", async () => {
+    let calls = 0;
+    fakeServer({ "GET /api/analytics/scorecard": () => (++calls === 1 ? [500, { detail: "boom" }] : [200, { generated_at: "2026-10-24T10:00:00Z", items: [] }]) });
+    const user = userEvent.setup();
+    render(<ScorecardView who={DEMO_USERS[5]} />);
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/Each line says how it was measured/)).toBeInTheDocument();
+    cleanupRender();
+    fakeServer({ "GET /api/analytics/scorecard": () => [403, { detail: "no" }] });
+    render(<ScorecardView who={SUNRISE} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Not permitted");
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("a double click marks a notification read only once", async () => {
+    let release;
+    const slow = new Promise((r) => { release = () => r([200, {}]); });   // the first request is still in flight
+    const calls = fakeServer({
+      "GET /api/notifications/inbox": [{ id: "n1", alert_id: "a1b2c3d4e5", subject: "Deadline reminder", created_at: "2026-10-24T10:00:00Z", read_at: null }],
+      "POST /api/notifications/inbox/n1/read": () => slow,
+    });
+    const user = userEvent.setup();
+    render(<InboxView who={SUNRISE} />);
+    const button = await screen.findByRole("button", { name: "Mark read" });
+    await user.dblClick(button);
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
+    release();
+  });
+
+  it("shows a failed action instead of failing silently", async () => {
+    fakeServer({
+      "GET /api/notifications/inbox": [{ id: "n1", alert_id: "a1b2c3d4e5", subject: "Deadline reminder", created_at: "2026-10-24T10:00:00Z", read_at: null }],
+      "POST /api/notifications/inbox/n1/read": () => [503, { detail: "down" }],
+    });
+    const user = userEvent.setup();
+    render(<InboxView who={SUNRISE} />);
+    await user.click(await screen.findByRole("button", { name: "Mark read" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/unavailable/);
+  });
+
+  it("a double click creates only one draft", async () => {
+    let release;
+    const slow = new Promise((r) => { release = () => r([201, { id: "x" }]); });
+    const calls = fakeServer({
+      "GET /api/rulesets/aph-2024-27@r1": { routes: [{ category: "NEW_PROGRAMME", label: "New programme", stages: [] }] },
+      "POST /api/applications": () => slow,
+    });
+    const user = userEvent.setup();
+    render(<NewApplication who={SUNRISE} institution={SUNRISE.institution} onChanged={() => {}} />);
+    await screen.findByRole("option", { name: "New programme" });
+    await user.dblClick(screen.getByRole("button", { name: "Create draft" }));
+    const posts = calls.filter((c) => c.method === "POST");
+    expect(posts.length).toBe(1);
+    expect(posts[0].headers["Idempotency-Key"]).toBeTruthy();
+    release();
+  });
+
+  it("has a skip link to the main content", () => {
+    fakeServer({ "GET /api/applications": [], "GET /api/rulesets/aph-2024-27@r1": { routes: [] } });
+    render(<Workspace who={SUNRISE} me={ME(SUNRISE)} config={{ mode: "demo", demo_mode: false }} />);
+    expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#content");
   });
 });
 
