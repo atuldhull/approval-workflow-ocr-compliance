@@ -176,3 +176,88 @@ def test_scorecard_reports_assurance_with_the_ledger_result(client):
     file(client, SUNRISE_H, SUNRISE)
     items = {i["key"]: i for i in client.get("/api/analytics/scorecard", headers=BUREAU).json()["items"]}
     assert items["ledger_integrity"]["result"]["assurance"] == "CHAIN_ONLY"
+
+
+# ---- cache correctness and scale (P3-21) ----
+
+def test_a_region_change_reaches_regional_dashboards_immediately(client):
+    """A case moved to another regional office must not stay visible to its old office from a cache."""
+    from sqlalchemy import text
+    from app.platform.db import get_engine
+    file(client, SUNRISE_H, SUNRISE)
+    assert section(client.get("/api/analytics/dashboard", headers=RO_SOUTH).json(), "applications")["data"]["total"] == 1
+    with get_engine().begin() as c:   # test-only: simulate the workflow module moving the institution
+        c.execute(text(f"UPDATE wf.institution SET ro_region = 'Northern' WHERE id = '{SUNRISE}'"))
+    assert section(client.get("/api/analytics/dashboard", headers=RO_SOUTH).json(), "applications")["data"]["total"] == 0
+    north = {**headers("RO_OFFICER", user="00000000-0000-4000-9000-000000000008"), "X-Demo-Region": "Northern"}
+    assert section(client.get("/api/analytics/dashboard", headers=north).json(), "applications")["data"]["total"] == 1
+
+
+def test_an_empty_system_shows_zero_applications_and_no_invented_figures(client):
+    body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
+    apps = section(body, "applications")
+    assert apps["data"]["total"] == 0 and apps["data"]["by_stage"] == {}
+    for key in ("workload", "evc", "compliance"):
+        assert "data" not in section(body, key)
+
+
+def test_concurrent_requests_while_events_arrive_stay_consistent(client):
+    import threading
+    file(client, SUNRISE_H, SUNRISE)
+    totals, errors = [], []
+
+    def read():
+        try:
+            totals.append(section(client.get("/api/analytics/dashboard", headers=BUREAU).json(),
+                                  "applications")["data"]["total"])
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    threads = [threading.Thread(target=read) for _ in range(6)]
+    for t in threads:
+        t.start()
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    for t in threads:
+        t.join()
+    assert errors == [] and set(totals) <= {1, 2}
+    assert section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "applications")["data"]["total"] == 2
+
+
+def test_dashboard_scale_with_synthetic_events(client, monkeypatch):
+    """300 applications from 3 institutions: one rebuild, then cached; region lookups are per institution."""
+    import time
+    from app.analytics import service
+    from app.intake import service as intake
+    from app.platform.db import unit_of_work
+    from app.platform.registry import port
+    from contracts.enums import Role
+    from contracts.ports import CasePort
+    from contracts.types import Principal
+    from uuid import UUID
+    riverbend = UUID("00000000-0000-4000-8000-000000000003")
+    for i in range(300):
+        inst = (SUNRISE, NORTHFIELD, riverbend)[i % 3]
+        with unit_of_work(Principal(UUID(int=i + 1), Role.INSTITUTION, None, inst)) as uow:
+            intake.create_application(uow, inst, "NEW_PROGRAMME", "2027-28")
+
+    lookups = []
+    real = port(CasePort)
+
+    class Counting:
+        def lookup(self, session, application_id):
+            lookups.append(application_id)
+            return real.lookup(session, application_id)
+
+    monkeypatch.setattr(service, "port", lambda p: Counting() if p is CasePort else port(p))
+    t0 = time.perf_counter()
+    first = client.get("/api/analytics/dashboard", headers=BUREAU).json()
+    t1 = time.perf_counter()
+    rebuild_lookups = len(lookups)
+    lookups.clear()
+    second = client.get("/api/analytics/dashboard", headers=BUREAU).json()
+    t2 = time.perf_counter()
+    assert section(first, "applications")["data"]["total"] == 300 == section(second, "applications")["data"]["total"]
+    assert section(second, "applications")["data"]["by_region"] == {"Southern": 100, "Northern": 100, "Western": 100}
+    assert rebuild_lookups == 300 + 3          # existence check once per application, regions once per institution
+    assert len(lookups) == 3                   # cached: regions only, one per institution
+    print(f"\n[observed] 300 applications: rebuild {t1 - t0:.3f}s, cached {t2 - t1:.3f}s")

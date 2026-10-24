@@ -35,45 +35,74 @@ def _not_available(key: str, title: str, depends_on: str) -> dict:
     return {"key": key, "title": title, "status": "NOT_AVAILABLE", "depends_on": depends_on}
 
 
-CACHE_SECONDS = 60
 _cache: dict = {}
 _cache_lock = threading.Lock()
 
 
 def _projected() -> dict:
-    """Projections plus each application's region, rebuilt only when the event log changed (or after a minute,
-    since regions come from the workflow module). Per process; dashboards are not an integrity check - replay is."""
+    """Event projections, rebuilt only when the event log changed. Per process.
+
+    Only what events determine is cached. Regions are NOT cached: they come from the workflow module and can change
+    without any event, and a stale region would show a case to the wrong regional office (see _regions).
+    The snapshot is REPEATABLE READ, so the cache marker and the events it covers come from one database state.
+    """
     with new_session() as s:
-        s.execute(text("SET TRANSACTION READ ONLY"))
+        s.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
         marker = tuple(s.execute(text(
             "SELECT max(seq), count(*), (SELECT id FROM plat.domain_event ORDER BY seq DESC LIMIT 1) "
             "FROM plat.domain_event")).one())   # the newest event id makes a reset-and-refilled log differ
         with _cache_lock:
-            if _cache.get("marker") == marker and time.monotonic() - _cache["built"] < CACHE_SECONDS:
+            if _cache.get("marker") == marker:
                 s.rollback()
                 return _cache["data"]
         states, _, unhandled, skipped, unreadable = project(
             stored_events(s), {"applications": ApplicationsProjection(), "deadlines": DeadlinesProjection()})
-        region_of: dict[str, str | None] = {}
         cases = port(CasePort)
+        known: set[str] = set()   # applications the workflow module has a case record for
         for app_id in states["applications"]:
             try:
-                region_of[app_id] = cases.lookup(s, UUID(app_id)).region
+                cases.lookup(s, UUID(app_id))
+                known.add(app_id)
             except (NotFound, ValueError):
-                region_of[app_id] = None   # events exist but the workflow module has no such case
+                pass              # events exist but the workflow module has no such case
         s.rollback()
-    data = {"states": states, "unhandled": unhandled, "skipped": skipped, "unreadable": unreadable,
-            "region_of": region_of}
+    data = {"states": states, "unhandled": unhandled, "skipped": skipped, "unreadable": unreadable, "known": known}
     with _cache_lock:
-        _cache.update(marker=marker, built=time.monotonic(), data=data)
+        _cache.update(marker=marker, data=data)
     return data
+
+
+def _regions(apps: dict[str, dict], known: set[str]) -> dict[str, str | None]:
+    """Current region of every application, read now through CasePort: one lookup per institution (all of an
+    institution's cases share its regional office), so a change in the workflow module shows up immediately."""
+    by_institution: dict[str, list[str]] = {}
+    for app_id, a in apps.items():
+        if app_id in known:
+            by_institution.setdefault(a["institution_id"], []).append(app_id)
+    region_of: dict[str, str | None] = dict.fromkeys(apps)
+    cases = port(CasePort)
+    with new_session() as s:
+        s.execute(text("SET TRANSACTION READ ONLY"))
+        for app_ids in by_institution.values():
+            region = None
+            for app_id in app_ids:          # normally the first one answers
+                try:
+                    region = cases.lookup(s, UUID(app_id)).region
+                    break
+                except NotFound:
+                    continue
+            for app_id in app_ids:
+                region_of[app_id] = region
+        s.rollback()
+    return region_of
 
 
 def dashboard(region: str | None) -> dict:
     now: datetime = port(ClockPort).now()
     today: date = now.astimezone(ZoneInfo("Asia/Kolkata")).date()
     p = _projected()
-    states, unhandled, skipped, region_of = p["states"], p["unhandled"], p["skipped"], p["region_of"]
+    states, unhandled, skipped = p["states"], p["unhandled"], p["skipped"]
+    region_of = _regions(states["applications"], p["known"])
     orphans = sum(1 for r in region_of.values() if r is None)
     unreadable = Counter(u["projection"] for u in p["unreadable"])
 
