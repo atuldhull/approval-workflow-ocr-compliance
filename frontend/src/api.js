@@ -1,4 +1,7 @@
-// Demo users. Real sign-in (Keycloak) replaces these; the backend refuses them when DEMO_AUTH=false.
+import { accessToken } from "./auth/oidc.js";
+
+// Demo users - only offered when the backend reports demo sign-in (DEMO_AUTH=true).
+// In real sign-in mode the backend refuses these headers outright.
 export const DEMO_USERS = [
   {
     key: "sunrise",
@@ -15,6 +18,15 @@ export const DEMO_USERS = [
     institution: "00000000-0000-4000-8000-000000000002",
   },
   { key: "scrutiny", label: "Scrutiny committee", user: "00000000-0000-4000-9000-000000000002", role: "SCRUTINY_COMMITTEE" },
+  {
+    key: "ro-southern",
+    label: "Regional officer - Southern",
+    user: "00000000-0000-4000-9000-000000000005",
+    role: "RO_OFFICER",
+    region: "Southern",
+  },
+  { key: "bureau-officer", label: "Bureau officer", user: "00000000-0000-4000-9000-000000000006", role: "BUREAU_OFFICER" },
+  { key: "bureau-head", label: "Bureau head", user: "00000000-0000-4000-9000-000000000007", role: "BUREAU_HEAD" },
   { key: "auditor", label: "Auditor", user: "00000000-0000-4000-9000-000000000003", role: "AUDITOR" },
 ];
 
@@ -25,16 +37,40 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(who, path, { method = "GET", body } = {}) {
+// `who` is either a DEMO_USERS entry or { mode: "oidc", config } for a signed-in user.
+async function identityHeaders(who) {
+  if (who?.mode === "oidc") {
+    const token = await accessToken(who.config);
+    if (!token) throw new ApiError(401, "Your session has ended. Please sign in again.");
+    return { Authorization: `Bearer ${token}` };
+  }
   const headers = { "X-Demo-User": who.user, "X-Demo-Role": who.role };
   if (who.institution) headers["X-Demo-Institution"] = who.institution;
+  if (who.region) headers["X-Demo-Region"] = who.region;
+  return headers;
+}
+
+export async function api(who, path, { method = "GET", body, headers: extra = {} } = {}) {
+  const headers = { ...(await identityHeaders(who)), ...extra };
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   const res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const detail = typeof data?.detail === "string" ? data.detail : JSON.stringify(data?.detail ?? res.statusText);
+    let detail = typeof data?.detail === "string" ? data.detail : JSON.stringify(data?.detail ?? res.statusText);
+    if (res.status === 401) detail = "Your session has ended or is not valid. Please sign in again.";
+    if (res.status === 403) detail = `Not permitted: ${detail}`;
+    if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
     throw new ApiError(res.status, detail);
   }
   return data;
 }
+
+export async function publicApi(path) {
+  const res = await fetch(`/api${path}`);
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return res.json();
+}
+
+// A fresh key per user action; a retry of the same action reuses it (see docs/IDEMPOTENCY.md).
+export const newIdempotencyKey = () => crypto.randomUUID();

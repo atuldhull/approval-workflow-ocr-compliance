@@ -1,7 +1,30 @@
-# Lightweight default: database + backend + frontend.
+# Lightweight default: database + backend + frontend (demo sign-in, local policy engine).
 #   docker compose up --build
-# Heavier services (Keycloak, Cerbos, ClamAV, MinIO) will be added under the "full" profile
-# so laptops only run them when needed:  docker compose --profile full up
+#
+# Optional profiles - laptops only run them when needed:
+#   docker compose --profile worker up            # + notification delivery worker
+#   docker compose --env-file .env.security --profile security --profile worker up
+#                                                 # + Keycloak, Cerbos, Mailpit (local mail sink), real sign-in
+# Everything optional binds to 127.0.0.1 only. All accounts and passwords in infra/ are LOCAL DEMO ONLY.
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-awoc}:${POSTGRES_PASSWORD:-awoc}@db:5432/${POSTGRES_DB:-awoc}
+  APP_ENV: ${APP_ENV:-development}
+  DEMO_MODE: ${DEMO_MODE:-true}
+  DEMO_AUTH: ${DEMO_AUTH:-true}
+  AUTHZ_ENGINE: ${AUTHZ_ENGINE:-local}
+  CERBOS_URL: ${CERBOS_URL:-}
+  OIDC_ISSUER: ${OIDC_ISSUER:-}
+  OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+  OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
+  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-25}
+  AUDIT_SIGNING_KEY_FILE: ${AUDIT_SIGNING_KEY_FILE:-}
+  AUDIT_SIGNING_KEY_ID: ${AUDIT_SIGNING_KEY_ID:-}
+  AUDIT_TRUSTED_KEYS_FILE: ${AUDIT_TRUSTED_KEYS_FILE:-}
+  AUDIT_WITNESS_DIR: ${AUDIT_WITNESS_DIR:-}
+
 services:
   db:
     image: postgres:16-alpine
@@ -22,10 +45,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-awoc}:${POSTGRES_PASSWORD:-awoc}@db:5432/${POSTGRES_DB:-awoc}
-      DEMO_MODE: ${DEMO_MODE:-true}
-      DEMO_AUTH: ${DEMO_AUTH:-true}
+    environment: *backend-env
     ports:
       - "8000:8000"
     volumes:
@@ -33,6 +53,7 @@ services:
       - ./contracts:/srv/contracts
       - ./rulesets:/srv/rulesets
       - ./generator:/srv/generator
+      - ./.secrets:/srv/.secrets:ro
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +71,50 @@ services:
       - frontend_modules:/srv/frontend/node_modules
     depends_on:
       - backend
+
+  notifier:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "app.platform.notifier"]
+    environment: *backend-env
+    volumes:
+      - ./backend:/srv/backend
+      - ./contracts:/srv/contracts
+    depends_on:
+      db:
+        condition: service_healthy
+
+  keycloak:
+    profiles: ["security"]
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm", "--http-port=8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-demo-only-admin}
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8081}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8081}:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+
+  cerbos:
+    profiles: ["security"]
+    image: ghcr.io/cerbos/cerbos:0.40.0
+    command: ["server", "--config=/config/config.yaml"]
+    ports:
+      - "127.0.0.1:${CERBOS_PORT:-3592}:3592"
+    volumes:
+      - ./infra/cerbos/config.yaml:/config/config.yaml:ro
+      - ./infra/cerbos/policies:/policies:ro
+
+  mailpit:
+    profiles: ["security"]
+    image: axllent/mailpit:v1.21.8
+    ports:
+      - "127.0.0.1:8025:8025"   # web UI showing every captured message; nothing leaves the machine
 
 volumes:
   pgdata:

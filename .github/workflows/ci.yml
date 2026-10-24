@@ -32,6 +32,8 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - name: Shared contracts are valid and up to date
         run: python scripts/check_contracts.py
+      - name: Cerbos policies match the policy table
+        run: python scripts/gen_cerbos_policies.py --check
       - name: One migration head per module
         run: python scripts/check_migration_heads.py
       - name: Tests (unit + end-to-end)
