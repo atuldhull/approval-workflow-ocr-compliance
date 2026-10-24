@@ -12,6 +12,9 @@ three approvals.
   never carry case details). `alert_id` is your alert's id; `(alert_id, channel)` is deduplicated.
 - **Acceptance:** an alert created in a transaction that rolls back queues nothing; a committed one shows up in the
   recipient's inbox after `python -m app.platform.notifier --once`.
+- **Delivery semantics you can rely on:** one message per recipient; a refused recipient does not block the others;
+  an outage or misconfiguration dead-letters the message without blaming recipients, and a bureau-head requeue retries
+  only recipients not yet reached. Email and SMS are at-least-once.
 - **Contract:** no.
 
 ## 2. Address alerts to role groups, and escalate vacancies
@@ -61,6 +64,13 @@ The UI already talks to `frontend/src/integrations/documentReview.js`. The API n
 
 - **Needed:** list obligations per institution (kind, title, due date, evidence, state) and a review action, plus events.
   **Then:** the compliance screen leaves preview and the dashboard section becomes available. **Contract:** yes.
+
+## 7b. A read-only view for replay
+
+- **Exists today (disclosed):** `DeadlinesProjection.live()` in `backend/app/analytics/projections.py` runs a
+  read-only `SELECT id, subject_type, subject_id, rule_id, clock_kind, clock_owner, due_date FROM dl.deadline`.
+- **Needed:** approve it as a stable read-only interface, or provide a view (e.g. `dl.v_deadline`) or a port method.
+  **Contract:** yes, if it is a port.
 
 ## 8. Answer keys for the scorecard
 

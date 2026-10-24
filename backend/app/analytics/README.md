@@ -13,5 +13,5 @@ recomputed on every request from the cached projections. Events whose applicatio
 nationally under "Unknown" and make the section PARTIAL; regional views exclude them. An event a projection cannot
 read is skipped and reported (dashboard PARTIAL, replay MISMATCH) instead of failing the request.
 
-Before the cache, dashboards replayed the event log on each request. That is fine for demo volumes. If it becomes slow, persist the
-projections in schema `an` and update them incrementally; the replay check keeps them honest.
+A rebuild still replays the whole log, which is fine for demo volumes. If it becomes slow, persist the projections
+in schema `an` and update them incrementally; the replay check keeps them honest.

@@ -1,8 +1,8 @@
 # Integration matrix (Person 3 view)
 
 State of every point where Person 3's platform meets the other modules, checked against the code on `person-3`
-and the remote branches on 2026-10-24 (`origin/main` and `origin/person-2` unchanged since the scaffold;
-`origin/person-1` added documents only, no code).
+and the remote branches on 2026-10-24, second check after sprint P3-13..18 (`origin/main` and `origin/person-2`
+unchanged since the scaffold; `origin/person-1` added documents and an agent-rules file only, no code or API).
 
 | State | Meaning |
 |---|---|
@@ -23,18 +23,19 @@ and the remote branches on 2026-10-24 (`origin/main` and `origin/person-2` uncha
 | EVC scheduling | **Waiting P1**, Demo only (preview screen) | No EVC API or events | P1 #6 |
 | Deadline status events (met / breached / extended) | **Waiting P2** | Only `dl.deadline_opened` exists; dashboard deadlines section is PARTIAL | P2 #3 |
 | Compliance obligations and evidence | **Waiting P2**, Demo only (preview screen) | No API or events | P2 #7 |
-| OCR facts and confirmation | **Waiting P2**, Demo only | UI enforces commit-before-reveal through `frontend/src/integrations/documentReview.js` with a synthetic facsimile; confirm is disabled | P2 #6 |
+| OCR facts and confirmation | **Platform ready (UI)**, Waiting P2, Demo only | Commit-before-reveal and a working all-or-nothing confirm flow through `frontend/src/integrations/documentReview.js`, tested with injected adapters; with the fixture adapter confirm stays disabled | P2 #6 |
 | Alert creation and escalation | **Waiting P2** | Not built by P2 | P2 #1-2 |
-| Outbox delivery (in-app, email, SMS mock) | **Platform ready** | Worker, retries, dead letters, per-recipient privacy tested (`test_notifier.py`) and checked live with Mailpit; fed only by platform fixtures so far | P2 #1 |
+| Outbox delivery (in-app, email, SMS mock) | **Platform ready** | Worker, retries, dead letters, per-recipient privacy, lease renewal, keyed recipient digests and requeue tested (`test_notifier.py`); checked live with Mailpit; fed only by platform fixtures so far | P2 #1 |
 | Recipient groups and vacancy check | **Platform ready**, Contract approval (C2) | `platform/recipients.py`; `RecipientPort` proposed | P2 #2 |
 | Alert acknowledgement | **Waiting P2** | Inbox button disabled | P2 #5 |
 | Audit events, hash chain, checkpoints | **Integrated** for today's events | `test_audit.py`; local witness is DEMO ONLY | - |
-| Replay completeness | **Integrated** for `wf.application_created/submitted`, `dl.deadline_opened` | Verdict is CONSISTENT_SUBSET as soon as other event types are stored | P1 #4, P2 #3 |
+| Replay completeness | **Integrated** for `wf.application_created/submitted`, `dl.deadline_opened` | Verdict is CONSISTENT_SUBSET as soon as other event types are stored; MISMATCH if a stored event cannot be read | P1 #4, P2 #3 |
+| Replay and dashboard reads of `wf.application` / `dl.deadline` | **Approval needed** | Read-only SQL today, not yet an approved interface | P1 #7, P2 #7b |
 | Frontend: applications, case view, inbox, audit, delivery, scorecard | **Integrated** | `frontend/src/test/app.test.jsx` (25 tests) | - |
 | Frontend: document review, EVC, compliance | **Demo only** | Labelled previews; nothing is saved | P1 #6, P2 #6-7 |
 | Dashboards | **Integrated** for applications, ageing, alert delivery; PARTIAL for deadlines; NOT_AVAILABLE for workload, EVC, compliance | `test_analytics.py` | P1 #4-6, P2 #3, #7 |
 | Scorecard | **Integrated** for ledger, replay, delivery; routing / OCR / alerts NOT_EVALUATED until answer keys exist | `test_analytics.py` | P2 #8 |
-| OpenAPI snapshot | **Contract approval** (C1 committed for review; C5 as a patch) | `docs/proposals/` | - |
+| OpenAPI snapshot | **Contract approval** (C1 committed for review; C5 as a patch, verified to apply and to make the check pass) | `docs/proposals/PERSON3_CONTRACT_CHANGES.md` | - |
 
 ## Time
 

@@ -59,3 +59,12 @@ what is needed, and how we will both know it works. Items marked **contract** ne
   approve action, plus events for request / slot / assignment.
 - **Then:** the EVC preview screen (`frontend/src/views/PreviewViews.jsx`) switches to it, and the dashboard's EVC
   queue section becomes available. **Contract:** yes (OpenAPI and event schemas).
+
+## 7. A read-only view for replay and dashboards
+
+- **Exists today (disclosed):** `ApplicationsProjection.live()` in `backend/app/analytics/projections.py` runs a
+  read-only `SELECT id, institution_id, category, academic_year, status, current_stage, ruleset_rev FROM
+  wf.application` to compare replayed state with yours. It never writes, but it depends on your table layout.
+- **Needed:** either approve that query as a stable read-only interface, or provide a view (e.g.
+  `wf.v_application_status` with those columns) or a port method; I will switch to it.
+- **Acceptance:** renaming a `wf.application` column no longer breaks replay. **Contract:** yes, if it is a port.

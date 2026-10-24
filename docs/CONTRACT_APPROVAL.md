@@ -39,6 +39,18 @@ re-runs it (`synchronize`), so earlier approvals are stale by construction.
 `statuses: write` is the only write scope. It is needed because a `workflow_run` job's own check run is attached to
 the default branch commit, not to the PR, so the result has to be posted explicitly.
 
+## Rolling it out (the first time)
+
+GitHub runs `pull_request_target` and `workflow_run` from the **default branch**, so the new authority only takes
+effect once it is on `main`:
+
+1. The integration PR that brings these workflow files is judged by the **old** workflow still on `main` (its
+   `all-three-approve` job). It changes `.github/`, so get both other teammates to approve its final commit.
+2. After it merges, the first PR that touches `contracts/` produces the new status
+   `contracts-approval/designated-approvals`. Only then can branch protection select it; until then keep
+   `all-three-approve` required as well.
+3. Swap the required check from `all-three-approve` to `contracts-approval/designated-approvals`.
+
 ## Branch protection (repo owner, once)
 
 Settings -> Branches -> rule for `main` (private repositories need GitHub Pro or Team):
@@ -60,6 +72,16 @@ Settings -> Branches -> rule for `main` (private repositories need GitHub Pro or
 | Approval on an old commit, dismissed, or overridden by "changes requested" | Not counted |
 | PR deletes the review-signal workflow | A protected change, so it needs everyone; afterwards, a review **withdrawn** after full approval would not re-trigger the check |
 | **A teammate with write access** pushes any branch with a workflow that posts a fake `success` status on a PR head | **Not prevented.** Every `GITHUB_TOKEN` posts as the same "GitHub Actions" source, so branch protection cannot tell them apart. Code-owner review still has to approve the PR, so this needs a teammate acting in bad faith. |
+
+### Review-event limitations
+
+- A review only re-triggers the check through `workflow_run`, which GitHub fires only when the triggered workflow
+  exists on the default branch, and only for completed runs of the signal workflow. If GitHub delays or drops that
+  event, the status stays as it was; pushing a commit or re-requesting review re-runs it.
+- For fork PRs GitHub does not list the PR on the `workflow_run` payload; the authority matches open PRs by head
+  commit instead (tested with a fake client, not yet on GitHub).
+- None of this has run on GitHub yet. Treat it as unverified until the first real PR shows the status reacting
+  to an approval and to a dismissal.
 
 Closing the last row needs a status source a workflow cannot impersonate: a dedicated GitHub App whose private
 key is stored as an **environment secret** limited to `main` (environment branch policies on a private repo need

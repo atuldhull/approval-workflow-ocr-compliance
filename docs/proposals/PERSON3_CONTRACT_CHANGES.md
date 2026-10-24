@@ -11,6 +11,25 @@ Items are independent and can be approved one by one.
 | C5 | OpenAPI snapshot: `POST /api/audit/checkpoints/publish`, and `status` + `publish_error` on `CheckpointOut`. Nothing existing changes. | `contracts/openapi.json` | Recoverable checkpoint publication (docs/AUDIT.md) | **Not applied** - exact patch in `docs/proposals/openapi-checkpoint-publication.patch` (`git apply` it in the integration PR). Until then `check_contracts.py` reports the snapshot as out of date on `person-3`. |
 | C4 | `Idempotency-Key` header on application create and submit | `contracts/openapi.json` (after Person 1 applies the patch in `docs/IDEMPOTENCY.md`) | Safe retries | Waiting for Person 1 |
 
+## How to approve and apply C5
+
+C5 adds one endpoint (`POST /api/audit/checkpoints/publish`) and two fields on `CheckpointOut` (`status`,
+`publish_error`); nothing existing changes. Checked on 2026-10-24: `git apply --check` passes, and with the patch
+applied in a scratch worktree `python scripts/check_contracts.py` prints `contracts ok`.
+
+1. On the integration branch (not `person-3`):
+   ```bash
+   git apply docs/proposals/openapi-checkpoint-publication.patch
+   python scripts/check_contracts.py          # must print: contracts ok
+   git add contracts/openapi.json
+   git commit -m "Refresh OpenAPI snapshot for checkpoint publication"
+   ```
+2. If the API changed again since, regenerate instead (`python scripts/check_contracts.py --write`) and review the
+   diff - the patch is the reviewed version.
+3. Open the PR; the contract-approval status needs both teammates other than the author on the final commit.
+
+Until C5 is applied, `check_contracts.py` fails on `person-3`. That is expected and must not be disabled.
+
 ## C2 - RecipientPort
 
 ```python
