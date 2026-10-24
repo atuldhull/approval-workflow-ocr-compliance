@@ -106,6 +106,21 @@ class IdempotencyRecord(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class Checkpoint(Base):
+    """A signed statement of the ledger head. The trusted copy lives outside the database (the witness)."""
+    __tablename__ = "checkpoint"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    head_seq: Mapped[int] = mapped_column(BigInteger)
+    head_hash: Mapped[str] = mapped_column(Text)
+    entry_count: Mapped[int] = mapped_column(BigInteger)
+    key_id: Mapped[str] = mapped_column(Text)
+    statement: Mapped[str] = mapped_column(Text)     # the exact canonical JSON that was signed
+    signature: Mapped[str] = mapped_column(Text)     # base64 Ed25519
+
+
 class DeliveryAttempt(Base):
     """Every try to deliver an outbox row: when, which worker, and how it ended."""
     __tablename__ = "delivery_attempt"

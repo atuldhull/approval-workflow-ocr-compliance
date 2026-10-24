@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.platform.audit_api import router as audit_router
 from app.platform.auth import current_principal
 from app.platform.db import new_session
 from app.platform.models import DomainEvent
@@ -15,6 +16,7 @@ from contracts.types import Principal, ResourceRef
 
 router = APIRouter(tags=["audit"])
 router.include_router(notifications_router)
+router.include_router(audit_router)
 
 
 class TimelineEvent(BaseModel):
