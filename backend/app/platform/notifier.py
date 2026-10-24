@@ -18,6 +18,7 @@ import logging
 import os
 import random
 import socket
+import hmac
 import threading
 from hashlib import sha256
 from collections.abc import Callable
@@ -25,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.platform.db import new_session
@@ -131,34 +132,49 @@ class Notifier:
         done = recipient_outcomes(c.id)
         failures: list[DeliveryError] = []
         ref = None
+        state: dict[str, str] = {}
         for address in addresses:
             key = recipient_key(c.id, address)
-            if key in done:
+            previous = done.get(key) or done.get(legacy_recipient_key(c.id, address))
+            if previous:
+                state[address] = previous
                 continue
+            if not self._renew_lease(c):
+                # another worker took the message over; stop so we do not send alongside it
+                return TRANSIENT, "LEASE_LOST", ref
             try:
                 ref = provider.send(Message(c.id, c.alert_id, c.channel, c.template, (address,), c.attempts))
             except DeliveryError as e:
-                if e.category == PERMANENT:
+                if e.per_recipient:
                     record_recipient(c.id, key, "REFUSED")
-                    done[key] = "REFUSED"
-                failures.append(e)
-                continue
+                    state[address] = "REFUSED"
+                    failures.append(e)
+                    continue
+                # a message- or provider-level failure (not configured, unknown template, 5xx, outage):
+                # trying the remaining recipients cannot help, and no recipient is blamed for it
+                return e.category, e.reason, ref
             except Exception as e:  # noqa: BLE001 - an unexpected provider bug must not lose the message
                 # log the type only: provider exception text can contain addresses
                 log.error("provider error for outbox %s: %s", c.id, type(e).__name__)
-                failures.append(DeliveryError(AMBIGUOUS, "PROVIDER_ERROR"))
-                continue
+                return AMBIGUOUS, "PROVIDER_ERROR", ref
             record_recipient(c.id, key, DELIVERED)
-            done[key] = DELIVERED
-        retryable = [f for f in failures if f.category != PERMANENT]
-        if retryable:
-            return retryable[0].category, retryable[0].reason, ref
-        refused = sum(1 for v in done.values() if v == "REFUSED")
+            state[address] = DELIVERED
+        refused = sum(1 for v in state.values() if v == "REFUSED")
         if refused == len(addresses):
-            return PERMANENT, failures[0].reason if failures else "ALL_RECIPIENTS_REFUSED", ref
+            return PERMANENT, "ALL_RECIPIENTS_REFUSED", ref
         if refused:
             return PERMANENT, "SOME_RECIPIENTS_REFUSED", ref   # the others got it; dead-lettered for a person to look at
         return DELIVERED, None, ref
+
+    def _renew_lease(self, c: Claimed) -> bool:
+        """Extends this worker's lease before each send; False if another worker has taken the message over."""
+        now = self.now()
+        with new_session() as s:
+            r = s.execute(update(Outbox).where(Outbox.id == c.id, Outbox.claimed_by == self.worker_id,
+                                               Outbox.status == "SENDING", Outbox.lease_until >= now)
+                          .values(lease_until=now + self.lease))
+            s.commit()
+            return bool(r.rowcount)
 
     def _deliver_in_app(self, c: Claimed, started: datetime) -> None:
         try:
@@ -214,8 +230,26 @@ class Notifier:
 
 
 def recipient_key(outbox_id: UUID, address: str) -> str:
-    """Salted per message, so the stored value cannot be matched across messages without the address itself."""
+    """Keyed digest (HMAC-SHA256) of (message, address).
+
+    A plain hash of a known message id and a guessable address can be confirmed by anyone who can read the table,
+    even after the address itself was erased from personal_data. The key lives in configuration, not the database.
+    The "h1:" prefix versions the scheme; older unkeyed rows are still recognised (legacy_recipient_key).
+    """
+    digest = hmac.new(recipient_secret(), f"{outbox_id}:{address}".encode(), sha256).hexdigest()
+    return f"h1:{digest}"
+
+
+def legacy_recipient_key(outbox_id: UUID, address: str) -> str:
+    """Unkeyed digest written before h1; read-only, so in-flight retries still skip recipients already reached."""
     return sha256(f"{outbox_id}:{address}".encode()).hexdigest()
+
+
+DEV_RECIPIENT_KEY = b"development-only-recipient-key"   # never used when APP_ENV=production (settings refuse)
+
+
+def recipient_secret() -> bytes:
+    return settings.notify_recipient_key.encode() if settings.notify_recipient_key else DEV_RECIPIENT_KEY
 
 
 def recipient_outcomes(outbox_id: UUID) -> dict[str, str]:
@@ -232,10 +266,16 @@ def record_recipient(outbox_id: UUID, key: str, outcome: str) -> None:
 
 
 def requeue(outbox_id: UUID, now: datetime) -> bool:
-    """Operator action: give a dead message a fresh set of attempts."""
+    """Operator action: give a dead message a fresh set of attempts.
+
+    Recipients that were refused get another try (the operator presumably fixed something); recipients already
+    reached are not sent the message again."""
     with new_session() as s:
         r = s.execute(update(Outbox).where(Outbox.id == outbox_id, Outbox.status == "DEAD").values(
             status="PENDING", attempts=0, next_attempt_at=now, dead_at=None, last_error=None))
+        if r.rowcount:
+            s.execute(delete(DeliveryRecipient).where(DeliveryRecipient.outbox_id == outbox_id,
+                                                      DeliveryRecipient.outcome == "REFUSED"))
         s.commit()
         return bool(r.rowcount)
 

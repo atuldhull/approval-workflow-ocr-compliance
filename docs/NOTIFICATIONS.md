@@ -29,14 +29,29 @@ outbox row PENDING --claim (lease)--> SENDING --send ok--------------------> DEL
 - **Dead letters** are listed at `GET /api/notifications/outbox?status=DEAD`; the bureau head can requeue one with
   `POST /api/notifications/outbox/{id}/retry`.
 - **One message per recipient:** email and SMS go to each recipient separately, so nobody sees another recipient's
-  address. Each recipient's result is stored as a salted SHA-256 of (message id, address) in
-  `plat.delivery_recipient`, never the address. A retry only goes to recipients not yet reached; a recipient the
+  address. Each recipient's result is stored in `plat.delivery_recipient` as a keyed digest
+  (HMAC-SHA256 with `NOTIFY_RECIPIENT_KEY`, prefix `h1:`) of (message id, address), never the address. A retry only goes to recipients not yet reached; a recipient the
   provider refused is not retried. If some recipients are refused and the rest delivered, the message is DEAD with
   `SOME_RECIPIENTS_REFUSED` for a person to look at.
 - **Metrics:** `GET /api/notifications/health` shows counts by status and channel, the age of the oldest undelivered
   message, attempt outcomes in the last 24 hours, `first_try_success_rate_24h` (share of messages whose very first
   attempt in the window delivered; a manual requeue does not create a new first try) and `delivered_after_retry_24h`.
 - Provider errors are logged by type only; provider text can contain addresses.
+- **Only a recipient-specific refusal marks a recipient.** A message- or provider-level failure (not configured,
+  unknown template, SMTP 5xx after the data, outage) stops the run for the whole message and blames nobody.
+- **Lease renewal:** before each recipient the worker extends its lease; if another worker has taken the message
+  over, it stops instead of sending alongside it.
+- **Requeue** (bureau head) gives refused recipients a fresh try and never resends to recipients already reached.
+
+### Recipient digest key
+
+A plain hash of a known message id and a guessable address could be confirmed by anyone able to read the table,
+even after the address was erased from `personal_data`. The digest is therefore keyed. `NOTIFY_RECIPIENT_KEY`
+(32+ characters, from a secret store) is required when `APP_ENV=production`; development falls back to a fixed,
+documented key. Compatibility: rows written before this change hold an unkeyed SHA-256; they are still read, so
+in-flight retries do not resend to recipients already reached, but nothing new is written that way. No migration
+is needed. Rotating the key makes earlier rows unmatchable, so rotate only when no message is mid-retry, or accept
+that such messages may reach a recipient twice (at-least-once).
 - The worker also purges expired idempotency keys once an hour.
 
 ## Delivery guarantees - what is and is not promised

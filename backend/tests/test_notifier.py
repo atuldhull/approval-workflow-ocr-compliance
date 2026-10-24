@@ -347,7 +347,7 @@ def test_a_retry_only_goes_to_recipients_not_yet_reached(env):
 
 def test_a_refused_recipient_dead_letters_the_message_without_resending_to_the_others(env):
     clock = Clock()
-    fake = FakeProvider(script=[None, PERMANENT])
+    fake = FakeProvider(script=[None, "REFUSED"])
     alert = enqueue(ref=two_member_group())
     worker(fake, clock).run_once()
     r = row(alert)
@@ -403,3 +403,109 @@ def test_a_requeued_message_is_not_counted_as_a_new_first_try(env):
     w.run_once()                                            # delivered; attempt_no restarts at 1
     h = health(clock())
     assert (h["first_tries_24h"], h["first_try_success_rate_24h"]) == (1, 0.0)
+
+
+# ---- reliability and privacy (P3-16) ----
+
+def test_a_worker_that_lost_its_lease_stops_sending(env):
+    clock = Clock()
+    alert = enqueue(ref=two_member_group())
+    slow_provider = FakeProvider()
+    slow = worker(slow_provider, clock, name="slow")
+    (claim,) = slow.claim()
+    clock.tick(61)
+    assert len(worker(FakeProvider(), clock, name="taker").claim()) == 1   # taken over, still in progress
+    slow.deliver(claim)
+    assert slow_provider.sent == []
+    assert [a.outcome for a in attempts(alert)] == ["TRANSIENT_LEASE_LOST"]
+
+
+def test_the_lease_is_renewed_while_a_long_message_is_being_sent(env):
+    clock = Clock()
+    alert = enqueue(ref=two_member_group())
+
+    class Slow(FakeProvider):
+        def send(self, msg):
+            clock.tick(50)            # each send takes most of a 60 s lease
+            return super().send(msg)
+
+    provider = Slow()
+    worker(provider, clock).run_once()
+    assert len(provider.sent) == 2 and row(alert).status == "DELIVERED"
+
+
+def test_a_provider_wide_failure_blames_no_recipient_and_requeue_recovers(env):
+    from app.platform.notifier import requeue
+    clock = Clock()
+    alert = enqueue(ref=two_member_group())
+    Notifier({"email": SmtpProvider("", 25, "x@awoc.example.invalid")}, worker_id="w", now=clock, max_attempts=3).run_once()
+    assert (row(alert).status, row(alert).last_error) == ("DEAD", "NOT_CONFIGURED")
+    requeue(row(alert).id, clock())
+    fixed = FakeProvider()
+    clock.tick(5)
+    worker(fixed, clock).run_once()
+    assert len(fixed.sent) == 2 and row(alert).status == "DELIVERED"
+
+
+def test_requeue_retries_refused_recipients_but_never_resends_to_reached_ones(env):
+    from app.platform.notifier import requeue
+    clock = Clock()
+    alert = enqueue(ref=two_member_group())
+    first = FakeProvider(script=[None, "REFUSED"])
+    worker(first, clock).run_once()
+    assert row(alert).last_error == "SOME_RECIPIENTS_REFUSED"
+    requeue(row(alert).id, clock())
+    clock.tick(5)
+    second = FakeProvider()
+    worker(second, clock).run_once()
+    assert row(alert).status == "DELIVERED"
+    assert len(second.sent) == 1 and second.sent[0].addresses != first.sent[0].addresses
+
+
+def test_a_message_level_failure_stops_before_the_other_recipients(env):
+    fake = FakeProvider(script=[PERMANENT])
+    alert = enqueue(ref=two_member_group())
+    worker(fake).run_once()
+    assert (row(alert).status, row(alert).last_error, len(fake.sent)) == ("DEAD", "SCRIPTED_PERMANENT", 0)
+    from app.platform.models import DeliveryRecipient
+    with new_session() as s:
+        assert s.scalar(select(func.count()).select_from(DeliveryRecipient)) == 0   # nobody marked refused
+
+
+def test_recipient_records_are_keyed_digests(env, monkeypatch):
+    from app.platform import notifier
+    from app.platform.models import DeliveryRecipient
+    enqueue(ref=two_member_group())
+    worker().run_once()
+    with new_session() as s:
+        keys = s.scalars(select(DeliveryRecipient.recipient_key)).all()
+    assert keys and all(k.startswith("h1:") for k in keys)
+    oid = UUID(int=1)
+    a = notifier.recipient_key(oid, "x@awoc.example.invalid")
+    monkeypatch.setattr(notifier, "settings", __import__("dataclasses").replace(notifier.settings, notify_recipient_key="k" * 32))
+    assert notifier.recipient_key(oid, "x@awoc.example.invalid") != a       # depends on the configured key
+    assert notifier.legacy_recipient_key(oid, "x@awoc.example.invalid") not in (a,)
+
+
+def test_rows_written_before_keyed_digests_still_prevent_resends(env):
+    from app.platform.notifier import legacy_recipient_key, record_recipient
+    clock = Clock()
+    alert = enqueue(ref=two_member_group())
+    oid = row(alert).id
+    record_recipient(oid, legacy_recipient_key(oid, "officer11@awoc.example.invalid"), "DELIVERED")
+    fake = FakeProvider()
+    worker(fake, clock).run_once()
+    assert [m.addresses for m in fake.sent] == [("officer12@awoc.example.invalid",)]
+
+
+def test_production_requires_a_recipient_key():
+    from dataclasses import replace
+    from app.platform.settings import problems, settings
+    found = problems(replace(settings, app_env="production", notify_recipient_key=""))
+    assert any("NOTIFY_RECIPIENT_KEY" in p for p in found)
+
+
+def test_delivery_operations_are_refused_to_case_roles(env):
+    for h in (headers("SCRUTINY_COMMITTEE"), {**headers("RO_OFFICER"), "X-Demo-Region": "Southern"}):
+        assert env.get("/api/notifications/health", headers=h).status_code == 403
+        assert env.get("/api/notifications/outbox", headers=h).status_code == 403

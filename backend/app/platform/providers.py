@@ -30,9 +30,12 @@ TEMPLATES: dict[str, tuple[str, str]] = {
 
 
 class DeliveryError(Exception):
-    def __init__(self, category: str, reason: str):
+    """per_recipient: the failure concerns this one recipient (e.g. mailbox refused), not the message or provider.
+    Only such failures mark a recipient as refused; anything else stops the run for the whole message."""
+
+    def __init__(self, category: str, reason: str, per_recipient: bool = False):
         super().__init__(f"{category}: {reason}")
-        self.category, self.reason = category, reason
+        self.category, self.reason, self.per_recipient = category, reason, per_recipient
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,7 @@ class SmtpProvider:
                 handed_over = True  # from here on a failure may be after the server accepted the message
                 s.send_message(email)
         except smtplib.SMTPRecipientsRefused:
-            raise DeliveryError(PERMANENT, "RECIPIENT_REFUSED") from None
+            raise DeliveryError(PERMANENT, "RECIPIENT_REFUSED", per_recipient=True) from None
         except smtplib.SMTPResponseException as e:
             raise DeliveryError(PERMANENT if 500 <= e.smtp_code < 600 else TRANSIENT, f"SMTP_{e.smtp_code}") from None
         except (socket.timeout, TimeoutError, smtplib.SMTPServerDisconnected):
@@ -117,7 +120,8 @@ class MockSmsProvider:
 
 
 class FakeProvider:
-    """Deterministic provider for tests: plays back a scripted list of outcomes (None = delivered)."""
+    """Deterministic provider for tests: plays back a scripted list of outcomes per send.
+    None = delivered; "REFUSED" = this recipient refused; TRANSIENT / PERMANENT / AMBIGUOUS = message-level."""
 
     def __init__(self, name: str = "fake", script: list[str | None] | None = None):
         self.name = name
@@ -127,6 +131,8 @@ class FakeProvider:
     def send(self, msg: Message) -> str | None:
         render(msg.template, msg.alert_id)
         outcome = self.script.pop(0) if self.script else None
+        if outcome == "REFUSED":   # this recipient is refused; other recipients are unaffected
+            raise DeliveryError(PERMANENT, "SCRIPTED_REFUSED", per_recipient=True)
         if outcome is not None:
             raise DeliveryError(outcome, f"SCRIPTED_{outcome}")
         self.sent.append(msg)

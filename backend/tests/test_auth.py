@@ -369,7 +369,8 @@ def test_cerbos_engine_applies_the_assignment_guard_before_asking(monkeypatch):
 def test_production_keeps_the_assignment_guard_on():
     found = problems(replace(settings, app_env="production", demo_auth=False, demo_mode=False, authz_engine="cerbos",
                              cerbos_url="http://c", oidc_issuer="https://i", oidc_audience="a",
-                             oidc_jwks_url="https://i/certs", authz_require_assignment=False))
+                             oidc_jwks_url="https://i/certs", notify_recipient_key="k" * 32,
+                             authz_require_assignment=False))
     assert found == ["AUTHZ_REQUIRE_ASSIGNMENT must stay on in production until case assignments exist"]
 
 

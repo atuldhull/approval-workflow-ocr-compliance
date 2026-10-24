@@ -52,6 +52,7 @@ class Settings:
     smtp_port: int = 25
     smtp_from: str = "no-reply@awoc.example.invalid"
     smtp_starttls: bool = False
+    notify_recipient_key: str = ""          # HMAC key for per-recipient delivery records; required in production
     # audit checkpoints
     audit_signing_key_file: str = ""        # Ed25519 private key (PEM); never committed
     audit_signing_key_id: str = ""
@@ -93,6 +94,7 @@ def load_settings() -> Settings:
         smtp_port=_int("SMTP_PORT", 25),
         smtp_from=os.environ.get("SMTP_FROM", "no-reply@awoc.example.invalid"),
         smtp_starttls=_flag("SMTP_STARTTLS", "false"),
+        notify_recipient_key=os.environ.get("NOTIFY_RECIPIENT_KEY", ""),
         audit_signing_key_file=os.environ.get("AUDIT_SIGNING_KEY_FILE", ""),
         audit_signing_key_id=os.environ.get("AUDIT_SIGNING_KEY_ID", ""),
         audit_trusted_keys_file=os.environ.get("AUDIT_TRUSTED_KEYS_FILE", ""),
@@ -112,6 +114,8 @@ def problems(s: Settings) -> list[str]:
             found.append("DEMO_MODE must be false in production")
         if s.authz_engine != "cerbos":
             found.append("AUTHZ_ENGINE must be cerbos in production")
+        if len(s.notify_recipient_key) < 32:
+            found.append("NOTIFY_RECIPIENT_KEY (32+ characters) is required in production")
         if not s.authz_require_assignment:
             found.append("AUTHZ_REQUIRE_ASSIGNMENT must stay on in production until case assignments exist")
     if not s.demo_auth:
