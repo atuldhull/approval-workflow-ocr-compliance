@@ -1,38 +1,55 @@
-# CODEOWNERS accepts approval from any ONE listed owner. Changes to contracts/ need the whole team,
-# so this check fails until both team members other than the author have approved.
+# CODEOWNERS accepts approval from any ONE listed owner. Changes to contracts/ need the whole team:
+# both teammates other than the author (all three if the author is outside the team), each approving
+# the CURRENT head commit. The decision logic is .github/scripts/contract-approval.js.
+#
+# Security:
+# - Never checks out or runs pull-request code. Only the decision script is checked out, from the BASE branch.
+# - Token is read-only (contents + pull-requests).
+# - pull_request_target uses this file as it exists on the base branch, so a pull request cannot weaken
+#   the rule for itself on that trigger. Review events run the pull request's copy of this file; see
+#   docs/CONTRACT_APPROVAL.md for the remaining risk and the branch-protection settings that go with it.
 name: contracts-approval
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   pull_request_review:
-    types: [submitted, dismissed]
+    types: [submitted, dismissed, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: contracts-approval-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   all-three-approve:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
     steps:
-      - uses: actions/github-script@v7
+      - name: Check out the decision script from the base branch only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Evaluate designated approvals
+        uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
-            const base = { owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number };
-            const files = await github.paginate(github.rest.pulls.listFiles, base);
-            if (!files.some(f => f.filename.startsWith("contracts/"))) {
-              core.info("No changes under contracts/.");
-              return;
-            }
-            const reviews = await github.paginate(github.rest.pulls.listReviews, base);
-            const latest = {};
-            for (const r of reviews) {
-              if (["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) latest[r.user.login] = r.state;
-            }
-            const approvers = Object.keys(latest).filter(u => latest[u] === "APPROVED" && u !== pr.user.login);
-            const needed = 2;
-            if (approvers.length < needed) {
-              core.setFailed(`contracts/ changed: needs approval from both other team members (have ${approvers.length} of ${needed}).`);
-            } else {
-              core.info(`Approved by ${approvers.join(", ")}.`);
-            }
+            const { evaluate } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/contract-approval.js`);
+            const base = { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.payload.pull_request.number };
+            // Re-read the pull request: the event payload can be older than the current head.
+            const { data: pr } = await github.rest.pulls.get(base);
+            const files = await github.paginate(github.rest.pulls.listFiles, { ...base, per_page: 100 });
+            const reviews = await github.paginate(github.rest.pulls.listReviews, { ...base, per_page: 100 });
+            const result = evaluate({
+              author: pr.user.login, headSha: pr.head.sha, files, changedFiles: pr.changed_files, reviews,
+            });
+            if (result.files.length) core.info(`Protected files: ${result.files.join(", ")}`);
+            await core.summary.addHeading("Contract approval").addRaw(result.message).write();
+            if (result.ok) core.info(result.message);
+            else core.setFailed(result.message);
