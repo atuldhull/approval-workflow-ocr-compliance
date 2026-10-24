@@ -52,6 +52,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: No high-severity advisories in production dependencies
+        run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - run: npm run build
 

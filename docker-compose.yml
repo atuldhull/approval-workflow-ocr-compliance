@@ -33,7 +33,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-awoc}
       POSTGRES_DB: ${POSTGRES_DB:-awoc}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -47,7 +47,7 @@ services:
       dockerfile: backend/Dockerfile
     environment: *backend-env
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"   # demo sign-in: never expose beyond this machine
     volumes:
       - ./backend:/srv/backend
       - ./contracts:/srv/contracts
@@ -65,7 +65,7 @@ services:
     environment:
       VITE_API_TARGET: http://backend:8000
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"   # Vite dev server: local use only
     volumes:
       - ./frontend:/srv/frontend
       - frontend_modules:/srv/frontend/node_modules

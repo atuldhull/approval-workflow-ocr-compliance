@@ -1,0 +1,141 @@
+--- a/contracts/openapi.json
++++ b/contracts/openapi.json
+@@ -248,6 +248,21 @@
+           "key_id": {
+             "title": "Key Id",
+             "type": "string"
++          },
++          "publish_error": {
++            "anyOf": [
++              {
++                "type": "string"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Publish Error"
++          },
++          "status": {
++            "title": "Status",
++            "type": "string"
+           }
+         },
+         "required": [
+@@ -255,7 +270,9 @@
+           "created_at",
+           "head_seq",
+           "entry_count",
+-          "key_id"
++          "key_id",
++          "status",
++          "publish_error"
+         ],
+         "title": "CheckpointOut",
+         "type": "object"
+@@ -1667,6 +1684,105 @@
+         ]
+       }
+     },
++    "/api/audit/checkpoints/publish": {
++      "post": {
++        "description": "Recovery: hand checkpoints left PENDING to the witness (same signed copy, never re-signed).",
++        "operationId": "publish_api_audit_checkpoints_publish_post",
++        "parameters": [
++          {
++            "in": "header",
++            "name": "x-demo-user",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-User"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-role",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "$ref": "#/components/schemas/Role"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Role"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-institution",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Institution"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-region",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Region"
++            }
++          }
++        ],
++        "responses": {
++          "200": {
++            "content": {
++              "application/json": {
++                "schema": {}
++              }
++            },
++            "description": "Successful Response"
++          },
++          "422": {
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/HTTPValidationError"
++                }
++              }
++            },
++            "description": "Validation Error"
++          }
++        },
++        "summary": "Publish",
++        "tags": [
++          "audit",
++          "audit"
++        ]
++      }
++    },
+     "/api/audit/replay": {
+       "post": {
+         "description": "Rebuilds every registered projection from events (read-only) and compares it with the live tables.",

@@ -8,6 +8,7 @@ Items are independent and can be approved one by one.
 | C1 | OpenAPI snapshot gains 13 new endpoints (auth, notifications, audit, analytics). Existing operations are unchanged. | `contracts/openapi.json` | The snapshot must match the served API, otherwise CI fails | Separate commit on `person-3`, ready to review |
 | C2 | `RecipientPort` (resolve a role to an opaque group id; check for a vacancy) and `FakeRecipients` | `contracts/ports.py`, `contracts/fakes.py` | Lets Person 2 address alerts by role without contact details; matches Person 2's interface resolution note | Proposal; implementation exists in `platform/recipients.py` |
 | C3 | `ResourceRef` gains `stage: Stage \| None = None` and `assigned_to: tuple[UUID, ...] = ()` | `contracts/types.py`, `fakes.py` | Policy cannot check stage or committee assignment without them | Proposal; policy and Cerbos generator would add the rules in the same PR |
+| C5 | OpenAPI snapshot: `POST /api/audit/checkpoints/publish`, and `status` + `publish_error` on `CheckpointOut`. Nothing existing changes. | `contracts/openapi.json` | Recoverable checkpoint publication (docs/AUDIT.md) | **Not applied** - exact patch in `docs/proposals/openapi-checkpoint-publication.patch` (`git apply` it in the integration PR). Until then `check_contracts.py` reports the snapshot as out of date on `person-3`. |
 | C4 | `Idempotency-Key` header on application create and submit | `contracts/openapi.json` (after Person 1 applies the patch in `docs/IDEMPOTENCY.md`) | Safe retries | Waiting for Person 1 |
 
 ## C2 - RecipientPort
