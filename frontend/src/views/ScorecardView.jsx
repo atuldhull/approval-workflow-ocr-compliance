@@ -55,7 +55,7 @@ export default function ScorecardView({ who }) {
           const [kindTone, label] = KIND[item.kind] ?? ["neutral", item.kind];
           const tone = outcomeTone(item) ?? kindTone;
           return (
-            <Card key={item.key} title={item.title}>
+            <Card key={item.key} title={item.title} className={`score tone-${tone}`}>
               <p>
                 <Badge tone={tone}>{label}</Badge>
               </p>

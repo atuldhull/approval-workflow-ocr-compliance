@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import LedgerChamber from "../components/LedgerChamber.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 
 // Each layer reports what it actually proves. Green appears only for a layer that is fully verified; the headline
@@ -147,8 +148,9 @@ export default function AuditView({ who, me }) {
         {copied && <span className="muted small" role="status"> {copied}</span>}
       </div>
       <ErrorBox error={actionError} />
+      <LedgerChamber chain={chain.data} verify={v} />
 
-      <div className="grid cards">
+      <div className="grid cards audit-layers">
         <Card title="1. Hash chain" actions={<button className="secondary small" onClick={() => { chain.reload(); verify.reload(); }}>Re-check</button>}>
           {chain.loading && !chain.data && <Loading />}
           <ErrorBox error={chain.error} />

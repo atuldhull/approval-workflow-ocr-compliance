@@ -6,6 +6,7 @@ const OVERSIGHT = ["AUDITOR", "BUREAU_OFFICER", "BUREAU_HEAD"];
 const EVERYONE = ["INSTITUTION", ...OFFICERS, "AUDITOR"];
 
 export const NAV = [
+  { key: "overview", label: "Overview", roles: ["INSTITUTION"] },
   { key: "dashboard", label: "Dashboard", roles: [...OFFICERS, "AUDITOR"] },
   { key: "applications", label: "Cases", institutionLabel: "My applications", roles: EVERYONE },
   { key: "inbox", label: "Inbox", roles: EVERYONE },
@@ -34,3 +35,9 @@ export const ROLE_LABELS = {
 };
 
 export const humanise = (s) => (s ? s.replaceAll("_", " ").toLowerCase() : "");
+
+const ACRONYMS = /\b(aicte|evc|shc|eoa|aph|nri|ro|ec)\b/g;
+export const sentence = (s) => {
+  const h = humanise(s)?.replace(ACRONYMS, (m) => m.toUpperCase());
+  return h ? h[0].toUpperCase() + h.slice(1) : h;
+};

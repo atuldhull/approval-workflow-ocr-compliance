@@ -1,13 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { prefersReducedMotion } from "../motion.js";
 import ApplicationList from "../components/ApplicationList.jsx";
 import CaseDetail from "../components/CaseDetail.jsx";
 import NewApplication from "../components/NewApplication.jsx";
-import { ErrorBox, Loading, NotAvailable, useApi } from "../components/ui.jsx";
+import { Empty, ErrorBox, Loading, NotAvailable, useApi } from "../components/ui.jsx";
 
-export default function ApplicationsView({ who, me }) {
+export default function ApplicationsView({ who, me, focusCase }) {
   const { data: apps, error, loading, reload } = useApi(who, "/applications");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(focusCase ?? null);
   const [version, setVersion] = useState(0);
+  const detailRef = useRef(null);
+
+  // When the list and the case are stacked (narrow screens), the case opens below the list: bring it into view.
+  const pendingScroll = useRef(false);
+  const choose = (id) => {
+    setSelected(id);
+    pendingScroll.current = window.innerWidth <= 1100;
+  };
+  // Scroll once the case has loaded: before that the page is too short to bring it to the top.
+  const caseLoaded = () => {
+    if (!pendingScroll.current) return;
+    pendingScroll.current = false;
+    requestAnimationFrame(() => detailRef.current?.scrollIntoView?.({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" }));
+  };
 
   useEffect(() => {
     const onClock = () => setVersion((v) => v + 1);
@@ -25,7 +40,7 @@ export default function ApplicationsView({ who, me }) {
   const regionalPending = error?.status === 403 && me.role === "RO_OFFICER";
 
   return (
-    <div className="grid two">
+    <div className="grid two cases-layout">
       <div>
         {me.role === "INSTITUTION" && <NewApplication who={who} institution={me.institution_id} onChanged={changed} />}
         {loading && !apps && <Loading what="Loading applications" />}
@@ -37,13 +52,15 @@ export default function ApplicationsView({ who, me }) {
         ) : (
           <ErrorBox error={error} />
         )}
-        {apps && <ApplicationList apps={apps} selected={selected} onSelect={setSelected} />}
+        {apps && <ApplicationList apps={apps} selected={selected} onSelect={choose} />}
       </div>
-      <div>
+      <div ref={detailRef}>
         {selected ? (
-          <CaseDetail key={`${selected}-${version}`} who={who} me={me} id={selected} onChanged={changed} />
+          <CaseDetail key={`${selected}-${version}`} who={who} me={me} id={selected} onChanged={changed} onLoaded={caseLoaded} />
         ) : (
-          <p className="muted">Select an application to see its route, deadlines and audit timeline.</p>
+          <div className="card placeholder-case">
+            <Empty>Select an application to see its route, deadlines and audit timeline.</Empty>
+          </div>
         )}
       </div>
     </div>

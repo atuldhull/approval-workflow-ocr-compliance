@@ -1,29 +1,54 @@
 import { useEffect, useState } from "react";
 import { Badge, Card, ErrorBox, Loading, PreviewBanner, useSingleFlight } from "../components/ui.jsx";
 import { confirmedAll, fixtureAdapter } from "../integrations/documentReview.js";
+import { Icon } from "../components/Icons.jsx";
+import { useReducedMotion } from "../motion.js";
 
 // Commit before reveal: the officer reads the page image and types the value BEFORE seeing anything the machine
 // produced - no extracted value, no confidence, no highlighted location, no OCR text. Those appear only after the
 // officer's reading is committed, so the suggestion cannot anchor their judgement.
 
+// 3D (CSS): the page lies on a short stack of sheets and tilts a few degrees with the pointer, like a
+// document on an inspection table. After a reading is committed, its machine box lifts off the page toward
+// the viewer. Zoom (a button, so keyboards have it too) enlarges the page inside its frame. Reduced motion
+// and phones get the flat page; the boxes still appear, without the lift.
 export function PageView({ page, synthetic, boxes = [] }) {
+  const reduced = useReducedMotion();
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(false);
+  const onMove = (e) => {
+    if (reduced || zoom) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setTilt({ x: ((e.clientY - r.top) / r.height - 0.5) * -5, y: ((e.clientX - r.left) / r.width - 0.5) * 7 });
+  };
   return (
     <figure className="facsimile">
-      <div className="facsimile-frame" style={{ aspectRatio: `${page.width} / ${page.height}` }}>
-        <img src={page.imageUrl} alt={synthetic ? "Synthetic facsimile of the document page (demo only)" : "Document page"} />
-        {boxes.map((b) => (
-          <span
-            key={b.key}
-            className="ocr-box"
-            data-testid={`box-${b.key}`}
-            style={{
-              left: `${(b.x / page.width) * 100}%`,
-              top: `${(b.y / page.height) * 100}%`,
-              width: `${(b.w / page.width) * 100}%`,
-              height: `${(b.h / page.height) * 100}%`,
-            }}
-          />
-        ))}
+      <div className="inspect-tools">
+        <button className="ghost small" aria-pressed={zoom} onClick={() => setZoom((z) => !z)}>
+          <Icon name="zoom" /> {zoom ? "Fit page" : "Zoom in"}
+        </button>
+      </div>
+      <div className={`inspect-stage${zoom ? " zoomed" : ""}`} onPointerMove={onMove} onPointerLeave={() => setTilt({ x: 0, y: 0 })}>
+        <div className="inspect-page" style={{ "--tx": `${tilt.x}deg`, "--ty": `${tilt.y}deg` }}>
+          <span className="sheet s2" aria-hidden="true" />
+          <span className="sheet s1" aria-hidden="true" />
+          <div className="facsimile-frame" style={{ aspectRatio: `${page.width} / ${page.height}` }}>
+            <img src={page.imageUrl} width={page.width} height={page.height} alt={synthetic ? "Synthetic facsimile of the document page (demo only)" : "Document page"} />
+            {boxes.map((b) => (
+              <span
+                key={b.key}
+                className="ocr-box"
+                data-testid={`box-${b.key}`}
+                style={{
+                  left: `${(b.x / page.width) * 100}%`,
+                  top: `${(b.y / page.height) * 100}%`,
+                  width: `${(b.w / page.width) * 100}%`,
+                  height: `${(b.h / page.height) * 100}%`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
       {synthetic && <figcaption className="small">Synthetic facsimile - demo only, not a real document.</figcaption>}
     </figure>
@@ -56,6 +81,7 @@ export function FieldReview({ field, onCommit, suggestion, choice, onChoose, loc
       <label>
         Your reading ({field.format})
         <input value={value} onChange={(e) => setValue(e.target.value)} disabled={committed || busy}
+          name={`reading-${field.key}`} autoComplete="off" spellCheck={false} placeholder="2031-03-31…"
           aria-describedby={`${field.key}-hint`} />
       </label>
       <p id={`${field.key}-hint`} className="muted small">
@@ -141,7 +167,7 @@ export default function OcrReviewView({ adapter = fixtureAdapter }) {
   return (
     <div>
       {!adapter.live && <PreviewBanner owner="Person 2" api="document review and fact-confirmation API" />}
-      <div className="grid two">
+      <div className="grid two evidence-layout">
         <Card title={review.title}>
           <PageView page={review.pages[0]} synthetic={review.synthetic} boxes={boxes} />
         </Card>

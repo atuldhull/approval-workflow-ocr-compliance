@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+import { Icon, RouteGlyph } from "./Icons.jsx";
+import { sentence } from "../nav.js";
 
 // Loads `path` for `who`; reload() fetches again. Pass path=null to skip.
 export function useApi(who, path) {
@@ -19,28 +21,50 @@ export function useApi(who, path) {
   return { ...state, reload: load };
 }
 
-export function Loading({ what = "Loading" }) {
+// Loading keeps the shape of what is coming: flat bars at real sizes with a slow pulse, no shimmer.
+export function Loading({ what = "Loading", rows = 3 }) {
   return (
-    <p className="muted" role="status" aria-live="polite">
-      {what}…
-    </p>
+    <div className="loading" role="status" aria-live="polite">
+      <span className="sr-only">{what}…</span>
+      <span className="skeleton sk-title" aria-hidden="true" />
+      {Array.from({ length: rows }, (_, i) => (
+        <span key={i} className="skeleton sk-row" style={{ "--w": `${92 - i * 14}%` }} aria-hidden="true" />
+      ))}
+      <span className="loading-text" aria-hidden="true">{what}…</span>
+    </div>
   );
 }
 
 export function Empty({ children }) {
-  return <p className="empty">{children}</p>;
+  return (
+    <div className="empty">
+      <RouteGlyph />
+      <p>{children}</p>
+    </div>
+  );
 }
 
 export function ErrorBox({ error, onRetry }) {
   if (!error) return null;
-  // 401 and 403 are not fixed by trying again; everything else (network, 5xx) may be
-  const retryable = onRetry && error.status !== 401 && error.status !== 403;
+  if (error.status === 403) {
+    // A refusal is a rule, not a failure: calm, explained, no retry.
+    return (
+      <div className="alert forbidden" role="alert">
+        <span className="alert-icon"><Icon name="lock" /></span>
+        <span>
+          <strong>Not available to your role.</strong> {error.message}
+        </span>
+      </div>
+    );
+  }
+  // 401 is not fixed by trying again; everything else (network, 5xx) may be
+  const retryable = onRetry && error.status !== 401;
   return (
     <div className="alert error" role="alert">
-      {error.message || String(error)}
+      <span>{error.message || String(error)}</span>
       {retryable && (
         <button className="secondary small retry" onClick={onRetry}>
-          Try again
+          <Icon name="refresh" /> Try again
         </button>
       )}
     </div>
@@ -72,8 +96,8 @@ export function PreviewBanner({ owner, api: apiName }) {
 export function StatTile({ label, value, hint }) {
   return (
     <div className="stat">
-      <span className="stat-value">{value}</span>
       <span className="stat-label">{label}</span>
+      <span className="stat-value num">{value}</span>
       {hint && <span className="stat-hint">{hint}</span>}
     </div>
   );
@@ -89,7 +113,7 @@ export function BarList({ data, label }) {
       <tbody>
         {entries.map(([k, v]) => (
           <tr key={k}>
-            <th scope="row">{k.replaceAll("_", " ")}</th>
+            <th scope="row">{/^[A-Z0-9_]+$/.test(k) ? sentence(k) : k}</th>
             <td>
               <span className="bar" style={{ width: `${(v / max) * 100}%` }} aria-hidden="true" />
             </td>
@@ -101,9 +125,9 @@ export function BarList({ data, label }) {
   );
 }
 
-export function Card({ title, actions, children }) {
+export function Card({ title, actions, children, className = "" }) {
   return (
-    <section className="card">
+    <section className={`card ${className}`.trim()}>
       {(title || actions) && (
         <header className="card-head">
           {title && <h2>{title}</h2>}

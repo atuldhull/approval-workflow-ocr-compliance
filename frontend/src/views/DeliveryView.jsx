@@ -54,11 +54,8 @@ export default function DeliveryView({ who, me }) {
         <ErrorBox error={health.error} onRetry={health.reload} />
         {h && (
           <>
+            <Pipeline counts={h.by_status} />
             <div className="stats">
-              <StatTile label="Delivered" value={h.by_status.DELIVERED} />
-              <StatTile label="Pending" value={h.by_status.PENDING} hint="waiting or between retries" />
-              <StatTile label="Sending" value={h.by_status.SENDING} />
-              <StatTile label="Dead letters" value={h.by_status.DEAD} />
               <StatTile
                 label="Oldest undelivered"
                 value={h.oldest_undelivered_age_seconds == null ? "—" : `${Math.round(h.oldest_undelivered_age_seconds / 60)} min`}
@@ -183,5 +180,27 @@ export default function DeliveryView({ who, me }) {
         </Card>
       )}
     </div>
+  );
+}
+
+// 2D: messages flow from pending through sending to delivered; dead letters branch off. Packets move on a
+// lane only while that lane has messages in it, so motion means traffic.
+function Pipeline({ counts }) {
+  const lanes = [["PENDING", "Pending"], ["SENDING", "Sending"], ["DELIVERED", "Delivered"]];
+  const flowing = (counts.PENDING ?? 0) + (counts.SENDING ?? 0) > 0;
+  return (
+    <ol className={`pipeline${flowing ? " flowing" : ""}`} aria-label="Messages by state">
+      {lanes.map(([k, label], i) => (
+        <li key={k} className={`pl-node ${k.toLowerCase()}`}>
+          <span className="pl-count num">{counts[k] ?? 0}</span>
+          <span className="pl-label">{label}{k === "PENDING" ? " (waiting or between retries)" : ""}</span>
+          {i < lanes.length - 1 && <span className="pl-lane" aria-hidden="true"><i /><i /><i /></span>}
+        </li>
+      ))}
+      <li className="pl-node dead">
+        <span className="pl-count num">{counts.DEAD ?? 0}</span>
+        <span className="pl-label">Dead letters</span>
+      </li>
+    </ol>
   );
 }

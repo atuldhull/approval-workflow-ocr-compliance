@@ -1,11 +1,16 @@
 import { cleanup as cleanupRender, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import App, { Workspace } from "../App.jsx";
 import { DEMO_USERS, api } from "../api.js";
 import { navFor } from "../nav.js";
 import DashboardView from "../views/DashboardView.jsx";
 import ApplicationsView from "../views/ApplicationsView.jsx";
+import OverviewView from "../views/OverviewView.jsx";
+import ApplicationList from "../components/ApplicationList.jsx";
+import LedgerChamber from "../components/LedgerChamber.jsx";
+import RouteJourney from "../components/RouteJourney.jsx";
+import { ErrorBox } from "../components/ui.jsx";
 import OcrReviewView from "../views/OcrReviewView.jsx";
 import { fixtureAdapter } from "../integrations/documentReview.js";
 import ScorecardView from "../views/ScorecardView.jsx";
@@ -25,8 +30,8 @@ const ME = (u) => ({ user_id: u.user, role: u.role, region: u.region ?? null, in
 describe("navigation follows the role", () => {
   it("gives institutions their own work only", () => {
     const keys = navFor("INSTITUTION").map((i) => i.key);
-    expect(keys).toEqual(["applications", "inbox", "compliance"]);
-    expect(navFor("INSTITUTION")[0].label).toBe("My applications");
+    expect(keys).toEqual(["overview", "applications", "inbox", "compliance"]);
+    expect(navFor("INSTITUTION")[1].label).toBe("My applications");
   });
 
   it("gives oversight roles audit, delivery and scorecard", () => {
@@ -40,7 +45,8 @@ describe("navigation follows the role", () => {
     fakeServer({ "GET /api/applications": [], "GET /api/rulesets/aph-2024-27@r1": { routes: [] } });
     render(<Workspace who={SUNRISE} me={ME(SUNRISE)} config={{ mode: "demo", demo_mode: false }} />);
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(within(nav).getByRole("button", { name: "My applications" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("button", { name: "My applications" })).not.toHaveAttribute("aria-current");
     expect(within(nav).queryByRole("button", { name: /Audit/ })).toBeNull();
   });
 });
@@ -103,7 +109,7 @@ describe("app start-up", () => {
   it("hides time travel when the server is not in demo mode", async () => {
     fakeServer({ "GET /api/applications": [], "GET /api/rulesets/aph-2024-27@r1": { routes: [] } });
     render(<Workspace who={SUNRISE} me={ME(SUNRISE)} config={{ mode: "oidc", demo_mode: false }} />);
-    await screen.findByText("My applications", { selector: "h1" });
+    await screen.findByText("Overview", { selector: "h1" });
     expect(screen.queryByText("SIMULATED TIME")).toBeNull();
   });
 });
@@ -454,7 +460,8 @@ describe("delivery operations", () => {
   it("shows each state separately and explains problems in plain language", async () => {
     fakeServer({ "GET /api/notifications/health": health, "GET /api/notifications/outbox": [dead] });
     render(<DeliveryView who={AUDITOR} me={ME(AUDITOR)} />);
-    expect(await screen.findByText("Sending")).toBeInTheDocument();
+    expect((await screen.findAllByText("Sending")).length).toBeGreaterThan(0);
+    expect(within(screen.getByRole("list", { name: "Messages by state" })).getByText("Dead letters")).toBeInTheDocument();
     expect(screen.getByText(/Email is not configured in this deployment/)).toBeInTheDocument();
     expect(screen.getByText(/1 message\(s\) were being sent by a worker that stopped/)).toBeInTheDocument();
     expect(await screen.findByRole("cell", { name: "The mail server is not configured for this deployment" })).toBeInTheDocument();
@@ -576,7 +583,7 @@ describe("audit evidence presentation", () => {
 describe("navigation matrix (mirrors backend/app/platform/policy.py)", () => {
   // Hiding a screen is not security - the server decides - but showing one the server always refuses is a defect.
   const EXPECTED = {
-    INSTITUTION: ["applications", "inbox", "compliance"],
+    INSTITUTION: ["overview", "applications", "inbox", "compliance"],
     SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "ocr"],
     RO_OFFICER: ["dashboard", "applications", "inbox", "ocr", "compliance"],
     BUREAU_OFFICER: ["dashboard", "applications", "inbox", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
@@ -591,5 +598,70 @@ describe("navigation matrix (mirrors backend/app/platform/policy.py)", () => {
   it("an unknown role sees nothing", () => {
     expect(navFor("SYSTEM")).toEqual([]);
     expect(navFor(undefined)).toEqual([]);
+  });
+});
+
+describe("redesign interactions", () => {
+  it("the pause switch stops animation loops and is remembered", async () => {
+    const { motionPaused, setMotionPaused, prefersReducedMotion } = await import("../motion.js");
+    window.matchMedia = (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} });
+    expect(motionPaused()).toBe(false);
+    expect(prefersReducedMotion()).toBe(false);
+    setMotionPaused(true);
+    expect(localStorage.getItem("awoc.motion")).toBe("off");
+    expect(prefersReducedMotion()).toBe(true);
+    setMotionPaused(false);
+    expect(prefersReducedMotion()).toBe(false);
+    delete window.matchMedia;
+  });
+
+  it("the institution overview counts cases per stage and opens a case from its deadline", async () => {
+    const app = (id, stage) => ({ id, institution_id: "i", category: "NEW_PROGRAMME", academic_year: "2027-28", status: "IN_PROCESS",
+      current_stage: stage, ruleset_rev: "r", route: [{ stage: "SCRUTINY", when: "always" }, { stage: "EVC", when: "always" }], created_at: "2026-10-20T10:00:00Z", submitted_at: "2026-10-20T10:00:00Z" });
+    fakeServer({
+      "GET /api/applications": [app("a1111111-x", "SCRUTINY"), app("a2222222-x", "SCRUTINY"), app("a3333333-x", "EVC")],
+      "GET /api/deadlines": [{ id: "d1", rule_id: "AICTE_PROCESSING", status: "RUNNING", due_date: "2026-11-23" }],
+    });
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
+    render(<OverviewView who={SUNRISE} onNavigate={onNavigate} />);
+    const path = await screen.findByRole("img", { name: "Scrutiny: 2, Expert visit: 1" });
+    expect(path).toBeInTheDocument();
+    expect(screen.getAllByText("AICTE processing").length).toBeGreaterThan(0);   // acronym kept, not "Aicte"
+    await user.click(screen.getAllByRole("button", { name: "Open case" })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("applications", { caseId: "a1111111-x" });
+  });
+
+  it("case list filters by status with counts from the rows", async () => {
+    const mk = (id, status) => ({ id, category: "NEW_PROGRAMME", academic_year: "2027-28", status, current_stage: status === "DRAFT" ? null : "SCRUTINY", created_at: `2026-10-2${id}T10:00:00Z` });
+    const user = userEvent.setup();
+    render(<ApplicationList apps={[mk("1", "DRAFT"), mk("2", "IN_PROCESS"), mk("3", "IN_PROCESS")]} selected={null} onSelect={() => {}} />);
+    expect(screen.getByRole("button", { name: "Drafts 1" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "In process 2" }));
+    expect(screen.getAllByRole("button", { pressed: false }).filter((b) => b.classList.contains("row"))).toHaveLength(2);
+  });
+
+  it("the ledger falls back to a block strip without WebGL and says what it shows", () => {
+    render(<LedgerChamber chain={{ ok: false, checked: 12, first_bad_seq: 9 }} verify={{ ok: false, assurance: "NONE" }} />);
+    const strip = screen.getByRole("img", { name: /12 ledger entries: 0 anchored by the trusted checkpoint, first broken link at entry 9/ });
+    expect(strip.querySelectorAll(".blk.broken")).toHaveLength(1);
+    expect(strip.querySelectorAll(".blk.after")).toHaveLength(3);
+    expect(screen.getByText("First broken link")).toBeInTheDocument();
+  });
+
+  it("the journey marks done, current and ahead stages for assistive technology", () => {
+    render(<RouteJourney route={[{ stage: "SCRUTINY", when: "always" }, { stage: "EVC", when: "always" }, { stage: "SHC", when: "as_applicable" }]}
+      current="EVC" status="IN_PROCESS" />);
+    const items = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Done");
+    expect(items[1]).toHaveAttribute("aria-current", "step");
+    expect(items[2]).toHaveTextContent("Ahead · if applicable");
+  });
+
+  it("a refusal reads as a rule, without a retry", () => {
+    const err = Object.assign(new Error("Not permitted: regional officers may only access their own region"), { status: 403 });
+    render(<ErrorBox error={err} onRetry={() => {}} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Not available to your role.");
+    expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull();
   });
 });

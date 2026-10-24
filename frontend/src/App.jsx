@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_USERS, SESSION_EXPIRED, api, publicApi } from "./api.js";
 import { clearSession, completeSignIn, hasSession, signIn, signOut } from "./auth/oidc.js";
 import { Sidebar, TopBar } from "./components/Layout.jsx";
 import { ErrorBox, Loading } from "./components/ui.jsx";
 import { navFor } from "./nav.js";
+import { WORLDS, useMotionRoot, useReveal, useScrollVar } from "./motion.js";
+import OverviewView from "./views/OverviewView.jsx";
 import ApplicationsView from "./views/ApplicationsView.jsx";
 import AuditView from "./views/AuditView.jsx";
 import DashboardView from "./views/DashboardView.jsx";
@@ -14,6 +16,7 @@ import { ComplianceView, EvcView } from "./views/PreviewViews.jsx";
 import ScorecardView from "./views/ScorecardView.jsx";
 
 const VIEWS = {
+  overview: OverviewView,
   dashboard: DashboardView,
   applications: ApplicationsView,
   inbox: InboxView,
@@ -42,26 +45,106 @@ const remembered = {
   },
 };
 
+// What each screen says under its title (DESIGN.md: a noun title, one sentence about the data).
+const SUBTITLES = {
+  overview: "Where each of your applications stands on its approval route, and what is due next.",
+  dashboard: "Applications, ageing and deadlines, rebuilt from the audit event log.",
+  applications: "File, submit and follow each case along its route.",
+  inbox: "Signals sent to you or to the role you hold.",
+  ocr: "Read the document first; the machine reading is revealed only after you commit yours.",
+  evc: "Expert visit scheduling.",
+  compliance: "Undertakings, affidavits and letter conditions.",
+  audit: "Three independent layers of evidence that the record has not been altered.",
+  delivery: "Every alert message, its attempts and where it is now.",
+  scorecard: "What the system can show about its own correctness, and how each line was measured.",
+};
+
 export function Workspace({ who, me, config, identityControl }) {
   const items = useMemo(() => navFor(me.role), [me.role]);
-  const [view, setView] = useState(items[0]?.key);
+  const [view, setView] = useState(items[0]?.key);        // what the navigation shows as current
+  const [shown, setShown] = useState(items[0]?.key);      // what the content area shows
+  const [phase, setPhase] = useState("in");
+  const [focusCase, setFocusCase] = useState(null);
+  const [collapsed, setCollapsed] = useState(() => remembered.get("awoc.sidebar") === "rail");
+  const contentRef = useRef(null);
+  const timer = useRef(null);
+  const reduced = useMotionRoot();
+  useScrollVar();
+  useReveal(contentRef, shown);
+
   useEffect(() => {
-    if (!items.some((i) => i.key === view)) setView(items[0]?.key);
+    if (!items.some((i) => i.key === view)) {
+      setView(items[0]?.key);
+      setShown(items[0]?.key);
+    }
   }, [items, view]);
-  const View = VIEWS[view];
-  const title = items.find((i) => i.key === view)?.label;
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const navigate = (key, opts = {}) => {
+    if (opts.caseId) setFocusCase(opts.caseId);
+    setView(key);
+    if (key === shown) return;
+    clearTimeout(timer.current);
+    const arrive = () => {
+      setShown(key);
+      setPhase("in");
+      window.scrollTo?.({ top: 0 });
+      contentRef.current?.focus({ preventScroll: true });
+    };
+    if (reduced) return arrive();
+    setPhase("out");
+    timer.current = setTimeout(arrive, 160);
+  };
+
+  const toggleCollapse = () => {
+    setCollapsed((c) => {
+      remembered.set("awoc.sidebar", c ? "full" : "rail");
+      return !c;
+    });
+  };
+
+  const View = VIEWS[shown];
+  const title = items.find((i) => i.key === shown)?.label;
+  const navTitle = items.find((i) => i.key === view)?.label;
+  const world = WORLDS[shown] ?? { motion: "slide", world: "cases" };
 
   return (
-    <div className="shell">
+    <div className={`shell${collapsed ? " collapsed" : ""}`} data-world={world.world}>
       <a className="skip-link" href="#content">Skip to content</a>
-      <Sidebar items={items} current={view} onNavigate={setView} />
+      <Backplate world={world.world} />
+      <Sidebar items={items} current={view} onNavigate={navigate} collapsed={collapsed}
+        onToggleCollapse={toggleCollapse} title={navTitle} />
       <div className="main">
-        <TopBar me={me} who={who} config={config} identityControl={identityControl} />
-        <main className="content" id="content" tabIndex={-1}>
-          <h1>{title}</h1>
-          {View && <View key={`${view}-${me.user_id}`} who={who} me={me} />}
+        <TopBar me={me} who={who} config={config} identityControl={identityControl} title={navTitle} view={view} />
+        <main className={`content world-${world.motion} phase-${phase}`} id="content" tabIndex={-1} ref={contentRef}>
+          <header className="page-head" key={`head-${shown}`}>
+            <h1>{title}</h1>
+            {SUBTITLES[shown] && <p className="page-sub">{SUBTITLES[shown]}</p>}
+          </header>
+          {View && (
+            <View key={`${shown}-${me.user_id}`} who={who} me={me} onNavigate={navigate}
+              focusCase={shown === "applications" ? focusCase : undefined} />
+          )}
         </main>
       </div>
+    </div>
+  );
+}
+
+// The atmosphere behind each world: a faint field, one soft light in the world's hue, and a motif drawn
+// from the world's subject. aria-hidden, behind everything, scroll-parallaxed (MOTION.md).
+function Backplate({ world }) {
+  return (
+    <div className="backplate" data-world={world} aria-hidden="true">
+      <div className="bp-field" />
+      <div className="bp-light" />
+      <svg className="bp-motif" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+        <path d="M-40 640 C 220 640, 260 260, 520 260 S 820 560, 1240 300" fill="none" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M-40 700 C 260 700, 320 380, 600 380 S 900 640, 1240 420" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+        <circle cx="520" cy="260" r="5" fill="currentColor" />
+        <circle cx="600" cy="380" r="3.5" fill="currentColor" opacity="0.7" />
+        <circle cx="1040" cy="372" r="4" fill="currentColor" opacity="0.8" />
+      </svg>
     </div>
   );
 }

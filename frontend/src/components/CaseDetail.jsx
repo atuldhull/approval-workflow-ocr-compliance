@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
-import { humanise } from "../nav.js";
-import { useSingleFlight, when } from "./ui.jsx";
+import { humanise, sentence } from "../nav.js";
+import { Loading, useSingleFlight, when } from "./ui.jsx";
+import RouteJourney, { stageLabel } from "./RouteJourney.jsx";
 
-export default function CaseDetail({ who, me, id, onChanged }) {
+export default function CaseDetail({ who, me, id, onChanged, onLoaded }) {
   const [app, setApp] = useState(null);
   const [deadlines, setDeadlines] = useState([]);
   const [timeline, setTimeline] = useState([]);
@@ -22,6 +23,7 @@ export default function CaseDetail({ who, me, id, onChanged }) {
         setApp(a);
         setDeadlines(d);
         setTimeline(t);
+        onLoaded?.();
       })
       .catch((e) => setError(e.message));
   }, [who, id]);
@@ -42,62 +44,79 @@ export default function CaseDetail({ who, me, id, onChanged }) {
     }
   }
 
-  if (error) return <p className="error" role="alert">{error}</p>;
-  if (!app) return <p className="muted" role="status">Loading…</p>;
+  if (error) return <div className="alert error" role="alert">{error}</div>;
+  if (!app) return <Loading what="Opening the case" rows={5} />;
 
+  const stage = app.current_stage ? stageLabel(app.current_stage) : "Not submitted";
   return (
-    <div className="card">
-      <h2>{humanise(app.category)}</h2>
-      <p className="muted">
-        {app.academic_year} · {app.status} {app.ruleset_rev && `· ruleset ${app.ruleset_rev}`}
-      </p>
+    <article className="card case" aria-labelledby={`case-${app.id}`}>
+      <header className="case-head">
+        <div>
+          <p className="case-ref"><code>{app.id.slice(0, 8)}</code> · {app.academic_year}</p>
+          <h2 id={`case-${app.id}`}>{sentence(app.category)}</h2>
+          <p className="muted">
+            {STATUS_TEXT[app.status] ?? app.status} · {stage}
+            {app.ruleset_rev && <> · rules <code>{app.ruleset_rev}</code></>}
+          </p>
+        </div>
+        {app.status === "DRAFT" && me.role === "INSTITUTION" && (
+          <button onClick={submit} disabled={busy}>
+            {busy ? "Submitting…" : "Submit application"}
+          </button>
+        )}
+      </header>
 
-      {app.status === "DRAFT" && me.role === "INSTITUTION" && (
-        <button onClick={submit} disabled={busy}>
-          {busy ? "Submitting…" : "Submit application"}
-        </button>
+      {app.route ? (
+        <section className="case-zone">
+          <h3>Approval route</h3>
+          <RouteJourney route={app.route} current={app.current_stage} status={app.status} />
+        </section>
+      ) : (
+        <p className="muted">The route is fixed when the application is submitted.</p>
       )}
 
-      {app.route && (
-        <>
-          <h3>Route</h3>
-          <ol className="route">
-            {app.route.map((s) => (
-              <li
-                key={s.stage}
-                className={s.stage === app.current_stage ? "current" : ""}
-                aria-current={s.stage === app.current_stage ? "step" : undefined}
-              >
-                {s.stage}
-                {s.when === "as_applicable" && <small> as applicable</small>}
+      <div className="case-grid">
+        <section className="case-zone">
+          <h3>Deadlines</h3>
+          {deadlines.length === 0 && <p className="muted">No deadlines running.</p>}
+          {deadlines.map((d) => (
+            <div key={d.id} className="clock">
+              <div className="clock-head">
+                <strong>{sentence(d.rule_id)}</strong>
+                <span className="badge neutral">{d.clock_kind === "LEGAL" ? "Legal clock" : "Internal clock"}</span>
+                <span className={`badge ${d.status === "BREACHED" ? "bad" : d.status === "RUNNING" ? "ok" : "neutral"}`}>{sentence(d.status)}</span>
+              </div>
+              <p className="clock-due">Due <strong className="num">{d.due_date}</strong></p>
+              <details>
+                <summary>Why is this due then?</summary>
+                <p className="why">{d.explanation}</p>
+              </details>
+            </div>
+          ))}
+        </section>
+
+        <section className="case-zone">
+          <h3>Audit timeline</h3>
+          <ol className="timeline">
+            {timeline.map((e) => (
+              <li key={e.seq}>
+                <span className="tl-dot" aria-hidden="true" />
+                <span className="tl-what">{EVENT_TEXT[e.event_type] ?? e.event_type}</span>
+                <span className="tl-meta muted">
+                  <code>#{e.seq}</code> {e.event_type} · by {sentence(e.role)} · {when(e.at)}
+                </span>
               </li>
             ))}
           </ol>
-        </>
-      )}
-
-      <h3>Deadlines</h3>
-      {deadlines.length === 0 && <p className="muted">No deadlines running.</p>}
-      {deadlines.map((d) => (
-        <div key={d.id} className="clock">
-          <strong>{d.rule_id}</strong> <span className="badge neutral">{d.clock_kind}</span>{" "}
-          <span className="badge neutral">{d.status}</span> due <strong>{d.due_date}</strong>
-          <details>
-            <summary>Why is this due then?</summary>
-            <p className="why">{d.explanation}</p>
-          </details>
-        </div>
-      ))}
-
-      <h3>Audit timeline</h3>
-      <ol className="timeline">
-        {timeline.map((e) => (
-          <li key={e.seq}>
-            <code>#{e.seq}</code> {e.event_type} <span className="muted">by {e.role}</span>{" "}
-            <span className="muted">{when(e.at)}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
+        </section>
+      </div>
+    </article>
   );
 }
+
+const STATUS_TEXT = { DRAFT: "Draft", IN_PROCESS: "In process", APPROVED: "Approved", REJECTED: "Rejected", WITHDRAWN: "Withdrawn" };
+const EVENT_TEXT = {
+  "wf.application_created": "Draft created",
+  "wf.application_submitted": "Submitted; route fixed",
+  "dl.deadline_opened": "Deadline started",
+};

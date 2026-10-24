@@ -63,7 +63,7 @@ export default function NewApplication({ who, institution, onChanged }) {
       </label>
       <label>
         Academic year
-        <input value={year} onChange={edited(setYear)} pattern="[0-9]{4}-[0-9]{2}" required />
+        <input name="academic_year" autoComplete="off" spellCheck={false} value={year} onChange={edited(setYear)} pattern="[0-9]{4}-[0-9]{2}" required />
       </label>
       {route && (
         <p className="muted">
