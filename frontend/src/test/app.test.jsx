@@ -287,17 +287,41 @@ describe("session hardening", () => {
 });
 
 describe("audit screen honesty", () => {
-  it("never calls a partial result fully verified", async () => {
-    const { checkpointState, replayState, headline } = await import("../views/AuditView.jsx");
-    const checkpointed = { ok: true, assurance: "CHECKPOINTED" };
-    const chainOnly = { ok: true, assurance: "CHAIN_ONLY", status: "NO_TRUSTED_CHECKPOINT" };
+  const full = { ok: true, status: "VERIFIED", assurance: "CHECKPOINTED", checkpoint_seq: 9, entries_after_checkpoint: 0 };
+  const newer = { ok: true, status: "VERIFIED", assurance: "CHECKPOINTED_WITH_NEWER_ENTRIES", checkpoint_seq: 9, entries_after_checkpoint: 3 };
+  const chainOnly = { ok: true, status: "NO_TRUSTED_CHECKPOINT", assurance: "CHAIN_ONLY" };
+  const complete = { verdict: "VERIFIED_COMPLETE" };
+
+  it("is green only when anchored through the latest entry and replay is complete", async () => {
+    const { headline } = await import("../views/AuditView.jsx");
+    expect(headline(true, full, complete)).toEqual(["ok", "Fully verified through the latest entry"]);
+  });
+
+  it("does not call history with unanchored newer entries fully verified, even with complete replay", async () => {
+    const { headline, checkpointState } = await import("../views/AuditView.jsx");
+    const [tone, text] = headline(true, newer, complete);
+    expect(tone).toBe("warn");
+    expect(text).toMatch(/up to entry #9; the 3 newest entries are not anchored/);
+    expect(checkpointState(newer)[0]).toBe("warn");
+  });
+
+  it("never lets replay stand in for a checkpoint", async () => {
+    const { headline, checkpointState } = await import("../views/AuditView.jsx");
+    expect(headline(true, chainOnly, complete)).toEqual(["warn", "Chain intact, but not anchored by a trusted checkpoint"]);
     expect(checkpointState(chainOnly)[0]).toBe("warn");
+  });
+
+  it("flags incomplete or missing replay", async () => {
+    const { headline, replayState } = await import("../views/AuditView.jsx");
+    expect(headline(true, full, { verdict: "CONSISTENT_SUBSET" })[1]).toMatch(/replay covered only part/);
+    expect(headline(true, full, null)[1]).toMatch(/replay not run/);
     expect(replayState({ verdict: "CONSISTENT_SUBSET" })[0]).toBe("warn");
-    expect(headline(true, chainOnly, { verdict: "VERIFIED_COMPLETE" })[0]).toBe("warn");
-    expect(headline(true, checkpointed, { verdict: "CONSISTENT_SUBSET" })[0]).toBe("warn");
-    expect(headline(true, checkpointed, null)[0]).toBe("warn");
-    expect(headline(true, checkpointed, { verdict: "VERIFIED_COMPLETE" })).toEqual(["ok", "Fully verified"]);
-    expect(headline(false, checkpointed, { verdict: "VERIFIED_COMPLETE" })[0]).toBe("bad");
+  });
+
+  it("reports integrity failures as failures", async () => {
+    const { headline } = await import("../views/AuditView.jsx");
+    expect(headline(false, full, complete)[0]).toBe("bad");
     expect(headline(true, { ok: false, status: "WITNESS_CORRUPT" }, null)[0]).toBe("bad");
+    expect(headline(true, full, { verdict: "MISMATCH" })[0]).toBe("bad");
   });
 });

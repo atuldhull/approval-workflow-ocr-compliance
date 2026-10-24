@@ -438,3 +438,97 @@ def test_unknown_versions_make_the_result_partial(client):
     r = replay.replay(["applications"], events=events)
     assert r["verdict"] in ("CONSISTENT_SUBSET", "MISMATCH") and r["ok"] is False
     assert any(g["kind"] == "UNKNOWN_EVENT_VERSION" for g in r["gaps"])
+
+
+# ---- witness conflicts and assurance (P3-14) ----
+
+def _copy_of(seq, head_hash, cid=None, sig="sig"):
+    return {"id": cid or str(uuid4()), "statement": json.dumps({"head_seq": seq, "head_hash": head_hash}), "signature": sig}
+
+
+def test_witness_accepts_an_identical_retry():
+    w = MemoryWitness()
+    cp = _copy_of(5, "h")
+    w.publish(cp)
+    w.publish(dict(cp))
+    assert len(w.items) == 1
+
+
+def test_witness_accepts_a_new_checkpoint_of_the_same_unchanged_head():
+    w = MemoryWitness()
+    w.publish(_copy_of(5, "h"))
+    w.publish(_copy_of(5, "h"))
+    assert len(w.items) == 2
+
+
+def test_witness_refuses_a_competing_hash_for_an_entry_it_vouches_for(tmp_path):
+    for w in (MemoryWitness(), audit.LocalFileWitness(str(tmp_path))):
+        w.publish(_copy_of(5, "h"))
+        w.publish(_copy_of(8, "h8"))
+        with pytest.raises(audit.WitnessConflict, match="competing"):
+            w.publish(_copy_of(5, "evil"))
+        with pytest.raises(audit.WitnessConflict, match="competing"):
+            w.publish(_copy_of(8, "evil"))
+        assert json.loads(w.latest()["statement"])["head_hash"] == "h8"
+
+
+def test_witness_refuses_a_different_copy_under_an_existing_id():
+    w = MemoryWitness()
+    w.publish(_copy_of(5, "h", cid="cp-1"))
+    with pytest.raises(audit.WitnessConflict, match="different checkpoint with id"):
+        w.publish(_copy_of(9, "x", cid="cp-1"))
+    with pytest.raises(audit.WitnessConflict):
+        w.publish(_copy_of(5, "h", cid="cp-1", sig="other"))
+
+
+def test_assurance_distinguishes_newer_unanchored_entries(client):
+    submit_one(client)
+    w = checkpoint()
+    assert check(w).assurance == "CHECKPOINTED"
+    client.post("/api/applications", headers=INST, json={
+        "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2028-29"})
+    r = check(w)
+    assert (r.status, r.assurance, r.entries_after_checkpoint) == ("VERIFIED", "CHECKPOINTED_WITH_NEWER_ENTRIES", 1)
+    checkpoint(witness=w)
+    assert check(w).assurance == "CHECKPOINTED"
+
+
+def test_rewritten_content_after_checkpoint_is_caught_by_the_chain(client):
+    submit_one(client)
+    w = checkpoint()
+    sql("UPDATE plat.domain_event SET payload = jsonb_set(payload, '{category}', '\"MERGER\"') WHERE seq = 3")
+    assert check(w).status == "CHAIN_BROKEN"
+
+
+# ---- replay cannot be complete by checking nothing (P3-14) ----
+
+def test_no_projectors_is_not_verification(client):
+    r = replay.replay([], events=[])
+    assert (r["ok"], r["verdict"]) == (False, "CONSISTENT_SUBSET")
+    assert {"kind": "NO_PROJECTORS"} in r["gaps"]
+
+
+def test_unregistered_projector_names_are_reported(client):
+    r = replay.replay(["applications", "nope"], events=[])
+    assert r["ok"] is False and {"kind": "UNKNOWN_PROJECTOR", "projection": "nope"} in r["gaps"]
+
+
+def test_a_projector_that_compares_no_fields_is_a_gap(client):
+    submit_one(client)
+
+    class Empty:
+        name, owner, compared_fields = "empty", "test", ()
+        handles = frozenset({("wf.application_created", 1), ("wf.application_submitted", 1), ("dl.deadline_opened", 1)})
+
+        def apply(self, state, ev):
+            pass
+
+        def live(self, session):
+            return {}
+
+    replay.register(Empty())
+    try:
+        r = replay.replay(["empty"])
+    finally:
+        replay._projectors.pop("empty")
+    assert r["ok"] is False and {"kind": "NO_FIELDS_COMPARED", "projection": "empty"} in r["gaps"]

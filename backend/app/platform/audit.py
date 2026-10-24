@@ -85,14 +85,25 @@ class Witness(Protocol):
 
 
 def _check_order(existing: list[dict], checkpoint: dict) -> bool:
-    """True if already published (same id); raises if it would rewind the trusted history."""
-    if any(c["id"] == checkpoint["id"] for c in existing):
+    """True if this exact copy is already published (a retry). Raises WitnessConflict if accepting it would create
+    a competing trusted history: a different copy under the same id, a different head hash at an entry the
+    witness already vouches for, or a head older than the latest one."""
+    same_id = [c for c in existing if c["id"] == checkpoint["id"]]
+    if same_id:
+        if any(c["statement"] != checkpoint["statement"] or c["signature"] != checkpoint["signature"] for c in same_id):
+            raise WitnessConflict(f"witness already holds a different checkpoint with id {checkpoint['id']}")
         return True
+    new = json.loads(checkpoint["statement"])
+    for c in existing:
+        old = json.loads(c["statement"])
+        if old["head_seq"] == new["head_seq"] and old["head_hash"] != new["head_hash"]:
+            raise WitnessConflict(f"witness already vouches for a different entry {new['head_seq']}; "
+                                  "refusing a competing history")
     if existing:
         last = json.loads(existing[-1]["statement"])["head_seq"]
-        new = json.loads(checkpoint["statement"])["head_seq"]
-        if new < last:
-            raise WitnessConflict(f"witness already holds a checkpoint at entry {last}; refusing to publish {new}")
+        if new["head_seq"] < last:
+            raise WitnessConflict(f"witness already holds a checkpoint at entry {last}; refusing to publish "
+                                  f"{new['head_seq']}")
     return False
 
 
@@ -246,7 +257,8 @@ class AuditReport:
     checkpoint_key_id: str | None = None
     entries_after_checkpoint: int | None = None
     # What a passing result actually covers: NONE (failed), CHAIN_ONLY (no trusted checkpoint to compare with),
-    # or CHECKPOINTED (chain + latest trusted checkpoint). Only CHECKPOINTED rules out a rebuilt or cut-off chain.
+    # CHECKPOINTED_WITH_NEWER_ENTRIES (anchored up to the checkpoint; newer entries rely on the chain alone), or
+    # CHECKPOINTED (anchored through the latest entry). Only CHECKPOINTED rules out a rebuilt or cut-off chain.
     assurance: str = "NONE"
     unpublished_checkpoints: int = 0
     witness_kind: str | None = None
@@ -261,7 +273,12 @@ def verify(session: Session, trusted_keys: dict[str, Ed25519PublicKey], witness:
         select(func.count()).select_from(Checkpoint).where(Checkpoint.status == "PENDING")) or 0
     report.witness_kind = getattr(witness, "kind", None)
     if report.ok:
-        report.assurance = "CHECKPOINTED" if report.status == "VERIFIED" else "CHAIN_ONLY"
+        if report.status != "VERIFIED":
+            report.assurance = "CHAIN_ONLY"
+        elif report.entries_after_checkpoint:
+            report.assurance = "CHECKPOINTED_WITH_NEWER_ENTRIES"   # the newest entries are not anchored yet
+        else:
+            report.assurance = "CHECKPOINTED"
     return report
 
 

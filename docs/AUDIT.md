@@ -34,14 +34,17 @@ Verification trusts only:
 | `HISTORY_REWRITTEN` | The chain was recomputed: its head no longer matches the checkpoint |
 | `INVALID_SIGNATURE` / `UNTRUSTED_KEY` | The checkpoint itself cannot be trusted |
 
-The ledger is never signed if it does not verify first. Every report carries `assurance`: `CHECKPOINTED` (chain +
-trusted checkpoint), `CHAIN_ONLY` (no checkpoint to compare with) or `NONE` (a check failed).
+The ledger is never signed if it does not verify first. Every report carries `assurance`: `CHECKPOINTED` (anchored by a
+trusted checkpoint through the latest entry), `CHECKPOINTED_WITH_NEWER_ENTRIES` (anchored up to the checkpoint; the
+newest entries rely on the chain alone until the next checkpoint), `CHAIN_ONLY` (no checkpoint to compare with) or
+`NONE` (a check failed).
 
 ### Publication (database and witness cannot commit together)
 
 1. The statement is signed and the checkpoint row is committed as `PENDING`. If this commit fails, nothing was published.
-2. Exactly that signed copy is handed to the witness (idempotent by id; the witness refuses a lower head than it
-   already holds), then the row becomes `PUBLISHED`.
+2. Exactly that signed copy is handed to the witness, then the row becomes `PUBLISHED`. The witness accepts an
+   identical retry, and refuses anything that would create a competing trusted history: a different copy under an
+   existing id, a different head hash for an entry it already vouches for, or a head older than its latest.
 
 A witness outage or a crash between the steps leaves a `PENDING` row. `POST /api/audit/checkpoints/publish` or
 `python -m app.platform.audit publish` hands over the same copy again; it is never re-signed, so the trusted
@@ -88,9 +91,13 @@ The report gives one `verdict`:
 | `CONSISTENT_SUBSET` | Nothing disagreed, but `gaps` lists what was not checked: event types with no projector, unknown versions, projections with no live model | false |
 | `MISMATCH` | A projection disagrees with its live model | false |
 
+Checking nothing is never verification: no projectors selected (`NO_PROJECTORS`), a requested projector that is not
+registered (`UNKNOWN_PROJECTOR`) and a projection that compares no fields (`NO_FIELDS_COMPARED`) are all gaps.
+
 `schemas_without_projector` lists event schemas in `contracts/events` that no projector handles yet (read-only input);
 they only become gaps once such events are stored. The audit screen shows each layer separately and is green
-overall only when the chain, a trusted checkpoint and a complete replay all agree.
+overall only when the history is anchored through the latest entry and replay is complete. Replay is a
+consistency check, not a substitute for a checkpoint: it never lifts a chain-only or partly anchored result.
 
 ### Needed from the other modules
 

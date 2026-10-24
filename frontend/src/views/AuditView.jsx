@@ -7,7 +7,10 @@ import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } 
 export function checkpointState(v) {
   if (!v) return ["neutral", "Not checked"];
   if (!v.ok) return ["bad", v.status.replaceAll("_", " ")];
-  if (v.assurance === "CHECKPOINTED") return ["ok", "Matches trusted checkpoint"];
+  if (v.assurance === "CHECKPOINTED") return ["ok", "Anchored through the latest entry"];
+  if (v.assurance === "CHECKPOINTED_WITH_NEWER_ENTRIES") {
+    return ["warn", `Anchored up to #${v.checkpoint_seq}; ${v.entries_after_checkpoint} newer entries not anchored yet`];
+  }
   return ["warn", "No trusted checkpoint to compare with"];
 }
 
@@ -18,10 +21,20 @@ export function replayState(r) {
   return ["bad", "Differences found"];
 }
 
+// Replay checks read models against events; it is not a substitute for an independent checkpoint, so it never
+// lifts a chain-only or partly anchored result.
 export function headline(chainOk, v, r) {
   if (chainOk === false || (v && !v.ok) || r?.verdict === "MISMATCH") return ["bad", "Integrity problem found"];
-  const full = chainOk && v?.assurance === "CHECKPOINTED" && r?.verdict === "VERIFIED_COMPLETE";
-  return full ? ["ok", "Fully verified"] : ["warn", "Partially verified - see each check below"];
+  if (!chainOk || !v) return ["neutral", "Checking…"];
+  if (v.assurance === "CHAIN_ONLY") return ["warn", "Chain intact, but not anchored by a trusted checkpoint"];
+  if (v.assurance === "CHECKPOINTED_WITH_NEWER_ENTRIES") {
+    return ["warn", `Anchored up to entry #${v.checkpoint_seq}; the ${v.entries_after_checkpoint} newest entries are not anchored yet`];
+  }
+  if (r?.verdict !== "VERIFIED_COMPLETE") {
+    return ["warn", r ? "History anchored through the latest entry; replay covered only part of it"
+                      : "History anchored through the latest entry; replay not run"];
+  }
+  return ["ok", "Fully verified through the latest entry"];
 }
 
 const GAP_TEXT = {

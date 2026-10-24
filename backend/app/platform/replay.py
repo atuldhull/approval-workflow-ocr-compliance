@@ -115,6 +115,7 @@ def project(events: Iterable[EventRecord], selected: dict[str, Projector]) -> tu
 
 def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None = None) -> dict:
     selected = {n: p for n, p in _projectors.items() if names is None or n in names}
+    unknown = sorted(set(names or ()) - set(_projectors))
     with new_session() as session:
         session.execute(text("SET TRANSACTION READ ONLY"))
         try:
@@ -132,7 +133,7 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
                 results.append(r)
         finally:
             session.rollback()
-    return summarise(results, unhandled, selected)
+    return summarise(results, unhandled, selected, unknown)
 
 
 def known_schemas() -> set[tuple[str, int]]:
@@ -144,7 +145,8 @@ def known_schemas() -> set[tuple[str, int]]:
     return found
 
 
-def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dict[str, Projector]) -> dict:
+def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dict[str, Projector],
+              unknown: list[str] = ()) -> dict:
     """Never reports partial coverage as complete.
 
     verdict: VERIFIED_COMPLETE - every stored event was projected and every projection matched a live model;
@@ -152,7 +154,13 @@ def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dic
              MISMATCH          - a projection disagrees with its live model.
     """
     gaps = [{"kind": "UNHANDLED_EVENT_TYPE", "event_type": et, "events": n} for et, n in sorted(unhandled.items())]
+    # nothing checked is not the same as everything verified
+    if not selected:
+        gaps.append({"kind": "NO_PROJECTORS"})
+    gaps += [{"kind": "UNKNOWN_PROJECTOR", "projection": n} for n in unknown]
     for r in results:
+        if not r.compared_fields and r.status != "NO_LIVE_MODEL":
+            gaps.append({"kind": "NO_FIELDS_COMPARED", "projection": r.name})
         gaps += [{"kind": "UNKNOWN_EVENT_VERSION", "projection": r.name, "event": ev, "events": n}
                  for ev, n in sorted(r.skipped_versions.items())]
         if r.status == "NO_LIVE_MODEL":
