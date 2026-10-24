@@ -39,6 +39,13 @@ re-runs it (`synchronize`), so earlier approvals are stale by construction.
 `statuses: write` is the only write scope. It is needed because a `workflow_run` job's own check run is attached to
 the default branch commit, not to the PR, so the result has to be posted explicitly.
 
+## Has it run on GitHub?
+
+No. As of 2026-10-24 `origin/main` still holds the scaffold version of the workflow, and the `person-3` commits that
+introduce this design have not been pushed. Nothing here has executed on GitHub; branch-protection settings could not
+be inspected from the development machine (private repository, no `gh` CLI). Treat everything below as unverified
+until the first real pull request shows the `contracts-approval/designated-approvals` status.
+
 ## Rolling it out (the first time)
 
 GitHub runs `pull_request_target` and `workflow_run` from the **default branch**, so the new authority only takes

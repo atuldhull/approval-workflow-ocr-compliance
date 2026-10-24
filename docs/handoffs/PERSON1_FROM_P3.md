@@ -68,3 +68,12 @@ what is needed, and how we will both know it works. Items marked **contract** ne
 - **Needed:** either approve that query as a stable read-only interface, or provide a view (e.g.
   `wf.v_application_status` with those columns) or a port method; I will switch to it.
 - **Acceptance:** renaming a `wf.application` column no longer breaks replay. **Contract:** yes, if it is a port.
+
+## 8. Institution list visible to institutions
+
+- **Exists today:** `GET /institutions` returns every institution (name, regional office) to every signed-in role,
+  institutions included. Pinned as current behaviour in `backend/tests/test_role_matrix.py` ("institution list").
+- **Needed (your decision):** if institutions should not see each other, return only the caller's institution for
+  `INSTITUTION` and keep the full list for officers.
+- **Acceptance:** an institution user gets exactly one row; officers get all. I will update the matrix row.
+  **Contract:** no.

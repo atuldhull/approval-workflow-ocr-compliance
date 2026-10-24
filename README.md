@@ -43,6 +43,7 @@ docker compose --profile worker up --build                       # + notificatio
 cp .env.security.example .env.security                          # real sign-in (LOCAL DEMO accounts)
 docker compose --env-file .env.security --profile security --profile worker up --build
 python scripts/smoke_security.py                                 # end-to-end checks with real tokens
+python scripts/smoke_demo.py --docker                            # demo-day checks on the default stack
 docker compose exec backend python -m app.platform.demo_seed --sample-alerts   # demo alerts to deliver
 ```
 

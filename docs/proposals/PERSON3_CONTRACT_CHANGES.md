@@ -3,6 +3,19 @@
 Nothing here is active until all three approve the pull request that contains it (`contracts-approval/designated-approvals` status).
 Items are independent and can be approved one by one.
 
+## Status at a glance
+
+| # | What | State |
+|---|---|---|
+| C1 | OpenAPI snapshot for the platform endpoints | **Committed on `person-3`** (`bcc63e4`) - still needs the three-way approval when the integration PR is opened |
+| C2 | `RecipientPort` | Proposed only; nothing in `contracts/` changed |
+| C3 | `stage` / `assigned_to` on `ResourceRef` | Proposed only; waits for Person 1's assignment data |
+| C4 | `Idempotency-Key` in the snapshot | Waits for Person 1 to apply the idempotency patch |
+| C5 | Checkpoint publication endpoint and fields | Patch file only, **not applied**; re-verified to apply cleanly and to make `check_contracts.py` pass |
+
+Any API change after these were prepared means regenerating the snapshot (`python scripts/check_contracts.py
+--write`) on the integration branch and reviewing the whole diff again, rather than applying an old patch blindly.
+
 | # | Change | Files | Why | State |
 |---|---|---|---|---|
 | C1 | OpenAPI snapshot gains 13 new endpoints (auth, notifications, audit, analytics). Existing operations are unchanged. | `contracts/openapi.json` | The snapshot must match the served API, otherwise CI fails | Separate commit on `person-3`, ready to review |
