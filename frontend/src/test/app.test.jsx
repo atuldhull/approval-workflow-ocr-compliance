@@ -9,6 +9,7 @@ import ApplicationsView from "../views/ApplicationsView.jsx";
 import { FieldReview } from "../views/OcrReviewView.jsx";
 import { OCR_SAMPLE } from "../fixtures/previews.js";
 import { fakeServer } from "./fakeServer.js";
+import { adoptTokens, clearSession, hasSession } from "../auth/oidc.js";
 
 const SUNRISE = DEMO_USERS[0];
 const RO = DEMO_USERS.find((u) => u.role === "RO_OFFICER");
@@ -45,7 +46,7 @@ describe("api client", () => {
   });
 
   it("sends a bearer token and no demo headers when signed in", async () => {
-    sessionStorage.setItem("awoc.oidc.tokens", JSON.stringify({ access_token: "tok", expires_at: Date.now() + 600_000 }));
+    adoptTokens({ access_token: "tok", expires_in: 600 });
     const calls = fakeServer({ "GET /api/auth/me": {} });
     await api({ mode: "oidc", config: { issuer: "http://idp", client_id: "awoc-ui" } }, "/auth/me");
     expect(calls[0].headers.Authorization).toBe("Bearer tok");
@@ -151,5 +152,45 @@ describe("document review: commit before reveal", () => {
     expect(screen.getByText("2031-03-31")).toBeInTheDocument();
     expect(screen.getByText("Differs - check the document")).toBeInTheDocument();
     expect(screen.getByLabelText(/Your reading/)).toBeDisabled();
+  });
+});
+
+describe("session hardening", () => {
+  const OIDC = { mode: "oidc", config: { issuer: "http://idp", client_id: "awoc-ui" } };
+
+  it("never writes the access token to browser storage", () => {
+    adoptTokens({ access_token: "secret-access", refresh_token: "r1", id_token: "i1", expires_in: 300 });
+    const stored = JSON.stringify({ ...sessionStorage, ...localStorage });
+    expect(stored).not.toContain("secret-access");
+    expect(JSON.parse(sessionStorage.getItem("awoc.oidc.tokens"))).toEqual({ refresh_token: "r1", id_token: "i1" });
+    clearSession();
+  });
+
+  it("ends the session and tells the app when the server answers 401", async () => {
+    adoptTokens({ access_token: "tok", refresh_token: "r1", expires_in: 300 });
+    fakeServer({ "GET /api/applications": () => [401, { detail: "invalid or expired token" }] });
+    let fired = false;
+    window.addEventListener("awoc:session-expired", () => { fired = true; }, { once: true });
+    await expect(api(OIDC, "/applications")).rejects.toMatchObject({ status: 401 });
+    expect(fired).toBe(true);
+    expect(hasSession()).toBe(false);
+  });
+
+  it("ends the session when the refresh token is rejected", async () => {
+    adoptTokens({ access_token: "old", refresh_token: "r-revoked", expires_in: 1 }); // already inside the 30 s margin
+    fakeServer({
+      "GET http://idp/.well-known/openid-configuration": { issuer: "http://idp", token_endpoint: "http://idp/token" },
+      "POST http://idp/token": () => [400, { error: "invalid_grant" }],
+    });
+    await expect(api(OIDC, "/applications")).rejects.toMatchObject({ status: 401 });
+    expect(hasSession()).toBe(false);
+  });
+
+  it("demo-mode 401s do not touch any session", async () => {
+    fakeServer({ "GET /api/x": () => [401, { detail: "headers required" }] });
+    let fired = false;
+    window.addEventListener("awoc:session-expired", () => { fired = true; }, { once: true });
+    await expect(api(SUNRISE, "/x")).rejects.toMatchObject({ status: 401 });
+    expect(fired).toBe(false);
   });
 });

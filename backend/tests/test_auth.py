@@ -321,3 +321,67 @@ def test_app_refuses_to_start_with_unsafe_configuration(monkeypatch):
     monkeypatch.setattr(wiring, "settings", replace(settings, app_env="production"))
     with pytest.raises(RuntimeError, match="unsafe configuration"):
         wiring.wire()
+
+
+# ---- hardening (second pass) ----
+
+def test_algorithm_that_does_not_fit_the_key_is_401_not_500():
+    from cryptography.hazmat.primitives.asymmetric import ec
+    raw = {k: v for k, v in jwk(KEY, "k1").items() if k != "alg"}          # JWKS key without a declared alg
+    cache = JwksCache("http://idp.test/certs", fetch=lambda url: {"keys": [raw]})
+    v = TokenVerifier(ISSUER, AUDIENCE, ("RS256", "ES256"), cache, leeway=0)
+    forged = token(key=ec.generate_private_key(ec.SECP256R1()), alg="ES256")
+    with pytest.raises(InvalidToken, match="key type"):
+        v.principal(forged)
+
+
+def test_a_token_issued_in_the_future_is_rejected():
+    with pytest.raises(InvalidToken):
+        verifier().principal(token(iat=int(time.time()) + 3600))
+
+
+def test_malformed_region_claims_are_rejected():
+    with pytest.raises(InvalidToken, match="region"):
+        verifier().principal(token(realm_access={"roles": ["RO_OFFICER"]}, region="Southern'; DROP TABLE x;--"))
+
+
+def test_committee_case_access_is_refused_when_assignments_are_required():
+    committee = Principal(uuid4(), Role.SCRUTINY_COMMITTEE)
+    app = ResourceRef("application", uuid4(), SUNRISE, "Southern")
+    assert policy.decide(committee, "application.read", app, True, require_assignment=False) is None
+    assert "assignments are not available" in policy.decide(committee, "application.read", app, True,
+                                                            require_assignment=True)
+    assert policy.decide(committee, "ruleset.read", ResourceRef("ruleset"), True, require_assignment=True) is None
+    bureau = Principal(uuid4(), Role.BUREAU_OFFICER)
+    assert policy.decide(bureau, "application.read", app, True, require_assignment=True) is None
+
+
+def test_cerbos_engine_applies_the_assignment_guard_before_asking(monkeypatch):
+    monkeypatch.setattr(auth, "settings", replace(settings, authz_require_assignment=True))
+    calls = []
+    authz = cerbos(lambda req: calls.append(req) or httpx.Response(200, json={}))
+    with pytest.raises(Forbidden, match="assignments"):
+        authz.check(Principal(uuid4(), Role.SCRUTINY_COMMITTEE), "application.read",
+                    ResourceRef("application", uuid4(), SUNRISE, "Southern"))
+    assert calls == []
+
+
+def test_production_keeps_the_assignment_guard_on():
+    found = problems(replace(settings, app_env="production", demo_auth=False, demo_mode=False, authz_engine="cerbos",
+                             cerbos_url="http://c", oidc_issuer="https://i", oidc_audience="a",
+                             oidc_jwks_url="https://i/certs", authz_require_assignment=False))
+    assert found == ["AUTHZ_REQUIRE_ASSIGNMENT must stay on in production until case assignments exist"]
+
+
+def test_api_responses_carry_security_headers_and_never_echo_tokens(client, oidc):
+    bad = "Bearer " + token(aud="wrong")
+    r = client.get("/api/applications", headers={"Authorization": bad})
+    assert r.status_code == 401 and bad.split()[1] not in r.text
+    for name, value in (("X-Content-Type-Options", "nosniff"), ("X-Frame-Options", "DENY"),
+                        ("Cache-Control", "no-store"), ("Referrer-Policy", "no-referrer")):
+        assert r.headers[name] == value
+    assert "default-src 'none'" in r.headers["Content-Security-Policy"]
+
+
+def test_unknown_role_header_values_are_rejected_in_demo_mode(client):
+    assert client.get("/api/applications", headers={"X-Demo-User": SUNRISE_USER, "X-Demo-Role": "ADMIN"}).status_code == 422

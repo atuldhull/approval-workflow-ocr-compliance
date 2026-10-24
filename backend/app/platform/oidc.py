@@ -21,6 +21,7 @@ from contracts.types import Principal
 
 USER_ROLES = frozenset(r.value for r in Role if r != Role.SYSTEM)  # SYSTEM is never a signed-in user
 REGION = re.compile(r"^[A-Za-z][A-Za-z -]{0,39}$")
+KEY_TYPE_FOR = {"RS": "RSA", "PS": "RSA", "ES": "EC", "EdDSA": "OKP"}
 
 
 class InvalidToken(Exception):
@@ -96,6 +97,8 @@ class TokenVerifier:
         declared = key._jwk_data.get("alg")
         if declared and declared != alg:
             raise InvalidToken("token algorithm does not match its key")
+        if KEY_TYPE_FOR.get(alg[:2] if alg != "EdDSA" else alg) != key.key_type:
+            raise InvalidToken("token algorithm does not fit the key type")
         try:
             claims = jwt.decode(
                 token, key.key, algorithms=[alg], audience=self.audience, issuer=self.issuer, leeway=self.leeway,
@@ -103,6 +106,8 @@ class TokenVerifier:
             )
         except jwt.PyJWTError as e:
             raise InvalidToken(type(e).__name__) from e
+        except (TypeError, ValueError) as e:  # library errors on odd key/token combinations must be 401, not 500
+            raise InvalidToken("token could not be verified") from e
         if claims.get("typ") not in (None, "Bearer"):
             raise InvalidToken("not an access token")  # e.g. an ID token replayed as an access token
         return claims

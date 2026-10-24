@@ -29,7 +29,7 @@ class Authz:
     """Local policy engine."""
 
     def check(self, principal: Principal, action: str, resource: ResourceRef) -> None:
-        reason = policy.decide(principal, action, resource, settings.demo_mode)
+        reason = policy.decide(principal, action, resource, settings.demo_mode, settings.authz_require_assignment)
         if reason:
             raise Forbidden(reason)
 
@@ -59,7 +59,8 @@ class CerbosAuthz:
         }
 
     def check(self, principal: Principal, action: str, resource: ResourceRef) -> None:
-        reason = policy.precheck(action, resource, settings.demo_mode)
+        reason = (policy.precheck(action, resource, settings.demo_mode)
+                  or policy.assignment_guard(principal, resource, settings.authz_require_assignment))
         if reason:
             raise Forbidden(reason)
         try:

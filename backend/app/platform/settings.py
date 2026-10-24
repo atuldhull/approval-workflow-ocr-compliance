@@ -40,6 +40,7 @@ class Settings:
     authz_engine: str = "local"             # local | cerbos
     cerbos_url: str = ""
     cerbos_timeout_seconds: float = 2.0
+    authz_require_assignment: bool = False  # refuse committee case access until assignment data exists
     # idempotency
     idempotency_ttl_hours: int = 24
     # notifications
@@ -81,6 +82,8 @@ def load_settings() -> Settings:
         authz_engine=os.environ.get("AUTHZ_ENGINE", "local").strip().lower(),
         cerbos_url=os.environ.get("CERBOS_URL", "").rstrip("/"),
         cerbos_timeout_seconds=float(os.environ.get("CERBOS_TIMEOUT_SECONDS", "2")),
+        authz_require_assignment=_flag("AUTHZ_REQUIRE_ASSIGNMENT",
+                                       "true" if os.environ.get("APP_ENV", "").strip().lower() == "production" else "false"),
         idempotency_ttl_hours=_int("IDEMPOTENCY_TTL_HOURS", 24),
         notify_max_attempts=_int("NOTIFY_MAX_ATTEMPTS", 6),
         notify_backoff_base_seconds=_int("NOTIFY_BACKOFF_BASE_SECONDS", 30),
@@ -109,6 +112,8 @@ def problems(s: Settings) -> list[str]:
             found.append("DEMO_MODE must be false in production")
         if s.authz_engine != "cerbos":
             found.append("AUTHZ_ENGINE must be cerbos in production")
+        if not s.authz_require_assignment:
+            found.append("AUTHZ_REQUIRE_ASSIGNMENT must stay on in production until case assignments exist")
     if not s.demo_auth:
         for name, value in (("OIDC_ISSUER", s.oidc_issuer), ("OIDC_AUDIENCE", s.oidc_audience),
                             ("OIDC_JWKS_URL", s.oidc_jwks_url)):

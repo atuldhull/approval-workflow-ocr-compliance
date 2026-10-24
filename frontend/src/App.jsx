@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DEMO_USERS, api, publicApi } from "./api.js";
+import { DEMO_USERS, SESSION_EXPIRED, api, publicApi } from "./api.js";
 import { clearSession, completeSignIn, hasSession, signIn, signOut } from "./auth/oidc.js";
 import { Sidebar, TopBar } from "./components/Layout.jsx";
 import { ErrorBox, Loading } from "./components/ui.jsx";
@@ -129,6 +129,12 @@ function OidcApp({ config }) {
       }
     })();
   }, [config, who]);
+
+  useEffect(() => {
+    const expired = () => setState({ phase: "signed-out", message: "Your session has ended. Please sign in again." });
+    window.addEventListener(SESSION_EXPIRED, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED, expired);
+  }, []);
 
   if (state.phase === "loading") return <Loading what="Signing in" />;
   if (state.phase === "signed-out") return <SignIn config={config} message={state.message} />;

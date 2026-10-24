@@ -1,4 +1,13 @@
-import { accessToken } from "./auth/oidc.js";
+import { accessToken, clearSession } from "./auth/oidc.js";
+
+export const SESSION_EXPIRED = "awoc:session-expired";
+
+// In real sign-in mode a 401 means the session is over: drop it and let the app return to the sign-in screen.
+function endSession(who) {
+  if (who?.mode !== "oidc") return;
+  clearSession();
+  window.dispatchEvent(new Event(SESSION_EXPIRED));
+}
 
 // Demo users - only offered when the backend reports demo sign-in (DEMO_AUTH=true).
 // In real sign-in mode the backend refuses these headers outright.
@@ -41,7 +50,10 @@ export class ApiError extends Error {
 async function identityHeaders(who) {
   if (who?.mode === "oidc") {
     const token = await accessToken(who.config);
-    if (!token) throw new ApiError(401, "Your session has ended. Please sign in again.");
+    if (!token) {
+      endSession(who);
+      throw new ApiError(401, "Your session has ended. Please sign in again.");
+    }
     return { Authorization: `Bearer ${token}` };
   }
   const headers = { "X-Demo-User": who.user, "X-Demo-Role": who.role };
@@ -58,7 +70,10 @@ export async function api(who, path, { method = "GET", body, headers: extra = {}
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     let detail = typeof data?.detail === "string" ? data.detail : JSON.stringify(data?.detail ?? res.statusText);
-    if (res.status === 401) detail = "Your session has ended or is not valid. Please sign in again.";
+    if (res.status === 401) {
+      detail = "Your session has ended or is not valid. Please sign in again.";
+      endSession(who);
+    }
     if (res.status === 403) detail = `Not permitted: ${detail}`;
     if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
     throw new ApiError(res.status, detail);

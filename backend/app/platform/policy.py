@@ -56,9 +56,22 @@ def precheck(action: str, resource: ResourceRef, demo_mode: bool) -> str | None:
     return None
 
 
-def decide(principal: Principal, action: str, resource: ResourceRef, demo_mode: bool) -> str | None:
+# Committee members should only touch the cases assigned to them. Assignment data does not exist yet (Person 1,
+# contract change C3), so with AUTHZ_REQUIRE_ASSIGNMENT on (the production default) their case access is refused
+# rather than assumed. Off in development so the demo keeps working - see docs/SECURITY.md.
+ASSIGNMENT_SCOPED = {R.SCRUTINY_COMMITTEE: frozenset({"application", "deadline"})}
+
+
+def assignment_guard(principal: Principal, resource: ResourceRef, require_assignment: bool) -> str | None:
+    if require_assignment and resource.type in ASSIGNMENT_SCOPED.get(principal.role, ()):
+        return "case assignments are not available yet, so committee access to cases is refused"
+    return None
+
+
+def decide(principal: Principal, action: str, resource: ResourceRef, demo_mode: bool,
+           require_assignment: bool = False) -> str | None:
     """Returns why the request is denied, or None if it is allowed."""
-    reason = precheck(action, resource, demo_mode)
+    reason = precheck(action, resource, demo_mode) or assignment_guard(principal, resource, require_assignment)
     if reason:
         return reason
     if principal.role not in POLICY[action]:

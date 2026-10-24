@@ -1,6 +1,7 @@
 // Browser sign-in with OpenID Connect: Authorization Code + PKCE (S256), public client, no client secret.
-// Tokens live in sessionStorage (cleared when the tab closes). The API verifies every access token itself;
-// nothing here is trusted for authorisation.
+// The access token lives only in memory, so it is never written to browser storage. sessionStorage (cleared when
+// the tab closes) keeps just the refresh token, which Keycloak rotates on every use, and the ID token needed for
+// logout. The API verifies every access token itself; nothing here is trusted for authorisation.
 
 const PENDING = "awoc.oidc.pending";
 const TOKENS = "awoc.oidc.tokens";
@@ -83,15 +84,14 @@ export async function signIn(config) {
   window.location.assign(`${ep.authorization_endpoint}?${q}`);
 }
 
-function saveTokens(t) {
-  const tokens = {
-    access_token: t.access_token,
-    refresh_token: t.refresh_token || null,
-    id_token: t.id_token || store.get(TOKENS)?.id_token || null,
-    expires_at: Date.now() + (t.expires_in || 60) * 1000,
-  };
-  store.set(TOKENS, tokens);
-  return tokens;
+let current = null; // { access_token, expires_at } - memory only
+
+// Takes a token response from the provider. Exported for tests.
+export function adoptTokens(t) {
+  current = { access_token: t.access_token, expires_at: Date.now() + (t.expires_in || 60) * 1000 };
+  const kept = store.get(TOKENS) || {};
+  store.set(TOKENS, { refresh_token: t.refresh_token || null, id_token: t.id_token || kept.id_token || null });
+  return current;
 }
 
 async function tokenRequest(config, params) {
@@ -123,7 +123,7 @@ export async function completeSignIn(config) {
     code_verifier: pending.verifier,
   });
   if (decodePayload(t.id_token)?.nonce !== pending.nonce) throw new Error("Sign-in response failed the replay check.");
-  saveTokens(t);
+  adoptTokens(t);
   return true;
 }
 
@@ -131,14 +131,13 @@ let refreshing = null;
 
 // A valid access token, refreshed shortly before expiry; null when the user must sign in again.
 export async function accessToken(config) {
-  const t = store.get(TOKENS);
-  if (!t) return null;
-  if (t.expires_at - Date.now() > 30_000) return t.access_token;
-  if (!t.refresh_token) return null;
-  refreshing ??= tokenRequest(config, { grant_type: "refresh_token", refresh_token: t.refresh_token })
-    .then((r) => saveTokens(r).access_token)
+  if (current && current.expires_at - Date.now() > 30_000) return current.access_token;
+  const refresh = store.get(TOKENS)?.refresh_token;
+  if (!refresh) return null; // after a reload this is how the session resumes, or ends
+  refreshing ??= tokenRequest(config, { grant_type: "refresh_token", refresh_token: refresh })
+    .then((r) => adoptTokens(r).access_token)
     .catch(() => {
-      store.remove(TOKENS);
+      clearSession();
       return null;
     })
     .finally(() => {
@@ -148,10 +147,11 @@ export async function accessToken(config) {
 }
 
 export function hasSession() {
-  return Boolean(store.get(TOKENS));
+  return Boolean(current || store.get(TOKENS)?.refresh_token);
 }
 
 export function clearSession() {
+  current = null;
   store.remove(TOKENS);
   store.remove(PENDING);
 }

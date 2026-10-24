@@ -17,7 +17,8 @@ requests fail with 503.
 
 ## How a token is checked (`backend/app/platform/oidc.py`)
 
-1. The algorithm must be on the allow-list (`OIDC_ALGORITHMS`, asymmetric only) and match the key's declared algorithm.
+1. The algorithm must be on the allow-list (`OIDC_ALGORITHMS`, asymmetric only), match the key's declared algorithm,
+   and fit the key's type (RSA / EC / OKP). Odd key and token combinations end in 401, never a 500.
 2. The signing key is looked up by `kid` in the provider's JWKS. Keys are cached for 5 minutes and refetched on an
    unknown `kid` (key rotation), at most once every 30 seconds, so forged tokens cannot flood the provider.
 3. Signature, `iss`, `aud`, `exp`, `nbf` and `iat` are verified (30 s leeway); `exp`, `iat`, `iss`, `aud` and `sub` must be present.
@@ -42,7 +43,7 @@ they drift), and `backend/tests/test_cerbos_parity.py` compares both engines on 
 
 | Check | Needed from | Until then |
 |---|---|---|
-| Committee members see only cases assigned to them | Person 1: assignment data, and `assigned_to` on `ResourceRef` (contract change) | Committee and bureau roles see all cases |
+| Committee members see only cases assigned to them | Person 1: assignment data, and `assigned_to` on `ResourceRef` (contract change C3) | `AUTHZ_REQUIRE_ASSIGNMENT=true` (forced on in production) refuses committee access to applications and deadlines outright. In development it is off, so committee members see all cases for the demo. |
 | Stage-based actions (e.g. only act on a case in SCRUTINY) | Person 1: current stage passed in the resource (contract change) | Not checked by policy; Person 1's service checks the state |
 | Regional officer: application list and single application | Person 1: filter `GET /applications` by `principal.region` and pass `region=` in `ResourceRef` for single reads | Refused for regional officers (safe, but they cannot use those two endpoints) |
 | Regional officer: deadline list | Person 2: filter `GET /deadlines` by region and pass `region=` | Refused for regional officers |
@@ -58,5 +59,23 @@ python scripts/smoke_security.py              # 13 end-to-end checks with real t
 Demo accounts and their password are listed in `infra/keycloak/README.md` (LOCAL DEMO ONLY).
 
 The browser uses Authorization Code + PKCE (S256) with the public `awoc-ui` client. There is no client secret in
-the frontend. Tokens are kept in `sessionStorage` (cleared when the tab closes) and refreshed shortly before expiry.
-An XSS bug in the frontend could read them, as with any browser-held token.
+the frontend.
+
+- The **access token is kept in memory only**; it is never written to browser storage.
+- `sessionStorage` (cleared when the tab closes) holds only the refresh token, which Keycloak rotates on every use
+  (`revokeRefreshToken`), and the ID token needed for logout. After a reload the session resumes through the refresh token.
+- Any 401 from the API, or a refused refresh, ends the session and returns to the sign-in screen.
+- Sign-out clears local state and ends the Keycloak session (`end_session_endpoint` with `id_token_hint`).
+- An XSS bug could still use the session while the page is open, and could read the refresh token, as with any
+  browser-held token. Removing that needs a server-side session (backend-for-frontend), which is not built.
+
+## Response headers
+
+Every `/api/` response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+no-referrer`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: no-store` and
+`Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, plus HSTS when `APP_ENV=production`
+(`platform/http_security.py`). The built UI's own CSP must be set by whatever serves it, for example
+`default-src 'self'; connect-src 'self' <issuer origin>; frame-ancestors 'none'`. The Vite dev server is not
+hardened and is for local use only.
+
+With `DEMO_AUTH` on, the API logs a warning at startup.
