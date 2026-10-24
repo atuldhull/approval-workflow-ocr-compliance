@@ -42,6 +42,13 @@ outbox row PENDING --claim (lease)--> SENDING --send ok--------------------> DEL
 - **Lease renewal:** before each recipient the worker extends its lease; if another worker has taken the message
   over, it stops instead of sending alongside it.
 - **Requeue** (bureau head) gives refused recipients a fresh try and never resends to recipients already reached.
+- **A send longer than the lease:** `smtplib`'s timeout applies per socket operation and one send makes about eight
+  of them, so a slow server can hold a send for up to ~8 x `SMTP_TIMEOUT_SECONDS`. Startup refuses
+  `NOTIFY_LEASE_SECONDS` below 10 x `SMTP_TIMEOUT_SECONDS` (defaults: 120 s and 10 s). If a send still outlives the
+  lease (e.g. a stalled process), another worker reclaims the message and may send to that recipient again; the
+  first worker records its result and then stops at its next lease check. That is the at-least-once case, not data loss.
+- **Health** also reports `stalled_sending` (SENDING past its lease: a worker stopped), `lease_lost_24h` and whether
+  email is configured, so a missing mail server is visible before messages pile up as dead letters.
 
 ### Recipient digest key
 

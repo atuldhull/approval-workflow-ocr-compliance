@@ -4,6 +4,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
+LEASE_TIMEOUT_FACTOR = 10   # SMTP socket operations per send (~8) plus margin
+
 ASYMMETRIC_ALGORITHMS = frozenset({"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "EdDSA"})
 
 
@@ -52,6 +54,7 @@ class Settings:
     smtp_port: int = 25
     smtp_from: str = "no-reply@awoc.example.invalid"
     smtp_starttls: bool = False
+    smtp_timeout_seconds: float = 10.0      # per socket operation; one send makes about 8 of them
     notify_recipient_key: str = ""          # HMAC key for per-recipient delivery records; required in production
     # audit checkpoints
     audit_signing_key_file: str = ""        # Ed25519 private key (PEM); never committed
@@ -94,6 +97,7 @@ def load_settings() -> Settings:
         smtp_port=_int("SMTP_PORT", 25),
         smtp_from=os.environ.get("SMTP_FROM", "no-reply@awoc.example.invalid"),
         smtp_starttls=_flag("SMTP_STARTTLS", "false"),
+        smtp_timeout_seconds=float(os.environ.get("SMTP_TIMEOUT_SECONDS", "10")),
         notify_recipient_key=os.environ.get("NOTIFY_RECIPIENT_KEY", ""),
         audit_signing_key_file=os.environ.get("AUDIT_SIGNING_KEY_FILE", ""),
         audit_signing_key_id=os.environ.get("AUDIT_SIGNING_KEY_ID", ""),
@@ -130,6 +134,10 @@ def problems(s: Settings) -> list[str]:
             for name, value in (("OIDC_ISSUER", s.oidc_issuer), ("OIDC_JWKS_URL", s.oidc_jwks_url)):
                 if value and not value.startswith("https://"):
                     found.append(f"{name} must use https in production")
+    # A send that outlives the worker's lease lets another worker send the same message to the same recipient.
+    if s.notify_lease_seconds < LEASE_TIMEOUT_FACTOR * s.smtp_timeout_seconds:
+        found.append(f"NOTIFY_LEASE_SECONDS ({s.notify_lease_seconds}) must be at least {LEASE_TIMEOUT_FACTOR} x "
+                     f"SMTP_TIMEOUT_SECONDS ({s.smtp_timeout_seconds:g}) so one send cannot outlive the lease")
     if s.authz_engine not in {"local", "cerbos"}:
         found.append(f"AUTHZ_ENGINE must be local or cerbos, not {s.authz_engine!r}")
     if s.authz_engine == "cerbos" and not s.cerbos_url:

@@ -509,3 +509,33 @@ def test_delivery_operations_are_refused_to_case_roles(env):
     for h in (headers("SCRUTINY_COMMITTEE"), {**headers("RO_OFFICER"), "X-Demo-Region": "Southern"}):
         assert env.get("/api/notifications/health", headers=h).status_code == 403
         assert env.get("/api/notifications/outbox", headers=h).status_code == 403
+
+
+# ---- operations (P3-20) ----
+
+def test_health_reports_stalled_work_lease_losses_and_provider_readiness(env):
+    from app.platform.notifier import health
+    clock = Clock()
+    enqueue()
+    worker(clock=clock, name="crashed").claim()           # claims, then never finishes
+    clock.tick(61)
+    h = health(clock())
+    assert h["stalled_sending"] == 1
+    assert h["providers"]["email"] == "not_configured" and h["providers"]["sms"].startswith("mock")
+    worker(FakeProvider(), clock, name="survivor").run_once()
+    assert health(clock())["stalled_sending"] == 0
+
+
+def test_lease_must_outlast_a_slow_send():
+    from dataclasses import replace
+    from app.platform.settings import problems, settings
+    assert not [p for p in problems(settings) if "NOTIFY_LEASE_SECONDS" in p]      # defaults are safe
+    found = problems(replace(settings, notify_lease_seconds=60, smtp_timeout_seconds=10))
+    assert any("NOTIFY_LEASE_SECONDS (60) must be at least 10 x SMTP_TIMEOUT_SECONDS (10)" in p for p in found)
+
+
+def test_the_configured_smtp_timeout_reaches_the_provider(monkeypatch):
+    from dataclasses import replace
+    from app.platform import notifier
+    monkeypatch.setattr(notifier, "settings", replace(notifier.settings, smtp_host="mail.test", smtp_timeout_seconds=4))
+    assert notifier.default_providers()["email"].timeout == 4

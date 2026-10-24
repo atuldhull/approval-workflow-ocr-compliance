@@ -283,6 +283,9 @@ def requeue(outbox_id: UUID, now: datetime) -> bool:
 def health(now: datetime) -> dict:
     with new_session() as s:
         by_status = dict(s.execute(select(Outbox.status, func.count()).group_by(Outbox.status)).all())
+        # SENDING past its lease: the worker holding it stopped or crashed; another worker will pick it up
+        stalled = s.scalar(select(func.count()).select_from(Outbox).where(
+            Outbox.status == "SENDING", Outbox.lease_until < now)) or 0
         oldest = s.scalar(select(func.min(Outbox.created_at)).where(Outbox.status.in_(["PENDING", "SENDING"])))
         since = now - timedelta(hours=24)
         outcomes = dict(s.execute(select(DeliveryAttempt.outcome, func.count())
@@ -312,12 +315,18 @@ def health(now: datetime) -> dict:
         "first_tries_24h": first_tries,
         "first_try_success_rate_24h": round(first_ok / first_tries, 3) if first_tries else None,
         "delivered_after_retry_24h": retried_ok or 0,
+        "stalled_sending": stalled,
+        "lease_lost_24h": sum(n for o, n in outcomes.items() if o.endswith("_LEASE_LOST")),
+        # read from this process's settings; the worker uses the same environment in the provided compose file
+        "providers": {"in_app": "built_in", "email": "configured" if settings.smtp_host else "not_configured",
+                      "sms": "mock (nothing is sent)"},
     }
 
 
 def default_providers() -> dict[str, Provider]:
     return {
-        "email": SmtpProvider(settings.smtp_host, settings.smtp_port, settings.smtp_from, settings.smtp_starttls),
+        "email": SmtpProvider(settings.smtp_host, settings.smtp_port, settings.smtp_from, settings.smtp_starttls,
+                              timeout=settings.smtp_timeout_seconds),
         "sms": MockSmsProvider(os.environ.get("SMS_MOCK_FILE") or None),
     }
 
