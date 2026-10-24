@@ -682,3 +682,8 @@ mark {
   gap: 6px;
   align-items: center;
 }
+
+.summary-actions {
+  display: inline-flex;
+  margin-left: 10px;
+}

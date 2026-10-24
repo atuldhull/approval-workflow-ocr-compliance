@@ -11,6 +11,7 @@ import { fixtureAdapter } from "../integrations/documentReview.js";
 import ScorecardView from "../views/ScorecardView.jsx";
 import InboxView from "../views/InboxView.jsx";
 import DeliveryView from "../views/DeliveryView.jsx";
+import AuditView, { evidenceSummary } from "../views/AuditView.jsx";
 import { when, dateIST } from "../components/ui.jsx";
 import { errorText, outcomeText } from "../deliveryText.js";
 import NewApplication from "../components/NewApplication.jsx";
@@ -493,5 +494,81 @@ describe("delivery operations", () => {
     expect(errorText("SOME_RECIPIENTS_REFUSED")).toMatch(/some recipients/);
     expect(errorText("SOMETHING_NEW")).toBe("SOMETHING_NEW");
     expect(outcomeText("TRANSIENT_LEASE_LOST")).toMatch(/another worker/);
+  });
+});
+
+describe("audit evidence presentation", () => {
+  const AUDITOR = DEMO_USERS.find((u) => u.role === "AUDITOR");
+  const BUREAU_OFFICER = DEMO_USERS.find((u) => u.role === "BUREAU_OFFICER");
+  const verify = { ok: true, status: "VERIFIED", assurance: "CHECKPOINTED_WITH_NEWER_ENTRIES", checked: 12, checkpoint_seq: 9,
+    checkpoint_at: "2026-10-24T10:00:00Z", checkpoint_key_id: "demo-2026-10", entries_after_checkpoint: 3, unpublished_checkpoints: 1,
+    witness_kind: "local-file (DEMO ONLY)", detail: "Chain verifies and matches the latest trusted checkpoint.", witness_configured: true };
+  const routes = (over = {}) => ({
+    "GET /api/audit/verify": verify,
+    "GET /api/ledger/verify": { ok: true, checked: 12, first_bad_seq: null, detail: null },
+    "GET /api/audit/checkpoints": [{ id: "c1", created_at: "2026-10-24T10:05:00Z", head_seq: 12, entry_count: 12, key_id: "demo-2026-10", status: "PENDING", publish_error: "simulated witness outage" }],
+    "POST /api/audit/replay": { ok: false, verdict: "MISMATCH", unhandled_event_types: {}, schemas_without_projector: [],
+      projections: [{ name: "applications", owner: "P1", status: "MISMATCH", events_applied: 4, records: 2, compared_fields: ["status"],
+        differences: [{ key: "a1b2c3d4-0000", field: "status", replayed: "IN_PROCESS", live: "APPROVED" }], skipped_versions: {} }],
+      gaps: [{ kind: "UNREADABLE_EVENT", seq: 7, event_type: "wf.application_created", projection: "applications", error: "KeyError" }] },
+    ...over,
+  });
+
+  it("marks the local witness as demo only and explains pending publication", async () => {
+    fakeServer(routes());
+    render(<AuditView who={AUDITOR} me={ME(AUDITOR)} />);
+    expect(await screen.findByText(/DEMO ONLY - same machine, not independent/)).toBeInTheDocument();
+    expect(screen.getByText(/signed but the witness has not accepted them yet/)).toBeInTheDocument();
+    expect(screen.getByText(/the 3 newest entries are not anchored yet/)).toBeInTheDocument();
+  });
+
+  it("shows replay mismatches and unreadable entries in words", async () => {
+    fakeServer(routes());
+    const user = userEvent.setup();
+    render(<AuditView who={AUDITOR} me={ME(AUDITOR)} />);
+    await user.click(await screen.findByRole("button", { name: "Run replay" }));
+    expect(await screen.findByText(/Entry #7 \(wf.application_created\) could not be read/)).toBeInTheDocument();
+    await user.click(screen.getByText("Show"));
+    expect(screen.getByText(/status is "APPROVED" live but "IN_PROCESS" from events/)).toBeInTheDocument();
+    expect(screen.getAllByText("Integrity problem found").length).toBeGreaterThan(0);
+  });
+
+  it("builds a summary with statuses only, never payloads", () => {
+    const text = evidenceSummary({ chain: { ok: true, checked: 12 }, verify, replay: routes()["POST /api/audit/replay"],
+      checkpoints: routes()["GET /api/audit/checkpoints"], generatedAt: "now" });
+    expect(text).toMatch(/Overall: Integrity problem found/);
+    expect(text).toMatch(/3 newer entries are not anchored yet/);
+    expect(text).toMatch(/witness: local-file \(DEMO ONLY\)/);
+    expect(text).toMatch(/not independent long-term assurance/);
+    expect(text).not.toMatch(/APPROVED|IN_PROCESS|payload/);
+  });
+
+  it("copies the summary to the clipboard", async () => {
+    fakeServer(routes());
+    const user = userEvent.setup();   // provides a clipboard stub on navigator
+    render(<AuditView who={AUDITOR} me={ME(AUDITOR)} />);
+    await screen.findByText(/DEMO ONLY - same machine/);
+    await user.click(screen.getByRole("button", { name: "Copy summary" }));
+    const copiedText = await navigator.clipboard.readText();
+    expect(copiedText).toMatch(/Hash chain: intact, 12 entries/);
+    expect(copiedText).not.toMatch(/APPROVED|IN_PROCESS/);
+    expect(await screen.findByText("Summary copied.")).toBeInTheDocument();
+  });
+
+  it("does not offer replay or signing to a bureau officer, and shows a refused check as an error", async () => {
+    fakeServer(routes({ "GET /api/audit/verify": () => [403, { detail: "BUREAU_OFFICER may not audit.checkpoint.read" }] }));
+    render(<AuditView who={BUREAU_OFFICER} me={ME(BUREAU_OFFICER)} />);
+    expect((await screen.findAllByRole("alert"))[0]).toHaveTextContent("Not permitted");
+    expect(screen.queryByRole("button", { name: "Run replay" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Sign checkpoint/ })).toBeNull();
+    expect(screen.getByText(/An auditor or the bureau head can retry publication/)).toBeInTheDocument();
+  });
+
+  it("reports a failed signing attempt", async () => {
+    fakeServer(routes({ "GET /api/audit/checkpoints": [], "POST /api/audit/checkpoints": () => [503, { detail: "no witness" }] }));
+    const user = userEvent.setup();
+    render(<AuditView who={AUDITOR} me={ME(AUDITOR)} />);
+    await user.click(await screen.findByRole("button", { name: "Sign checkpoint now" }));
+    expect(await screen.findByText(/security service is unavailable/)).toBeInTheDocument();
   });
 });

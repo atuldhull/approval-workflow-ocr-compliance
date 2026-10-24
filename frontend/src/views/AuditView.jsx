@@ -41,7 +41,45 @@ const GAP_TEXT = {
   UNHANDLED_EVENT_TYPE: (g) => `${g.events} stored ${g.event_type} event(s) have no projector, so they were not checked`,
   UNKNOWN_EVENT_VERSION: (g) => `${g.projection}: ${g.events} event(s) of ${g.event} use a version it does not understand`,
   NO_LIVE_MODEL: (g) => `${g.projection} has no live model to compare against`,
+  NO_PROJECTORS: () => "No projector ran, so nothing was replayed",
+  UNKNOWN_PROJECTOR: (g) => `Projector "${g.projection}" was requested but is not registered`,
+  NO_FIELDS_COMPARED: (g) => `${g.projection} compares no fields, so a match proves nothing`,
+  UNREADABLE_EVENT: (g) => `Entry #${g.seq} (${g.event_type}) could not be read by ${g.projection} - possible tampering`,
 };
+
+export const gapText = (g) => GAP_TEXT[g.kind]?.(g) ?? g.kind;
+
+// A plain-text summary for the operator to keep. Built from results already on screen: statuses, counts and entry
+// numbers only - never event payloads, case notes or personal data.
+export function evidenceSummary({ chain, verify, replay, checkpoints, generatedAt }) {
+  const lines = [
+    "Approval workflow - integrity summary",
+    `Generated: ${generatedAt}`,
+    "",
+    `Overall: ${headline(chain?.ok, verify, replay)[1]}`,
+    `1. Hash chain: ${chain ? (chain.ok ? `intact, ${chain.checked} entries` : `BROKEN at entry #${chain.first_bad_seq}`) : "not checked"}`,
+  ];
+  if (verify) {
+    lines.push(`2. Trusted checkpoint: ${verify.status} (assurance ${verify.assurance})`);
+    if (verify.checkpoint_seq) lines.push(`   covers entries up to #${verify.checkpoint_seq}, signed ${when(verify.checkpoint_at)} with key ${verify.checkpoint_key_id}`);
+    if (verify.entries_after_checkpoint) lines.push(`   ${verify.entries_after_checkpoint} newer entries are not anchored yet`);
+    lines.push(`   witness: ${verify.witness_kind ?? "not configured"}`);
+    if (verify.unpublished_checkpoints) lines.push(`   ${verify.unpublished_checkpoints} checkpoint(s) signed but not yet published`);
+  } else {
+    lines.push("2. Trusted checkpoint: not checked");
+  }
+  if (replay) {
+    lines.push(`3. Replay: ${replay.verdict}`);
+    for (const p of replay.projections) lines.push(`   ${p.name}: ${p.status}, ${p.events_applied} events, ${p.differences.length} differences`);
+    for (const g of replay.gaps) lines.push(`   not covered: ${gapText(g)}`);
+  } else {
+    lines.push("3. Replay: not run");
+  }
+  if (checkpoints?.length) lines.push("", `Checkpoints on record: ${checkpoints.length} (${checkpoints.filter((c) => c.status === "PENDING").length} pending)`);
+  lines.push("", "A local-file witness is a demo only and not independent long-term assurance.",
+    "Checkpoints are integrity evidence for this system, not legal signatures on decisions.");
+  return lines.join("\n");
+}
 
 export default function AuditView({ who, me }) {
   const verify = useApi(who, "/audit/verify");
@@ -74,12 +112,39 @@ export default function AuditView({ who, me }) {
   const [cpTone, cpText] = checkpointState(v);
   const [rpTone, rpText] = replayState(replay);
   const pending = checkpoints.data?.filter((c) => c.status === "PENDING") ?? [];
+  const [copied, setCopied] = useState(null);
+  const summary = () => evidenceSummary({ chain: chain.data, verify: v, replay, checkpoints: checkpoints.data,
+    generatedAt: when(new Date().toISOString()) });
+
+  async function copySummary() {
+    try {
+      await navigator.clipboard.writeText(summary());
+      setCopied("Summary copied.");
+    } catch {
+      setCopied("Copy is not available here; use Download.");
+    }
+  }
+
+  function downloadSummary() {
+    const url = URL.createObjectURL(new Blob([summary()], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "integrity-summary.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+    setCopied("Summary downloaded.");
+  }
 
   return (
     <div>
       <div className={`alert summary ${headTone}`} role="status">
         <Badge tone={headTone}>{headText}</Badge>
         {!replay && <span className="muted"> Run the replay check to complete the picture.</span>}
+        <span className="actions summary-actions">
+          <button className="secondary small" onClick={() => copySummary()}>Copy summary</button>
+          <button className="secondary small" onClick={() => downloadSummary()}>Download summary</button>
+        </span>
+        {copied && <span className="muted small" role="status"> {copied}</span>}
       </div>
       <ErrorBox error={actionError} />
 
@@ -115,7 +180,10 @@ export default function AuditView({ who, me }) {
                   </>
                 )}
                 <dt>Witness</dt>
-                <dd>{v.witness_kind ?? "not configured"}</dd>
+                <dd>
+                  {v.witness_kind ?? "not configured"}{" "}
+                  {v.witness_kind?.includes("DEMO ONLY") && <Badge tone="warn">DEMO ONLY - same machine, not independent</Badge>}
+                </dd>
                 {v.unpublished_checkpoints > 0 && (
                   <>
                     <dt>Unpublished</dt>
@@ -158,7 +226,22 @@ export default function AuditView({ who, me }) {
                       <td>{p.name}</td>
                       <td><Badge tone={p.status === "MATCH" ? "ok" : p.status === "MISMATCH" ? "bad" : "warn"}>{p.status}</Badge></td>
                       <td>{p.events_applied}</td>
-                      <td>{p.differences.length}</td>
+                      <td>
+                        {p.differences.length}
+                        {p.differences.length > 0 && (
+                          <details>
+                            <summary>Show</summary>
+                            <ul className="small">
+                              {p.differences.map((d, i) => (
+                                <li key={i}>
+                                  record <code>{String(d.key).slice(0, 8)}</code>:{" "}
+                                  {d.problem ? d.problem.replaceAll("_", " ") : `${d.field} is "${d.live}" live but "${d.replayed}" from events`}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -166,7 +249,7 @@ export default function AuditView({ who, me }) {
               {replay.gaps.length > 0 && (
                 <>
                   <h3>Not covered</h3>
-                  <ul>{replay.gaps.map((g, i) => <li key={i}>{GAP_TEXT[g.kind]?.(g) ?? g.kind}</li>)}</ul>
+                  <ul>{replay.gaps.map((g, i) => <li key={i}>{gapText(g)}</li>)}</ul>
                 </>
               )}
             </>
@@ -191,6 +274,12 @@ export default function AuditView({ who, me }) {
             </span>
           )}
         >
+          {pending.length > 0 && (
+            <div className="alert preview" role="note">
+              {pending.length} checkpoint(s) are signed but the witness has not accepted them yet, so they do not count as
+              trusted evidence. {canSign ? "\"Retry publication\" hands the same signed copy over again; nothing is re-signed." : "An auditor or the bureau head can retry publication."}
+            </div>
+          )}
           <ErrorBox error={checkpoints.error} />
           {checkpoints.data?.length === 0 && <Empty>No checkpoints signed yet.</Empty>}
           {checkpoints.data?.length > 0 && (
