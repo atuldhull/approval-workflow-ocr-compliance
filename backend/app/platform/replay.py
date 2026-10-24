@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.platform.db import new_session
 from app.platform.models import DomainEvent
+from app.platform.settings import settings
 
 MAX_DIFFS = 100
 
@@ -131,8 +132,45 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
                 results.append(r)
         finally:
             session.rollback()
+    return summarise(results, unhandled, selected)
+
+
+def known_schemas() -> set[tuple[str, int]]:
+    """(event_type, version) pairs defined in contracts/events - read-only input."""
+    found = set()
+    for f in (settings.contracts_dir / "events").rglob("*.v*.json"):
+        name, _, version = f.name.removesuffix(".json").rpartition(".v")
+        found.add((f"{f.parent.name}.{name}", int(version)))
+    return found
+
+
+def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dict[str, Projector]) -> dict:
+    """Never reports partial coverage as complete.
+
+    verdict: VERIFIED_COMPLETE - every stored event was projected and every projection matched a live model;
+             CONSISTENT_SUBSET - nothing disagreed, but some events, versions or projections were not checked;
+             MISMATCH          - a projection disagrees with its live model.
+    """
+    gaps = [{"kind": "UNHANDLED_EVENT_TYPE", "event_type": et, "events": n} for et, n in sorted(unhandled.items())]
+    for r in results:
+        gaps += [{"kind": "UNKNOWN_EVENT_VERSION", "projection": r.name, "event": ev, "events": n}
+                 for ev, n in sorted(r.skipped_versions.items())]
+        if r.status == "NO_LIVE_MODEL":
+            gaps.append({"kind": "NO_LIVE_MODEL", "projection": r.name})
+    handled = {h for p in selected.values() for h in p.handles}
+    without_projector = sorted(f"{et}.v{v}" for et, v in known_schemas() - handled)
+    if any(r.status == "MISMATCH" for r in results):
+        verdict = "MISMATCH"
+    elif gaps:
+        verdict = "CONSISTENT_SUBSET"
+    else:
+        verdict = "VERIFIED_COMPLETE"
     return {
-        "ok": all(r.status in ("MATCH", "NO_LIVE_MODEL") for r in results),
+        "ok": verdict == "VERIFIED_COMPLETE",
+        "verdict": verdict,
         "projections": [r.__dict__ for r in results],
         "unhandled_event_types": dict(unhandled),
+        "gaps": gaps,
+        # informational: schemas no projector covers yet; no stored events of these types means nothing is missed today
+        "schemas_without_projector": without_projector,
     }

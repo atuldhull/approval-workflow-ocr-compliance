@@ -77,7 +77,7 @@ def scorecard() -> dict:
         {"key": "ledger_integrity", "title": "Ledger integrity", "kind": "VERIFIED_NOW",
          "result": {"status": integrity.status, "ok": integrity.ok, "entries_checked": integrity.checked}},
         {"key": "replay_consistency", "title": "Read models vs events (replay)", "kind": "VERIFIED_NOW",
-         "result": {"ok": rep["ok"], "projections": {p["name"]: p["status"] for p in rep["projections"]},
+         "result": {"ok": rep["ok"], "verdict": rep["verdict"], "gaps": len(rep["gaps"]), "projections": {p["name"]: p["status"] for p in rep["projections"]},
                     "unhandled_event_types": rep["unhandled_event_types"]}},
         {"key": "delivery_reliability", "title": "Alert delivery (last 24 hours)",
          "kind": "MEASURED_ON_DEMO_TRAFFIC" if attempts else "NOT_EVALUATED",

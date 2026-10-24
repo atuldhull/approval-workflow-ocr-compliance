@@ -273,3 +273,168 @@ def test_audit_endpoints_are_for_oversight_and_return_no_payloads(client):
     assert client.post("/api/audit/checkpoints", headers=head).status_code == 503
     assert client.post("/api/audit/checkpoints", headers=AUDITOR).status_code == 503
     assert client.post("/api/audit/checkpoints", headers=headers("BUREAU_OFFICER")).status_code == 403
+
+
+# ---- publication is recoverable (P3-09) ----
+
+def count_pending():
+    from app.platform.models import Checkpoint
+    with new_session() as s:
+        return s.scalar(select(func.count()).select_from(Checkpoint).where(Checkpoint.status == "PENDING"))
+
+
+def test_witness_outage_leaves_a_pending_checkpoint_that_recovery_publishes(client):
+    submit_one(client)
+    w = MemoryWitness()
+    w.fail_next = True
+    with pytest.raises(audit.WitnessError):
+        checkpoint(witness=w)
+    assert w.items == [] and count_pending() == 1
+    r = check(w)
+    assert (r.status, r.assurance, r.unpublished_checkpoints) == ("NO_TRUSTED_CHECKPOINT", "CHAIN_ONLY", 1)
+    with new_session() as s:
+        assert len(audit.publish_pending(s, w)) == 1
+    assert count_pending() == 0 and len(w.items) == 1
+    r = check(w)
+    assert (r.status, r.assurance) == ("VERIFIED", "CHECKPOINTED")
+
+
+def test_failed_database_commit_publishes_nothing(client, monkeypatch):
+    submit_one(client)
+    w = MemoryWitness()
+    with new_session() as s:
+        monkeypatch.setattr(s, "commit", lambda: (_ for _ in ()).throw(RuntimeError("database went away")))
+        with pytest.raises(RuntimeError):
+            create_checkpoint(s, SIGNER_A, w)
+    assert w.items == [] and count_pending() == 0
+
+
+def test_crash_after_publishing_but_before_marking_is_recovered_without_a_second_copy(client, monkeypatch):
+    submit_one(client)
+    w = MemoryWitness()
+    with new_session() as s:
+        row = audit.sign_checkpoint(s, SIGNER_A)
+        w.publish(audit._copy(row))                      # handed over, then the process dies before marking it
+    assert count_pending() == 1
+    with new_session() as s:
+        audit.publish_pending(s, w)                      # recovery republishes the SAME signed copy
+    assert len(w.items) == 1 and count_pending() == 0
+    assert check(w).status == "VERIFIED"
+
+
+def test_no_new_checkpoint_while_one_is_pending(client):
+    submit_one(client)
+    w = MemoryWitness()
+    w.fail_next = True
+    with pytest.raises(audit.WitnessError):
+        checkpoint(witness=w)
+    with pytest.raises(audit.CheckpointPending):
+        checkpoint(witness=w)
+
+
+def test_witness_refuses_to_rewind_history(client):
+    submit_one(client)
+    w = checkpoint()
+    older = json.loads(w.items[0]["statement"])
+    older["head_seq"] = 1
+    with pytest.raises(audit.WitnessConflict):
+        w.publish({"id": str(uuid4()), "statement": json.dumps(older), "signature": "x"})
+
+
+def test_corrupt_and_unavailable_witnesses_are_reported_as_such(client, tmp_path):
+    submit_one(client)
+    lw = audit.LocalFileWitness(str(tmp_path))
+    checkpoint(witness=lw)
+    with lw.path.open("a") as f:
+        f.write("{not json\n")
+    r = check(lw)
+    assert (r.ok, r.status) == (False, "WITNESS_CORRUPT")
+
+    class Down:
+        kind = "test"
+
+        def latest(self):
+            raise audit.WitnessError("connection refused")
+
+    r = check(Down())
+    assert (r.ok, r.status, r.assurance) == (False, "WITNESS_UNAVAILABLE", "NONE")
+
+
+def test_local_file_witness_is_labelled_demo_only(tmp_path):
+    assert "DEMO ONLY" in audit.LocalFileWitness(str(tmp_path)).kind
+
+
+def test_export_contains_only_published_copies_that_verify_on_their_own(client):
+    submit_one(client)
+    checkpoint()
+    w = MemoryWitness()
+    w.fail_next = True
+    client.post("/api/applications", headers=INST, json={
+        "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2028-29"})
+    with pytest.raises(audit.WitnessError):
+        checkpoint(witness=w)
+    with new_session() as s:
+        exported = audit.export_checkpoints(s)
+    assert len(exported) == 1
+    stmt = exported[0]["statement"].encode()
+    KEY_A.public_key().verify(__import__("base64").b64decode(exported[0]["signature"]), stmt)
+
+
+def test_checkpoint_api_reports_pending_and_recovers(client, monkeypatch):
+    submit_one(client)
+    w = MemoryWitness()
+    monkeypatch.setattr(audit, "configured_witness", lambda: w)
+    monkeypatch.setattr(audit, "configured_signer", lambda: SIGNER_A)
+    head = headers("BUREAU_HEAD", user="00000000-0000-4000-9000-000000000007")
+    w.fail_next = True
+    r = client.post("/api/audit/checkpoints", headers=head)
+    assert r.status_code == 503 and "PENDING" in r.text
+    assert client.get("/api/audit/checkpoints", headers=head).json()[0]["status"] == "PENDING"
+    assert client.post("/api/audit/checkpoints", headers=head).status_code == 409
+    assert len(client.post("/api/audit/checkpoints/publish", headers=head).json()["published"]) == 1
+    assert client.get("/api/audit/checkpoints", headers=head).json()[0]["status"] == "PUBLISHED"
+
+
+# ---- replay completeness (P3-09) ----
+
+def test_full_replay_of_todays_events_is_verified_complete(client):
+    submit_one(client)
+    r = replay.replay()
+    assert (r["ok"], r["verdict"], r["gaps"]) == (True, "VERIFIED_COMPLETE", [])
+
+
+def test_a_subset_of_projectors_is_never_called_complete(client):
+    submit_one(client)
+    r = replay.replay(["applications"])
+    assert (r["ok"], r["verdict"]) == (False, "CONSISTENT_SUBSET")
+    assert {"kind": "UNHANDLED_EVENT_TYPE", "event_type": "dl.deadline_opened", "events": 1} in r["gaps"]
+    assert "dl.deadline_opened.v1" in r["schemas_without_projector"]
+
+
+def test_a_projection_without_live_model_is_a_gap_not_a_pass(client):
+    submit_one(client)
+
+    class NoLive:
+        name, owner, compared_fields = "nolive", "test", ()
+        handles = frozenset({("wf.application_created", 1), ("wf.application_submitted", 1), ("dl.deadline_opened", 1)})
+
+        def apply(self, state, ev):
+            pass
+
+        def live(self, session):
+            return None
+
+    replay.register(NoLive())
+    try:
+        r = replay.replay(["nolive"])
+    finally:
+        replay._projectors.pop("nolive")
+    assert (r["ok"], r["verdict"], r["gaps"]) == (False, "CONSISTENT_SUBSET", [{"kind": "NO_LIVE_MODEL", "projection": "nolive"}])
+
+
+def test_unknown_versions_make_the_result_partial(client):
+    now = datetime.now(timezone.utc)
+    events = [EventRecord(1, now, "application", uuid4(), "wf.application_submitted", 2, {})]
+    r = replay.replay(["applications"], events=events)
+    assert r["verdict"] in ("CONSISTENT_SUBSET", "MISMATCH") and r["ok"] is False
+    assert any(g["kind"] == "UNKNOWN_EVENT_VERSION" for g in r["gaps"])

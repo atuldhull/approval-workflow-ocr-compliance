@@ -25,14 +25,32 @@ Verification trusts only:
 | Status | Meaning |
 |---|---|
 | `VERIFIED` | Chain verifies and matches the latest trusted checkpoint |
-| `NO_TRUSTED_CHECKPOINT` | Chain verifies, but a rebuilt chain or a cut-off tail cannot be ruled out |
+| `NO_TRUSTED_CHECKPOINT` | Chain verifies, but a rebuilt chain or a cut-off tail cannot be ruled out (`assurance: CHAIN_ONLY`) |
+| `WITNESS_UNAVAILABLE` | The witness cannot be read right now; nothing is claimed about the checkpoint |
+| `WITNESS_CORRUPT` | The witness answered, but its latest entry is not a checkpoint copy |
 | `CHAIN_BROKEN` | An event or link does not verify (`first_bad_seq` says where) |
 | `TRUNCATED` | The newest entries recorded in the checkpoint are gone |
 | `ENTRIES_DELETED` | Entries up to the checkpoint are missing |
 | `HISTORY_REWRITTEN` | The chain was recomputed: its head no longer matches the checkpoint |
 | `INVALID_SIGNATURE` / `UNTRUSTED_KEY` | The checkpoint itself cannot be trusted |
 
-The ledger is never signed if it does not verify first.
+The ledger is never signed if it does not verify first. Every report carries `assurance`: `CHECKPOINTED` (chain +
+trusted checkpoint), `CHAIN_ONLY` (no checkpoint to compare with) or `NONE` (a check failed).
+
+### Publication (database and witness cannot commit together)
+
+1. The statement is signed and the checkpoint row is committed as `PENDING`. If this commit fails, nothing was published.
+2. Exactly that signed copy is handed to the witness (idempotent by id; the witness refuses a lower head than it
+   already holds), then the row becomes `PUBLISHED`.
+
+A witness outage or a crash between the steps leaves a `PENDING` row. `POST /api/audit/checkpoints/publish` or
+`python -m app.platform.audit publish` hands over the same copy again; it is never re-signed, so the trusted
+history cannot fork. While a checkpoint is pending, no new one can be signed. Reports show the number of
+unpublished checkpoints.
+
+`LocalFileWitness` is **DEMO ONLY**: it sits on the same machine as the database. For independent storage,
+`python -m app.platform.audit export checkpoints.jsonl` writes every published copy; each verifies on its own
+signature, so it can go to a write-once bucket, another organisation, or print.
 
 ### Keys
 
@@ -62,8 +80,17 @@ the result with the live tables field by field and returns machine-readable diff
 | `applications` (analytics) | `wf.application_created` v1, `wf.application_submitted` v1 | institution, category, year, status, current stage, ruleset | stage changes after submission, decisions |
 | `deadlines` (analytics) | `dl.deadline_opened` v1 | subject, rule, clock kind and owner, due date | MET / BREACHED / paused / extended |
 
-The report lists event types no projector handles and event versions a projector does not understand
-(`INCOMPLETE`), instead of claiming full coverage.
+The report gives one `verdict`:
+
+| Verdict | Meaning | `ok` |
+|---|---|---|
+| `VERIFIED_COMPLETE` | Every stored event was projected and every projection matched a live model | true |
+| `CONSISTENT_SUBSET` | Nothing disagreed, but `gaps` lists what was not checked: event types with no projector, unknown versions, projections with no live model | false |
+| `MISMATCH` | A projection disagrees with its live model | false |
+
+`schemas_without_projector` lists event schemas in `contracts/events` that no projector handles yet (read-only input);
+they only become gaps once such events are stored. The audit screen shows each layer separately and is green
+overall only when the chain, a trusted checkpoint and a complete replay all agree.
 
 ### Needed from the other modules
 

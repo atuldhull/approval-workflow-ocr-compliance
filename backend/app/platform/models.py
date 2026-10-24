@@ -119,6 +119,9 @@ class Checkpoint(Base):
     key_id: Mapped[str] = mapped_column(Text)
     statement: Mapped[str] = mapped_column(Text)     # the exact canonical JSON that was signed
     signature: Mapped[str] = mapped_column(Text)     # base64 Ed25519
+    status: Mapped[str] = mapped_column(Text, server_default="PUBLISHED")   # PENDING | PUBLISHED
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    publish_error: Mapped[str | None] = mapped_column(Text)
 
 
 class DeliveryAttempt(Base):

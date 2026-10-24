@@ -580,3 +580,20 @@ mark {
   width: min(420px, 100%);
   text-align: center;
 }
+
+.alert.summary {
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.alert.summary.ok {
+  border-left: 4px solid var(--ok);
+}
+
+.alert.summary.warn {
+  border-left: 4px solid var(--warn);
+}
+
+.alert.summary.bad {
+  border-left: 4px solid var(--bad);
+}

@@ -194,3 +194,19 @@ describe("session hardening", () => {
     expect(fired).toBe(false);
   });
 });
+
+describe("audit screen honesty", () => {
+  it("never calls a partial result fully verified", async () => {
+    const { checkpointState, replayState, headline } = await import("../views/AuditView.jsx");
+    const checkpointed = { ok: true, assurance: "CHECKPOINTED" };
+    const chainOnly = { ok: true, assurance: "CHAIN_ONLY", status: "NO_TRUSTED_CHECKPOINT" };
+    expect(checkpointState(chainOnly)[0]).toBe("warn");
+    expect(replayState({ verdict: "CONSISTENT_SUBSET" })[0]).toBe("warn");
+    expect(headline(true, chainOnly, { verdict: "VERIFIED_COMPLETE" })[0]).toBe("warn");
+    expect(headline(true, checkpointed, { verdict: "CONSISTENT_SUBSET" })[0]).toBe("warn");
+    expect(headline(true, checkpointed, null)[0]).toBe("warn");
+    expect(headline(true, checkpointed, { verdict: "VERIFIED_COMPLETE" })).toEqual(["ok", "Fully verified"]);
+    expect(headline(false, checkpointed, { verdict: "VERIFIED_COMPLETE" })[0]).toBe("bad");
+    expect(headline(true, { ok: false, status: "WITNESS_CORRUPT" }, null)[0]).toBe("bad");
+  });
+});

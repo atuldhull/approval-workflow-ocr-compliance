@@ -10,6 +10,8 @@ A checkpoint is evidence of integrity for this system. It is not a legal or digi
 
     python -m app.platform.audit checkpoint     # sign the current head and hand it to the witness
     python -m app.platform.audit verify         # chain + latest trusted checkpoint
+    python -m app.platform.audit publish        # retry checkpoints left PENDING by a witness failure
+    python -m app.platform.audit export f.jsonl # published copies, for independent storage
 """
 import base64
 import json
@@ -63,45 +65,104 @@ def load_trusted_keys(path: str) -> dict[str, Ed25519PublicKey]:
 
 # ---- witness: the independent copy ----
 
+class WitnessError(Exception):
+    """The witness cannot be read or written, or holds something unusable."""
+
+
+class WitnessCorrupt(WitnessError):
+    """The witness answered, but what it holds cannot be a checkpoint copy."""
+
+
+class WitnessConflict(WitnessError):
+    """Publishing would rewind the trusted history (a lower head than already published)."""
+
+
 class Witness(Protocol):
-    def publish(self, checkpoint: dict) -> None: ...
+    kind: str
+
+    def publish(self, checkpoint: dict) -> None: ...   # idempotent by checkpoint id
     def latest(self) -> dict | None: ...
 
 
-class LocalFileWitness:
-    """Append-only JSON lines in a directory outside the database (demo witness).
+def _check_order(existing: list[dict], checkpoint: dict) -> bool:
+    """True if already published (same id); raises if it would rewind the trusted history."""
+    if any(c["id"] == checkpoint["id"] for c in existing):
+        return True
+    if existing:
+        last = json.loads(existing[-1]["statement"])["head_seq"]
+        new = json.loads(checkpoint["statement"])["head_seq"]
+        if new < last:
+            raise WitnessConflict(f"witness already holds a checkpoint at entry {last}; refusing to publish {new}")
+    return False
 
-    In a real deployment this would be storage the database administrators cannot rewrite: a write-once bucket,
-    another organisation's service, or a printed and countersigned digest.
+
+class LocalFileWitness:
+    """DEMO ONLY: append-only JSON lines in a local directory.
+
+    It lives on the same machine as the database, so it is not truly independent. In a real deployment the
+    witness must be storage the database administrators cannot rewrite: a write-once bucket, another
+    organisation's service, or a printed and countersigned digest (see `export_checkpoints`).
     """
+    kind = "local-file (DEMO ONLY)"
 
     def __init__(self, directory: str):
         self.path = Path(directory) / "checkpoints.jsonl"
 
+    def _all(self) -> list[dict]:
+        if not self.path.exists():
+            return []
+        try:
+            lines = [ln for ln in self.path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            items = [json.loads(ln) for ln in lines]
+        except OSError as e:
+            raise WitnessError(f"witness file cannot be read: {type(e).__name__}") from e
+        except ValueError as e:
+            raise WitnessCorrupt("witness file is corrupt (a line is not valid JSON)") from e
+        if not all(isinstance(i, dict) and {"id", "statement", "signature"} <= i.keys() for i in items):
+            raise WitnessCorrupt("witness file is corrupt (an entry is missing fields)")
+        return items
+
     def publish(self, checkpoint: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(checkpoint, sort_keys=True) + "\n")
+        if _check_order(self._all(), checkpoint):
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(checkpoint, sort_keys=True) + "\n")
+        except OSError as e:
+            raise WitnessError(f"witness file cannot be written: {type(e).__name__}") from e
 
     def latest(self) -> dict | None:
-        if not self.path.exists():
-            return None
-        lines = [ln for ln in self.path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-        return json.loads(lines[-1]) if lines else None
+        items = self._all()
+        return items[-1] if items else None
 
 
 class MemoryWitness:
+    kind = "memory (tests)"
+
     def __init__(self):
         self.items: list[dict] = []
+        self.fail_next = False
 
     def publish(self, checkpoint: dict) -> None:
-        self.items.append(json.loads(json.dumps(checkpoint)))
+        if self.fail_next:
+            self.fail_next = False
+            raise WitnessError("simulated witness outage")
+        if not _check_order(self.items, checkpoint):
+            self.items.append(json.loads(json.dumps(checkpoint)))
 
     def latest(self) -> dict | None:
         return self.items[-1] if self.items else None
 
 
-# ---- create ----
+# ---- create and publish ----
+#
+# The database and the witness cannot commit atomically. Publication is therefore a recoverable two-step process:
+#   1. sign the statement and commit the checkpoint row as PENDING (durable intent; nothing is published yet);
+#   2. hand exactly that signed copy to the witness (idempotent by id), then mark the row PUBLISHED.
+# A crash or witness failure between the steps leaves a PENDING row that publish_pending() re-publishes - the same
+# statement and signature, never re-signed - so the trusted history cannot fork. A failed database commit in step 1
+# publishes nothing. New checkpoints are refused while an older one is still pending.
 
 def _head(session: Session) -> tuple[int, str, int]:
     head = session.execute(select(LedgerEntry.seq, LedgerEntry.entry_hash).order_by(LedgerEntry.seq.desc()).limit(1)).first()
@@ -109,27 +170,64 @@ def _head(session: Session) -> tuple[int, str, int]:
     return (head[0], head[1], count) if head else (0, "0" * 64, 0)
 
 
-def create_checkpoint(session: Session, signer: Signer, witness: Witness) -> dict:
-    """Signs the current head. Verifies the chain first: never sign a ledger that is already broken."""
+def _copy(row: Checkpoint) -> dict:
+    return {"id": str(row.id), "statement": row.statement, "signature": row.signature}
+
+
+def sign_checkpoint(session: Session, signer: Signer) -> Checkpoint:
+    """Step 1. Verifies the chain first: never sign a ledger that is already broken."""
+    if session.scalar(select(func.count()).select_from(Checkpoint).where(Checkpoint.status == "PENDING")):
+        raise CheckpointPending("an earlier checkpoint is not published yet; publish it first")
     chain = Ledger().verify(session)
     if not chain.ok:
         raise ValueError(f"ledger does not verify (first bad seq {chain.first_bad_seq}); refusing to sign it")
     head_seq, head_hash, count = _head(session)
     revisions = sorted(r for r in session.scalars(select(DomainEvent.ruleset_rev).where(
         DomainEvent.seq <= head_seq, DomainEvent.ruleset_rev.is_not(None)).distinct()))
+    now = port(ClockPort).now()
     statement = canonical({
         "v": STATEMENT_VERSION, "ledger": "awoc", "head_seq": head_seq, "head_hash": head_hash, "entry_count": count,
-        "created_at": port(ClockPort).now().isoformat(), "key_id": signer.key_id, "ruleset_revisions": revisions,
+        "created_at": now.isoformat(), "key_id": signer.key_id, "ruleset_revisions": revisions,
     })
-    signature = signer.sign(statement.encode())
-    row = Checkpoint(created_at=port(ClockPort).now(), head_seq=head_seq, head_hash=head_hash, entry_count=count,
-                     key_id=signer.key_id, statement=statement, signature=signature)
+    row = Checkpoint(created_at=now, head_seq=head_seq, head_hash=head_hash, entry_count=count, key_id=signer.key_id,
+                     statement=statement, signature=signer.sign(statement.encode()), status="PENDING")
     session.add(row)
-    session.flush()
-    copy = {"id": str(row.id), "statement": statement, "signature": signature}
-    witness.publish(copy)
     session.commit()
-    return copy
+    return row
+
+
+def publish_pending(session: Session, witness: Witness) -> list[str]:
+    """Step 2, also the recovery path. Returns the ids published. A witness failure leaves rows PENDING."""
+    done = []
+    for row in session.scalars(select(Checkpoint).where(Checkpoint.status == "PENDING").order_by(Checkpoint.created_at)):
+        try:
+            witness.publish(_copy(row))
+        except WitnessError as e:
+            row.publish_error = str(e)[:500]
+            session.commit()
+            raise
+        row.status, row.published_at, row.publish_error = "PUBLISHED", port(ClockPort).now(), None
+        session.commit()
+        done.append(str(row.id))
+    return done
+
+
+def create_checkpoint(session: Session, signer: Signer, witness: Witness) -> dict:
+    """Signs the current head and publishes it. On a witness failure the checkpoint stays PENDING (WitnessError)."""
+    row = sign_checkpoint(session, signer)
+    publish_pending(session, witness)
+    return _copy(row)
+
+
+def export_checkpoints(session: Session) -> list[dict]:
+    """Published checkpoint copies, for handing to independent storage. Each copy verifies on its own signature."""
+    rows = session.scalars(select(Checkpoint).where(Checkpoint.status == "PUBLISHED").order_by(Checkpoint.head_seq,
+                                                                                               Checkpoint.created_at))
+    return [_copy(r) for r in rows]
+
+
+class CheckpointPending(Exception):
+    pass
 
 
 # ---- verify ----
@@ -137,7 +235,8 @@ def create_checkpoint(session: Session, signer: Signer, witness: Witness) -> dic
 @dataclass
 class AuditReport:
     ok: bool
-    status: str             # VERIFIED | NO_TRUSTED_CHECKPOINT | CHAIN_BROKEN | UNTRUSTED_KEY | INVALID_SIGNATURE
+    status: str             # VERIFIED | NO_TRUSTED_CHECKPOINT | CHAIN_BROKEN | WITNESS_UNAVAILABLE | WITNESS_CORRUPT
+                            # | UNTRUSTED_KEY | INVALID_SIGNATURE
                             # | TRUNCATED | HISTORY_REWRITTEN | ENTRIES_DELETED
     detail: str
     checked: int
@@ -146,25 +245,53 @@ class AuditReport:
     checkpoint_at: str | None = None
     checkpoint_key_id: str | None = None
     entries_after_checkpoint: int | None = None
+    # What a passing result actually covers: NONE (failed), CHAIN_ONLY (no trusted checkpoint to compare with),
+    # or CHECKPOINTED (chain + latest trusted checkpoint). Only CHECKPOINTED rules out a rebuilt or cut-off chain.
+    assurance: str = "NONE"
+    unpublished_checkpoints: int = 0
+    witness_kind: str | None = None
 
     def as_dict(self) -> dict:
         return asdict(self)
 
 
 def verify(session: Session, trusted_keys: dict[str, Ed25519PublicKey], witness: Witness | None) -> AuditReport:
+    report = _verify(session, trusted_keys, witness)
+    report.unpublished_checkpoints = session.scalar(
+        select(func.count()).select_from(Checkpoint).where(Checkpoint.status == "PENDING")) or 0
+    report.witness_kind = getattr(witness, "kind", None)
+    if report.ok:
+        report.assurance = "CHECKPOINTED" if report.status == "VERIFIED" else "CHAIN_ONLY"
+    return report
+
+
+def _verify(session: Session, trusted_keys: dict[str, Ed25519PublicKey], witness: Witness | None) -> AuditReport:
     chain = Ledger().verify(session)
     if not chain.ok:
         return AuditReport(False, "CHAIN_BROKEN", chain.detail or "chain does not verify", chain.checked,
                            chain.first_bad_seq)
-
-    latest = witness.latest() if witness else None
+    if witness is None:
+        return AuditReport(True, "NO_TRUSTED_CHECKPOINT",
+                           "The chain is internally consistent, but no witness is configured, so a rebuilt chain or "
+                           "deleted newest entries cannot be ruled out.", chain.checked)
+    try:
+        latest = witness.latest()
+        cp = json.loads(latest["statement"]) if latest else None
+        if cp is not None and not {"head_seq", "head_hash", "entry_count", "created_at", "key_id"} <= cp.keys():
+            raise WitnessCorrupt("latest witness entry is not a checkpoint statement")
+    except WitnessCorrupt as e:
+        return AuditReport(False, "WITNESS_CORRUPT", str(e), chain.checked)
+    except (ValueError, TypeError, AttributeError):
+        return AuditReport(False, "WITNESS_CORRUPT", "latest witness entry is not a checkpoint statement", chain.checked)
+    except WitnessError as e:
+        return AuditReport(False, "WITNESS_UNAVAILABLE", f"{e}. Integrity against the trusted checkpoint cannot be "
+                                                         "checked right now.", chain.checked)
     if latest is None:
         return AuditReport(True, "NO_TRUSTED_CHECKPOINT",
-                           "The chain is internally consistent, but there is no trusted checkpoint yet, so a rebuilt "
+                           "The chain is internally consistent, but the witness holds no checkpoint yet, so a rebuilt "
                            "chain or deleted newest entries cannot be ruled out.", chain.checked)
 
     statement = latest["statement"]
-    cp = json.loads(statement)
     base = dict(checked=chain.checked, checkpoint_seq=cp["head_seq"], checkpoint_at=cp["created_at"],
                 checkpoint_key_id=cp["key_id"])
     key = trusted_keys.get(cp["key_id"])
@@ -219,11 +346,19 @@ def main() -> int:
     create_app()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "verify"
     with new_session() as s:
-        if cmd == "checkpoint":
+        if cmd == "export":   # python -m app.platform.audit export <file.jsonl>
+            out = Path(sys.argv[2])
+            out.write_text("".join(json.dumps(c, sort_keys=True) + "\n" for c in export_checkpoints(s)), encoding="utf-8")
+            print(f"exported published checkpoints to {out}")
+            return 0
+        if cmd in ("checkpoint", "publish"):
             witness = configured_witness()
             if witness is None:
                 print("AUDIT_WITNESS_DIR is not set")
                 return 1
+            if cmd == "publish":
+                print(f"published {len(publish_pending(s, witness))} pending checkpoint(s)")
+                return 0
             print(json.dumps(json.loads(create_checkpoint(s, configured_signer(), witness)["statement"]), indent=2))
             return 0
         report = verify(s, configured_trusted_keys(), configured_witness())
