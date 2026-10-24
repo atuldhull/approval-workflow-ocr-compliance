@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { dateIST } from "./ui.jsx";
 
 // Demo-only: moves the system clock forward so deadlines and ageing can be shown. The server refuses it
 // unless DEMO_MODE is on, and this control is only rendered when the server reports demo mode.
@@ -25,7 +26,7 @@ export default function TimeTravel({ who }) {
     <div className="time-travel" aria-label="Demo time travel">
       <span className="badge warn">SIMULATED TIME</span>
       <span className="muted">
-        {clock ? new Date(clock.now).toLocaleDateString() : "…"}
+        {clock ? `${dateIST(clock.now)} (IST)` : "…"}
         {clock?.offset_days ? ` (+${Math.round(clock.offset_days)} d)` : ""}
       </span>
       <button className="secondary small" onClick={() => advance(7)}>

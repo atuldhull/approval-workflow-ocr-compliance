@@ -115,7 +115,15 @@ export function Card({ title, actions, children }) {
   );
 }
 
-export const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+// All times are shown in Indian Standard Time, whatever the viewer's computer is set to, so they line up with
+// due dates (which the deadline engine computes as IST calendar dates).
+const IST_DATETIME = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+});
+const IST_DATE = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+
+export const when = (iso) => (iso ? `${IST_DATETIME.format(new Date(iso))} IST` : "—");
+export const dateIST = (iso) => (iso ? IST_DATE.format(new Date(iso)) : "—");
 
 // Runs an async action at most once at a time. A ref, not state: two clicks in the same tick both see stale state.
 export function useSingleFlight() {

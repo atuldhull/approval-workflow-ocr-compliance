@@ -66,7 +66,8 @@ export default function DashboardView({ who }) {
     <div>
       <p className="muted">
         {data.scope.region ? `${data.scope.region} region` : "All regions"} · as of {when(data.scope.as_of)} · figures are
-        rebuilt from the audit event log
+        rebuilt from the audit event log{" "}
+        <button className="secondary small" onClick={reload}>Refresh</button>
       </p>
       <div className="grid cards">
         {data.sections.map((s) => (

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { humanise } from "../nav.js";
-import { useSingleFlight } from "./ui.jsx";
+import { useSingleFlight, when } from "./ui.jsx";
 
 export default function CaseDetail({ who, me, id, onChanged }) {
   const [app, setApp] = useState(null);
@@ -94,7 +94,7 @@ export default function CaseDetail({ who, me, id, onChanged }) {
         {timeline.map((e) => (
           <li key={e.seq}>
             <code>#{e.seq}</code> {e.event_type} <span className="muted">by {e.role}</span>{" "}
-            <span className="muted">{new Date(e.at).toLocaleString()}</span>
+            <span className="muted">{when(e.at)}</span>
           </li>
         ))}
       </ol>

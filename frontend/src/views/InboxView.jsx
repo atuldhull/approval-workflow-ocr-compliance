@@ -22,7 +22,7 @@ export default function InboxView({ who }) {
   });
 
   return (
-    <Card title="Inbox">
+    <Card title="Inbox" actions={<button className="secondary small" onClick={reload}>Refresh</button>}>
       {loading && !data && <Loading />}
       <ErrorBox error={error} onRetry={reload} />
       <ErrorBox error={actionError} />
@@ -47,7 +47,8 @@ export default function InboxView({ who }) {
                 </td>
                 <td className="actions">
                   {!n.read_at && (
-                    <button className="secondary small" disabled={busy !== null} onClick={() => markRead(n.id)}>
+                    <button className="secondary small" disabled={busy !== null} onClick={() => markRead(n.id)}
+                      aria-label={`Mark "${n.subject}" from ${when(n.created_at)} as read`}>
                       {busy === n.id ? "Marking…" : "Mark read"}
                     </button>
                   )}

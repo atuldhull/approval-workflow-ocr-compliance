@@ -10,6 +10,9 @@ import OcrReviewView from "../views/OcrReviewView.jsx";
 import { fixtureAdapter } from "../integrations/documentReview.js";
 import ScorecardView from "../views/ScorecardView.jsx";
 import InboxView from "../views/InboxView.jsx";
+import DeliveryView from "../views/DeliveryView.jsx";
+import { when, dateIST } from "../components/ui.jsx";
+import { errorText, outcomeText } from "../deliveryText.js";
 import NewApplication from "../components/NewApplication.jsx";
 import { fakeServer } from "./fakeServer.js";
 import { adoptTokens, clearSession, hasSession } from "../auth/oidc.js";
@@ -295,7 +298,7 @@ describe("resilience", () => {
     });
     const user = userEvent.setup();
     render(<InboxView who={SUNRISE} />);
-    const button = await screen.findByRole("button", { name: "Mark read" });
+    const button = await screen.findByRole("button", { name: /^Mark .* as read$/ });
     await user.dblClick(button);
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
     release();
@@ -308,7 +311,7 @@ describe("resilience", () => {
     });
     const user = userEvent.setup();
     render(<InboxView who={SUNRISE} />);
-    await user.click(await screen.findByRole("button", { name: "Mark read" }));
+    await user.click(await screen.findByRole("button", { name: /^Mark .* as read$/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/unavailable/);
   });
 
@@ -425,5 +428,70 @@ describe("scorecard colours follow the result", () => {
     expect(outcomeTone({ key: "replay_consistency", result: { verdict: "MISMATCH" } })).toBe("bad");
     expect(outcomeTone({ key: "replay_consistency", result: { verdict: "CONSISTENT_SUBSET" } })).toBe("warn");
     expect(outcomeTone({ key: "routing", result: { mismatches: [{}] } })).toBe("warn");
+  });
+});
+
+describe("times are shown in IST", () => {
+  it("formats in Asia/Kolkata whatever the browser zone", () => {
+    expect(when("2026-10-24T20:00:00Z")).toBe("25 Oct 2026, 01:30 IST");
+    expect(dateIST("2026-10-24T20:00:00Z")).toBe("25 Oct 2026");
+    expect(when(null)).toBe("—");
+  });
+});
+
+describe("delivery operations", () => {
+  const BUREAU_HEAD = DEMO_USERS.find((u) => u.role === "BUREAU_HEAD");
+  const AUDITOR = DEMO_USERS.find((u) => u.role === "AUDITOR");
+  const health = {
+    by_status: { PENDING: 2, SENDING: 1, DELIVERED: 5, DEAD: 1 }, oldest_undelivered_age_seconds: 600,
+    first_try_success_rate_24h: 0.5, first_tries_24h: 4, delivered_after_retry_24h: 1, attempts_24h: {},
+    stalled_sending: 1, lease_lost_24h: 2, providers: { email: "not_configured", sms: "mock (nothing is sent)", in_app: "built_in" },
+  };
+  const dead = { id: "d1d1d1d1-0000", alert_id: "a1", channel: "email", template: "deadline.breached", status: "DEAD",
+    attempts: 1, last_error: "NOT_CONFIGURED", next_attempt_at: null, created_at: "2026-10-24T10:00:00Z", delivered_at: null, dead_at: "2026-10-24T10:01:00Z" };
+
+  it("shows each state separately and explains problems in plain language", async () => {
+    fakeServer({ "GET /api/notifications/health": health, "GET /api/notifications/outbox": [dead] });
+    render(<DeliveryView who={AUDITOR} me={ME(AUDITOR)} />);
+    expect(await screen.findByText("Sending")).toBeInTheDocument();
+    expect(screen.getByText(/Email is not configured in this deployment/)).toBeInTheDocument();
+    expect(screen.getByText(/1 message\(s\) were being sent by a worker that stopped/)).toBeInTheDocument();
+    expect(await screen.findByRole("cell", { name: "The mail server is not configured for this deployment" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Requeue/ })).toBeNull();          // auditors cannot requeue
+    expect(screen.getByText("Only the bureau head can requeue dead letters.")).toBeInTheDocument();
+  });
+
+  it("asks before requeueing, sends one request, and explains the result", async () => {
+    let release;
+    const calls = fakeServer({
+      "GET /api/notifications/health": health,
+      "GET /api/notifications/outbox": [dead],
+      "POST /api/notifications/outbox/d1d1d1d1-0000/retry": () => new Promise((r) => { release = () => r([200, { requeued: "d1" }]); }),
+    });
+    const user = userEvent.setup();
+    render(<DeliveryView who={BUREAU_HEAD} me={ME(BUREAU_HEAD)} />);
+    await user.click(await screen.findByRole("button", { name: /Requeue deadline.breached by email/ }));
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);        // nothing sent yet
+    await user.dblClick(screen.getByRole("button", { name: "Yes, requeue" }));
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
+    release();
+    expect(await screen.findByText(/recipients already reached will not get it twice/)).toBeInTheDocument();
+  });
+
+  it("can cancel a requeue", async () => {
+    const calls = fakeServer({ "GET /api/notifications/health": health, "GET /api/notifications/outbox": [dead] });
+    const user = userEvent.setup();
+    render(<DeliveryView who={BUREAU_HEAD} me={ME(BUREAU_HEAD)} />);
+    await user.click(await screen.findByRole("button", { name: /Requeue/ }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: /Requeue/ })).toBeInTheDocument();
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  it("translates codes, keeping unknown ones visible", () => {
+    expect(errorText("SMTP_550")).toMatch(/rejected the message \(550\)/);
+    expect(errorText("SOME_RECIPIENTS_REFUSED")).toMatch(/some recipients/);
+    expect(errorText("SOMETHING_NEW")).toBe("SOMETHING_NEW");
+    expect(outcomeText("TRANSIENT_LEASE_LOST")).toMatch(/another worker/);
   });
 });

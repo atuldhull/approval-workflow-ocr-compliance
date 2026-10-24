@@ -654,3 +654,31 @@ mark {
   gap: 4px;
   margin-top: 6px;
 }
+
+/* ---- delivery operations ---- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+}
+
+.legend div {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.legend dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
