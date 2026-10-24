@@ -7,6 +7,7 @@ Categories:
   retried, so the recipient may get it twice: email and SMS delivery are at-least-once, never exactly-once.
 """
 import json
+from hashlib import sha256
 import smtplib
 import socket
 import ssl
@@ -67,11 +68,15 @@ class SmtpProvider:
     def send(self, msg: Message) -> str | None:
         if not self.host:
             raise DeliveryError(PERMANENT, "NOT_CONFIGURED")
+        if len(msg.addresses) != 1:
+            # one message per recipient, so no recipient ever sees another's address (the notifier splits them)
+            raise ValueError("SmtpProvider sends to exactly one recipient per message")
+        (to,) = msg.addresses
         subject, body = render(msg.template, msg.alert_id)
         email = EmailMessage()
-        email["From"], email["To"], email["Subject"] = self.sender, ", ".join(msg.addresses), subject
-        # The same Message-ID on every retry lets receiving systems drop duplicates; not all of them do.
-        email["Message-ID"] = f"<{msg.outbox_id}@awoc.example.invalid>"
+        email["From"], email["To"], email["Subject"] = self.sender, to, subject
+        # Stable per (message, recipient) across retries, so receiving systems can drop duplicates; not all do.
+        email["Message-ID"] = f"<{msg.outbox_id}.{sha256(to.encode()).hexdigest()[:12]}@awoc.example.invalid>"
         email.set_content(body)
         handed_over = False
         try:

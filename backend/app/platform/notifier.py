@@ -19,6 +19,7 @@ import os
 import random
 import socket
 import threading
+from hashlib import sha256
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -29,7 +30,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.platform.db import new_session
 from app.platform.idempotency import purge_expired
-from app.platform.models import DeliveryAttempt, Notification, Outbox
+from app.platform.models import DeliveryAttempt, DeliveryRecipient, Notification, Outbox
 from app.platform.providers import (AMBIGUOUS, PERMANENT, TRANSIENT, DeliveryError, Message, MockSmsProvider,
                                     Provider, SmtpProvider, render)
 from app.platform.recipients import directory
@@ -106,6 +107,7 @@ class Notifier:
             self._deliver_in_app(c, started)
             return
         provider = self.providers.get(c.channel)
+        name = getattr(provider, "name", "none")
         try:
             if provider is None:
                 raise DeliveryError(PERMANENT, "NO_PROVIDER_FOR_CHANNEL")
@@ -114,14 +116,49 @@ class Notifier:
                 addresses = directory.addresses(s, c.recipient_ref, c.channel)
             if not addresses:
                 raise DeliveryError(PERMANENT, "NO_RECIPIENT")
-            ref = provider.send(Message(c.id, c.alert_id, c.channel, c.template, tuple(addresses), c.attempts))
+            outcome, category, ref = self._send_each(c, provider, addresses)
         except DeliveryError as e:
-            self._finish(c, started, getattr(provider, "name", "none"), e.category, e.reason, None)
-        except Exception:  # noqa: BLE001 - an unexpected provider bug must not lose the message
-            log.exception("provider error for outbox %s", c.id)
-            self._finish(c, started, getattr(provider, "name", "none"), AMBIGUOUS, "PROVIDER_ERROR", None)
+            self._finish(c, started, name, e.category, e.reason, None)
         else:
-            self._finish(c, started, provider.name, DELIVERED, None, ref)
+            self._finish(c, started, name, outcome, category, ref)
+
+    def _send_each(self, c: Claimed, provider: Provider, addresses: list[str]) -> tuple[str, str | None, str | None]:
+        """One message per recipient, so nobody sees another recipient's address.
+
+        Each recipient's result is recorded (as a hash, never the address) as soon as it is known, so a retry only
+        goes to recipients not yet reached. A crash between a send and its record still repeats that one send.
+        """
+        done = recipient_outcomes(c.id)
+        failures: list[DeliveryError] = []
+        ref = None
+        for address in addresses:
+            key = recipient_key(c.id, address)
+            if key in done:
+                continue
+            try:
+                ref = provider.send(Message(c.id, c.alert_id, c.channel, c.template, (address,), c.attempts))
+            except DeliveryError as e:
+                if e.category == PERMANENT:
+                    record_recipient(c.id, key, "REFUSED")
+                    done[key] = "REFUSED"
+                failures.append(e)
+                continue
+            except Exception as e:  # noqa: BLE001 - an unexpected provider bug must not lose the message
+                # log the type only: provider exception text can contain addresses
+                log.error("provider error for outbox %s: %s", c.id, type(e).__name__)
+                failures.append(DeliveryError(AMBIGUOUS, "PROVIDER_ERROR"))
+                continue
+            record_recipient(c.id, key, DELIVERED)
+            done[key] = DELIVERED
+        retryable = [f for f in failures if f.category != PERMANENT]
+        if retryable:
+            return retryable[0].category, retryable[0].reason, ref
+        refused = sum(1 for v in done.values() if v == "REFUSED")
+        if refused == len(addresses):
+            return PERMANENT, failures[0].reason if failures else "ALL_RECIPIENTS_REFUSED", ref
+        if refused:
+            return PERMANENT, "SOME_RECIPIENTS_REFUSED", ref   # the others got it; dead-lettered for a person to look at
+        return DELIVERED, None, ref
 
     def _deliver_in_app(self, c: Claimed, started: datetime) -> None:
         try:
@@ -176,6 +213,24 @@ class Notifier:
                 stop.wait(poll_seconds)
 
 
+def recipient_key(outbox_id: UUID, address: str) -> str:
+    """Salted per message, so the stored value cannot be matched across messages without the address itself."""
+    return sha256(f"{outbox_id}:{address}".encode()).hexdigest()
+
+
+def recipient_outcomes(outbox_id: UUID) -> dict[str, str]:
+    with new_session() as s:
+        return dict(s.execute(select(DeliveryRecipient.recipient_key, DeliveryRecipient.outcome)
+                              .where(DeliveryRecipient.outbox_id == outbox_id)).all())
+
+
+def record_recipient(outbox_id: UUID, key: str, outcome: str) -> None:
+    with new_session() as s:
+        s.execute(insert(DeliveryRecipient).values(outbox_id=outbox_id, recipient_key=key, outcome=outcome,
+                                                   at=port(ClockPort).now()).on_conflict_do_nothing())
+        s.commit()
+
+
 def requeue(outbox_id: UUID, now: datetime) -> bool:
     """Operator action: give a dead message a fresh set of attempts."""
     with new_session() as s:
@@ -195,13 +250,28 @@ def health(now: datetime) -> dict:
         by_channel = [{"channel": ch, "status": st, "count": n} for ch, st, n in s.execute(
             select(Outbox.channel, Outbox.status, func.count()).group_by(Outbox.channel, Outbox.status)
             .order_by(Outbox.channel, Outbox.status)).all()]
-    attempts = sum(outcomes.values())
+        # A message's first try is its earliest attempt ever (not attempt_no 1: a requeue restarts the counter),
+        # counted here only if that first try happened in the window.
+        first = s.execute(text("""
+            SELECT outcome, count(*) FROM (
+                SELECT DISTINCT ON (outbox_id) outcome, finished_at
+                  FROM plat.delivery_attempt ORDER BY outbox_id, finished_at) f
+             WHERE finished_at >= :since GROUP BY outcome"""), {"since": since}).all()
+        retried_ok = s.scalar(text("""
+            SELECT count(DISTINCT a.outbox_id) FROM plat.delivery_attempt a
+             WHERE a.outcome = 'DELIVERED' AND a.finished_at >= :since
+               AND EXISTS (SELECT 1 FROM plat.delivery_attempt b
+                            WHERE b.outbox_id = a.outbox_id AND b.finished_at < a.finished_at)"""), {"since": since})
+    first_tries = sum(n for _, n in first)
+    first_ok = sum(n for o, n in first if o == DELIVERED)
     return {
         "by_status": {k: by_status.get(k, 0) for k in ("PENDING", "SENDING", "DELIVERED", "DEAD")},
         "by_channel": by_channel,
         "oldest_undelivered_age_seconds": int((now - oldest).total_seconds()) if oldest else None,
         "attempts_24h": outcomes,
-        "first_try_success_rate_24h": None if not attempts else round(outcomes.get(DELIVERED, 0) / attempts, 3),
+        "first_tries_24h": first_tries,
+        "first_try_success_rate_24h": round(first_ok / first_tries, 3) if first_tries else None,
+        "delivered_after_retry_24h": retried_ok or 0,
     }
 
 

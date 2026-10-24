@@ -47,10 +47,12 @@ export default function DeliveryView({ who, me }) {
             <StatTile
               label="First-try success (24 h)"
               value={h.first_try_success_rate_24h == null ? "—" : `${Math.round(h.first_try_success_rate_24h * 100)}%`}
+              hint={h.first_tries_24h ? `of ${h.first_tries_24h} first attempts` : "no first attempts yet"}
             />
+            <StatTile label="Delivered after a retry (24 h)" value={h.delivered_after_retry_24h ?? 0} />
           </div>
         )}
-        <p className="muted small">Email and SMS are delivered at least once; a retry after an unclear provider failure can repeat a message.</p>
+        <p className="muted small">Each recipient gets a separate message, so no one sees another recipient's address. Email and SMS are delivered at least once: a retry after an unclear provider failure can repeat a message to that recipient.</p>
       </Card>
 
       <Card

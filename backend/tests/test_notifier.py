@@ -191,13 +191,15 @@ def test_a_crashed_workers_messages_are_picked_up_after_the_lease(env):
 def test_a_worker_that_lost_its_lease_cannot_overwrite_the_result(env):
     clock = Clock()
     alert = enqueue()
-    slow = worker(FakeProvider(script=[TRANSIENT]), clock, name="slow")
+    slow_provider = FakeProvider(script=[TRANSIENT])
+    slow = worker(slow_provider, clock, name="slow")
     (claim,) = slow.claim()
     clock.tick(61)
     worker(FakeProvider(), clock, name="fast").run_once()    # takes over and delivers
-    slow.deliver(claim)                                       # finishes late with a failure
+    slow.deliver(claim)                                       # wakes up late
     assert row(alert).status == "DELIVERED"
-    assert [a.outcome for a in attempts(alert)] == ["DELIVERED", "TRANSIENT_LEASE_LOST"]
+    assert slow_provider.sent == [] and slow_provider.script == [TRANSIENT]   # recipient already reached: no resend
+    assert [a.outcome for a in attempts(alert)] == ["DELIVERED", "DELIVERED_LEASE_LOST"]
 
 
 def test_in_app_delivery_is_exactly_once_even_after_a_crash(env):
@@ -287,7 +289,10 @@ def test_smtp_message_carries_no_case_details_and_a_stable_message_id(monkeypatc
     SmtpProvider("mail.test", 25, "no-reply@awoc.example.invalid").send(
         Message(outbox_id, alert, "email", "deadline.breached", ("a@awoc.example.invalid",), 1))
     m = FakeSMTP.sent[0]
-    assert m["Message-ID"] == f"<{outbox_id}@awoc.example.invalid>"
+    assert m["Message-ID"].startswith(f"<{outbox_id}.") and m["To"] == "a@awoc.example.invalid"
+    SmtpProvider("mail.test", 25, "no-reply@awoc.example.invalid").send(
+        Message(outbox_id, alert, "email", "deadline.breached", ("a@awoc.example.invalid",), 2))
+    assert FakeSMTP.sent[1]["Message-ID"] == m["Message-ID"]          # stable across retries
     assert str(alert) in m.get_content() and "Sunrise" not in m.get_content()
 
 
@@ -296,3 +301,105 @@ def test_unconfigured_smtp_is_a_permanent_failure():
         SmtpProvider("", 25, "x@awoc.example.invalid").send(
             Message(uuid4(), uuid4(), "email", "deadline.reminder", ("a@awoc.example.invalid",), 1))
     assert e.value.reason == "NOT_CONFIGURED"
+
+
+# ---- privacy and metrics (P3-10) ----
+
+def two_member_group():
+    ref = group_ref(Role.BUREAU_OFFICER, "Twoshire")
+    with new_session() as s:
+        for n in (11, 12):
+            user = UUID(f"00000000-0000-4000-9000-0000000000{n}")
+            directory.add_member(s, ref, user)
+            directory.set_contact(s, user, "email", f"officer{n}@awoc.example.invalid")
+        s.commit()
+    return ref
+
+
+def test_each_recipient_gets_their_own_message(env, monkeypatch):
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    FakeSMTP.behaviour, FakeSMTP.sent = None, []
+    enqueue(ref=two_member_group())
+    w = Notifier({"email": SmtpProvider("mail.test", 25, "no-reply@awoc.example.invalid")}, worker_id="w",
+                 now=Clock(), max_attempts=3)
+    w.run_once()
+    tos = [m["To"] for m in FakeSMTP.sent]
+    assert sorted(tos) == ["officer11@awoc.example.invalid", "officer12@awoc.example.invalid"]
+    for m in FakeSMTP.sent:     # no message mentions the other recipient anywhere
+        other = ({"officer11", "officer12"} - {m["To"].split("@")[0]}).pop()
+        assert other not in m.as_string()
+
+
+def test_a_retry_only_goes_to_recipients_not_yet_reached(env):
+    clock = Clock()
+    fake = FakeProvider(script=[None, TRANSIENT])          # first recipient ok, second fails
+    alert = enqueue(ref=two_member_group())
+    w = worker(fake, clock)
+    w.run_once()
+    assert row(alert).status == "PENDING" and len(fake.sent) == 1
+    first = fake.sent[0].addresses
+    clock.tick(10_000)
+    w.run_once()
+    assert row(alert).status == "DELIVERED"
+    assert [m.addresses for m in fake.sent] == [first, tuple(a for a in (
+        "officer11@awoc.example.invalid", "officer12@awoc.example.invalid") if (a,) != first)]
+
+
+def test_a_refused_recipient_dead_letters_the_message_without_resending_to_the_others(env):
+    clock = Clock()
+    fake = FakeProvider(script=[None, PERMANENT])
+    alert = enqueue(ref=two_member_group())
+    worker(fake, clock).run_once()
+    r = row(alert)
+    assert (r.status, r.last_error) == ("DEAD", "SOME_RECIPIENTS_REFUSED") and len(fake.sent) == 1
+
+
+def test_recipient_records_hold_no_addresses(env):
+    from app.platform.models import DeliveryRecipient
+    enqueue(ref=two_member_group())
+    worker().run_once()
+    with new_session() as s:
+        keys = s.scalars(select(DeliveryRecipient.recipient_key)).all()
+    assert len(keys) == 2 and not any("@" in k for k in keys)
+
+
+def test_provider_errors_are_logged_without_their_text(env, caplog):
+    class Leaky:
+        name = "leaky"
+
+        def send(self, msg):
+            raise RuntimeError(f"cannot reach {msg.addresses[0]}")
+
+    enqueue()
+    Notifier({"email": Leaky()}, worker_id="w", now=Clock(), max_attempts=3).run_once()
+    assert "RuntimeError" in caplog.text and "@" not in caplog.text
+
+
+def test_first_try_rate_counts_only_first_attempts(env):
+    clock = Clock()
+    a = enqueue()
+    b = enqueue()
+    fake = FakeProvider(script=[None, TRANSIENT])         # a: ok first time; b: fails, then ok
+    w = worker(fake, clock)
+    w.run_once()
+    clock.tick(10_000)
+    w.run_once()
+    from app.platform.notifier import health
+    h = health(clock())
+    assert (row(a).status, row(b).status) == ("DELIVERED", "DELIVERED")
+    assert h["first_tries_24h"] == 2
+    assert h["first_try_success_rate_24h"] == 0.5          # the old formula said 2/3
+    assert h["delivered_after_retry_24h"] == 1
+
+
+def test_a_requeued_message_is_not_counted_as_a_new_first_try(env):
+    from app.platform.notifier import health, requeue
+    clock = Clock()
+    alert = enqueue()
+    w = worker(FakeProvider(script=[PERMANENT]), clock)
+    w.run_once()
+    requeue(row(alert).id, clock())
+    clock.tick(5)
+    w.run_once()                                            # delivered; attempt_no restarts at 1
+    h = health(clock())
+    assert (h["first_tries_24h"], h["first_try_success_rate_24h"]) == (1, 0.0)

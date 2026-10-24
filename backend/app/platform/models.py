@@ -141,6 +141,18 @@ class DeliveryAttempt(Base):
     provider_ref: Mapped[str | None] = mapped_column(Text)
 
 
+class DeliveryRecipient(Base):
+    """Per-recipient result of an email/SMS message, so retries only go to recipients not yet reached.
+    Holds a salted hash of the address, never the address itself."""
+    __tablename__ = "delivery_recipient"
+    __table_args__ = {"schema": SCHEMA}
+
+    outbox_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.outbox.id"), primary_key=True)
+    recipient_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    outcome: Mapped[str] = mapped_column(Text)        # DELIVERED | REFUSED
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Notification(Base):
     """In-app inbox. One row per outbox row, so in-app delivery happens exactly once."""
     __tablename__ = "notification"

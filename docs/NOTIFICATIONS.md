@@ -28,8 +28,15 @@ outbox row PENDING --claim (lease)--> SENDING --send ok--------------------> DEL
   error category). Provider error text is never stored, only a category.
 - **Dead letters** are listed at `GET /api/notifications/outbox?status=DEAD`; the bureau head can requeue one with
   `POST /api/notifications/outbox/{id}/retry`.
+- **One message per recipient:** email and SMS go to each recipient separately, so nobody sees another recipient's
+  address. Each recipient's result is stored as a salted SHA-256 of (message id, address) in
+  `plat.delivery_recipient`, never the address. A retry only goes to recipients not yet reached; a recipient the
+  provider refused is not retried. If some recipients are refused and the rest delivered, the message is DEAD with
+  `SOME_RECIPIENTS_REFUSED` for a person to look at.
 - **Metrics:** `GET /api/notifications/health` shows counts by status and channel, the age of the oldest undelivered
-  message, attempt outcomes in the last 24 hours, and the first-try success rate.
+  message, attempt outcomes in the last 24 hours, `first_try_success_rate_24h` (share of messages whose very first
+  attempt in the window delivered; a manual requeue does not create a new first try) and `delivered_after_retry_24h`.
+- Provider errors are logged by type only; provider text can contain addresses.
 - The worker also purges expired idempotency keys once an hour.
 
 ## Delivery guarantees - what is and is not promised
@@ -38,8 +45,9 @@ outbox row PENDING --claim (lease)--> SENDING --send ok--------------------> DEL
 |---|---|
 | One logical message per (alert, channel) | Yes - unique constraint when queued |
 | In-app notification shown once | Yes - inbox row and DELIVERED status commit together |
-| Email / SMS sent at least once (until DEAD) | Yes |
-| Email / SMS sent exactly once | **No.** If the worker crashes after the provider accepted the message but before recording it, or the provider times out after receiving it (`AMBIGUOUS`), the message is sent again. Emails reuse the same `Message-ID` on retries, which some mail systems use to drop duplicates. |
+| Email / SMS sent at least once to each recipient (until DEAD) | Yes |
+| A recipient sees other recipients' addresses | No - one message per recipient |
+| Email / SMS sent exactly once | **No.** If the worker crashes after the provider accepted the message but before recording it, or the provider times out after receiving it (`AMBIGUOUS`), the message is sent again. A crash between one recipient's send and its record repeats that one send. Emails reuse the same `Message-ID` per (message, recipient) on retries, which some mail systems use to drop duplicates. |
 
 ## Channels (`backend/app/platform/providers.py`)
 
