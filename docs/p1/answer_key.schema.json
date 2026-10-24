@@ -1,0 +1,947 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sih26262:p1:answer-key:0.1.0",
+  "$defs": {
+    "Application": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "institution_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Institution Id",
+          "type": "string"
+        },
+        "category": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Category",
+          "type": "string"
+        },
+        "route_id": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Route Id",
+          "type": "string"
+        },
+        "pinned_ruleset_key": {
+          "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$",
+          "title": "Pinned Ruleset Key",
+          "type": "string"
+        },
+        "label": {
+          "const": "DEMO",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "institution_id",
+        "category",
+        "route_id",
+        "pinned_ruleset_key",
+        "label"
+      ],
+      "title": "Application",
+      "type": "object"
+    },
+    "ApplicationStatus": {
+      "enum": [
+        "DRAFT",
+        "IN_PROCESS",
+        "APPROVED",
+        "REJECTED",
+        "WITHDRAWN"
+      ],
+      "title": "ApplicationStatus",
+      "type": "string"
+    },
+    "ClockClose": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "application_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Application Id",
+          "type": "string"
+        },
+        "subject_type": {
+          "enum": [
+            "application",
+            "obligation",
+            "evc_request"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        },
+        "subject_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "rule_id": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "clock_kind": {
+          "$ref": "#/$defs/ClockKind"
+        },
+        "clock_owner": {
+          "$ref": "#/$defs/ClockOwner"
+        },
+        "at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "At Clock",
+          "type": "string"
+        },
+        "basis": {
+          "enum": [
+            "RULESET",
+            "DEMO_ASSUMPTION"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "operation": {
+          "const": "CLOSE",
+          "title": "Operation",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "MET",
+            "WAIVED"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "application_id",
+        "subject_type",
+        "subject_id",
+        "rule_id",
+        "clock_kind",
+        "clock_owner",
+        "at_clock",
+        "basis",
+        "operation",
+        "outcome"
+      ],
+      "title": "ClockClose",
+      "type": "object"
+    },
+    "ClockKind": {
+      "enum": [
+        "LEGAL",
+        "INTERNAL"
+      ],
+      "title": "ClockKind",
+      "type": "string"
+    },
+    "ClockOpen": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "application_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Application Id",
+          "type": "string"
+        },
+        "subject_type": {
+          "enum": [
+            "application",
+            "obligation",
+            "evc_request"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        },
+        "subject_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "rule_id": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "clock_kind": {
+          "$ref": "#/$defs/ClockKind"
+        },
+        "clock_owner": {
+          "$ref": "#/$defs/ClockOwner"
+        },
+        "at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "At Clock",
+          "type": "string"
+        },
+        "basis": {
+          "enum": [
+            "RULESET",
+            "DEMO_ASSUMPTION"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "operation": {
+          "const": "OPEN",
+          "title": "Operation",
+          "type": "string"
+        },
+        "anchor_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Anchor At Clock",
+          "type": "string"
+        },
+        "expected_due_date": {
+          "format": "date",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "title": "Expected Due Date",
+          "type": "string"
+        },
+        "expected_due_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Expected Due At Clock",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "application_id",
+        "subject_type",
+        "subject_id",
+        "rule_id",
+        "clock_kind",
+        "clock_owner",
+        "at_clock",
+        "basis",
+        "operation",
+        "anchor_at_clock",
+        "expected_due_date",
+        "expected_due_at_clock"
+      ],
+      "title": "ClockOpen",
+      "type": "object"
+    },
+    "ClockOwner": {
+      "enum": [
+        "AICTE",
+        "INSTITUTION",
+        "COMMITTEE"
+      ],
+      "title": "ClockOwner",
+      "type": "string"
+    },
+    "ClockPauseResume": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "application_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Application Id",
+          "type": "string"
+        },
+        "subject_type": {
+          "enum": [
+            "application",
+            "obligation",
+            "evc_request"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        },
+        "subject_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "rule_id": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "clock_kind": {
+          "const": "INTERNAL",
+          "title": "Clock Kind",
+          "type": "string"
+        },
+        "clock_owner": {
+          "$ref": "#/$defs/ClockOwner"
+        },
+        "at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "At Clock",
+          "type": "string"
+        },
+        "basis": {
+          "enum": [
+            "RULESET",
+            "DEMO_ASSUMPTION"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "PAUSE",
+            "RESUME"
+          ],
+          "title": "Operation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "application_id",
+        "subject_type",
+        "subject_id",
+        "rule_id",
+        "clock_kind",
+        "clock_owner",
+        "at_clock",
+        "basis",
+        "operation"
+      ],
+      "title": "ClockPauseResume",
+      "type": "object"
+    },
+    "Counts": {
+      "additionalProperties": false,
+      "properties": {
+        "institutions": {
+          "minimum": 0,
+          "title": "Institutions",
+          "type": "integer"
+        },
+        "applications": {
+          "minimum": 0,
+          "title": "Applications",
+          "type": "integer"
+        },
+        "deficiency_loops": {
+          "minimum": 0,
+          "title": "Deficiency Loops",
+          "type": "integer"
+        },
+        "deficiency_items": {
+          "minimum": 0,
+          "title": "Deficiency Items",
+          "type": "integer"
+        },
+        "late_responses": {
+          "minimum": 0,
+          "title": "Late Responses",
+          "type": "integer"
+        },
+        "evc_delays": {
+          "minimum": 0,
+          "title": "Evc Delays",
+          "type": "integer"
+        },
+        "letters": {
+          "minimum": 0,
+          "title": "Letters",
+          "type": "integer"
+        },
+        "clock_expectations": {
+          "minimum": 0,
+          "title": "Clock Expectations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "institutions",
+        "applications",
+        "deficiency_loops",
+        "deficiency_items",
+        "late_responses",
+        "evc_delays",
+        "letters",
+        "clock_expectations"
+      ],
+      "title": "Counts",
+      "type": "object"
+    },
+    "DeficiencyItem": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "OPEN",
+            "RESOLVED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "resolved_at_clock": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resolved At Clock"
+        },
+        "resolution_response_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resolution Response Id"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "resolved_at_clock",
+        "resolution_response_id"
+      ],
+      "title": "DeficiencyItem",
+      "type": "object"
+    },
+    "DeficiencyLoop": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "recorded_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Recorded At Clock",
+          "type": "string"
+        },
+        "as_of_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "As Of Clock",
+          "type": "string"
+        },
+        "response_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Response Id"
+        },
+        "responded_at_clock": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Responded At Clock"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/DeficiencyItem"
+          },
+          "minItems": 1,
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "recorded_at_clock",
+        "as_of_clock",
+        "response_id",
+        "responded_at_clock",
+        "items"
+      ],
+      "title": "DeficiencyLoop",
+      "type": "object"
+    },
+    "EvcDelay": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "planned_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Planned At Clock",
+          "type": "string"
+        },
+        "actual_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Actual At Clock",
+          "type": "string"
+        },
+        "delay_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Delay Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "request_id",
+        "planned_at_clock",
+        "actual_at_clock",
+        "delay_seconds"
+      ],
+      "title": "EvcDelay",
+      "type": "object"
+    },
+    "Header": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "review_status": {
+          "const": "PROPOSED_TEAM_REVIEW",
+          "title": "Review Status",
+          "type": "string"
+        },
+        "label": {
+          "const": "DEMO",
+          "title": "Label",
+          "type": "string"
+        },
+        "seed": {
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "generator_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Generator Version",
+          "type": "string"
+        },
+        "ruleset_key": {
+          "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$",
+          "title": "Ruleset Key",
+          "type": "string"
+        },
+        "generated_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Generated At Clock",
+          "type": "string"
+        },
+        "counts": {
+          "$ref": "#/$defs/Counts"
+        }
+      },
+      "required": [
+        "schema_version",
+        "review_status",
+        "label",
+        "seed",
+        "generator_version",
+        "ruleset_key",
+        "generated_at_clock",
+        "counts"
+      ],
+      "title": "Header",
+      "type": "object"
+    },
+    "Institution": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "region": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Region",
+          "type": "string"
+        },
+        "ro_id": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Ro Id",
+          "type": "string"
+        },
+        "category": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Category",
+          "type": "string"
+        },
+        "label": {
+          "const": "DEMO",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "region",
+        "ro_id",
+        "category",
+        "label"
+      ],
+      "title": "Institution",
+      "type": "object"
+    },
+    "LateResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "response_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Response Id",
+          "type": "string"
+        },
+        "loop_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Loop Id",
+          "type": "string"
+        },
+        "expected_by_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Expected By Clock",
+          "type": "string"
+        },
+        "responded_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Responded At Clock",
+          "type": "string"
+        },
+        "late_by_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Late By Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "response_id",
+        "loop_id",
+        "expected_by_clock",
+        "responded_at_clock",
+        "late_by_seconds"
+      ],
+      "title": "LateResponse",
+      "type": "object"
+    },
+    "LetterExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/LetterType"
+        },
+        "issue_at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "Issue At Clock",
+          "type": "string"
+        },
+        "lists_deficiencies": {
+          "title": "Lists Deficiencies",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "issue_at_clock",
+        "lists_deficiencies"
+      ],
+      "title": "LetterExpectation",
+      "type": "object"
+    },
+    "LetterType": {
+      "enum": [
+        "LOA",
+        "EOA",
+        "LOD",
+        "LOR",
+        "CORRIGENDUM"
+      ],
+      "title": "LetterType",
+      "type": "string"
+    },
+    "ReservedExtensions": {
+      "additionalProperties": false,
+      "description": "Owner-reserved; only {} is valid until a reviewed version defines fields.",
+      "properties": {},
+      "title": "ReservedExtensions",
+      "type": "object"
+    },
+    "RouteOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "at_clock": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "title": "At Clock",
+          "type": "string"
+        },
+        "expected_stage_list": {
+          "items": {
+            "$ref": "#/$defs/RouteStageExpectation"
+          },
+          "minItems": 1,
+          "title": "Expected Stage List",
+          "type": "array"
+        },
+        "expected_visited_stages": {
+          "items": {
+            "$ref": "#/$defs/Stage"
+          },
+          "title": "Expected Visited Stages",
+          "type": "array"
+        },
+        "expected_status": {
+          "$ref": "#/$defs/ApplicationStatus"
+        }
+      },
+      "required": [
+        "at_clock",
+        "expected_stage_list",
+        "expected_visited_stages",
+        "expected_status"
+      ],
+      "title": "RouteOutcome",
+      "type": "object"
+    },
+    "RouteStageExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "$ref": "#/$defs/Stage"
+        },
+        "when": {
+          "enum": [
+            "always",
+            "as_applicable"
+          ],
+          "title": "When",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "when"
+      ],
+      "title": "RouteStageExpectation",
+      "type": "object"
+    },
+    "Stage": {
+      "enum": [
+        "SELF_DISCLOSURE",
+        "SCRUTINY",
+        "RESCRUTINY",
+        "DEFICIENT",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "WorkflowExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Application Id",
+          "type": "string"
+        },
+        "deficiency_loop_count": {
+          "minimum": 0,
+          "title": "Deficiency Loop Count",
+          "type": "integer"
+        },
+        "deficiency_loops": {
+          "items": {
+            "$ref": "#/$defs/DeficiencyLoop"
+          },
+          "title": "Deficiency Loops",
+          "type": "array"
+        },
+        "late_responses": {
+          "items": {
+            "$ref": "#/$defs/LateResponse"
+          },
+          "title": "Late Responses",
+          "type": "array"
+        },
+        "evc_delays": {
+          "items": {
+            "$ref": "#/$defs/EvcDelay"
+          },
+          "title": "Evc Delays",
+          "type": "array"
+        },
+        "route_outcome": {
+          "$ref": "#/$defs/RouteOutcome"
+        },
+        "letters_to_issue": {
+          "items": {
+            "$ref": "#/$defs/LetterExpectation"
+          },
+          "title": "Letters To Issue",
+          "type": "array"
+        }
+      },
+      "required": [
+        "application_id",
+        "deficiency_loop_count",
+        "deficiency_loops",
+        "late_responses",
+        "evc_delays",
+        "route_outcome",
+        "letters_to_issue"
+      ],
+      "title": "WorkflowExpectation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "header": {
+      "$ref": "#/$defs/Header"
+    },
+    "institutions": {
+      "items": {
+        "$ref": "#/$defs/Institution"
+      },
+      "title": "Institutions",
+      "type": "array"
+    },
+    "applications": {
+      "items": {
+        "$ref": "#/$defs/Application"
+      },
+      "title": "Applications",
+      "type": "array"
+    },
+    "workflow_expectations": {
+      "items": {
+        "$ref": "#/$defs/WorkflowExpectation"
+      },
+      "title": "Workflow Expectations",
+      "type": "array"
+    },
+    "clock_expectations": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "CLOSE": "#/$defs/ClockClose",
+            "OPEN": "#/$defs/ClockOpen",
+            "PAUSE": "#/$defs/ClockPauseResume",
+            "RESUME": "#/$defs/ClockPauseResume"
+          },
+          "propertyName": "operation"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ClockOpen"
+          },
+          {
+            "$ref": "#/$defs/ClockPauseResume"
+          },
+          {
+            "$ref": "#/$defs/ClockClose"
+          }
+        ]
+      },
+      "title": "Clock Expectations",
+      "type": "array"
+    },
+    "p2_extensions": {
+      "$ref": "#/$defs/ReservedExtensions"
+    },
+    "p3_extensions": {
+      "$ref": "#/$defs/ReservedExtensions"
+    }
+  },
+  "required": [
+    "header",
+    "institutions",
+    "applications",
+    "workflow_expectations",
+    "clock_expectations",
+    "p2_extensions",
+    "p3_extensions"
+  ],
+  "title": "AnswerKey",
+  "type": "object"
+}

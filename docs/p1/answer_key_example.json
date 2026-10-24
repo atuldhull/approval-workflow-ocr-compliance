@@ -1,0 +1,131 @@
+{
+  "header": {
+    "schema_version": "0.1.0",
+    "review_status": "PROPOSED_TEAM_REVIEW",
+    "label": "DEMO",
+    "seed": 1,
+    "generator_version": "0.1.0",
+    "ruleset_key": "aph-2024-27@r1",
+    "generated_at_clock": "2026-07-01T04:30:00Z",
+    "counts": {
+      "institutions": 1, "applications": 1, "deficiency_loops": 1,
+      "deficiency_items": 2, "late_responses": 1, "evc_delays": 1,
+      "letters": 1, "clock_expectations": 5
+    }
+  },
+  "institutions": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "region": "SOUTHERN", "ro_id": "DEMO_RO_01", "category": "DEMO_TECHNICAL",
+      "label": "DEMO"
+    }
+  ],
+  "applications": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "institution_id": "00000000-0000-4000-8000-000000000001",
+      "category": "NEW_PROGRAMME", "route_id": "NEW_PROGRAMME",
+      "pinned_ruleset_key": "aph-2024-27@r1", "label": "DEMO"
+    }
+  ],
+  "workflow_expectations": [
+    {
+      "application_id": "00000000-0000-4000-8000-000000000002",
+      "deficiency_loop_count": 1,
+      "deficiency_loops": [
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "recorded_at_clock": "2026-07-02T04:30:00Z",
+          "as_of_clock": "2026-07-18T04:30:00Z",
+          "response_id": "00000000-0000-4000-8000-000000000004",
+          "responded_at_clock": "2026-07-18T04:30:00Z",
+          "items": [
+            {
+              "id": "00000000-0000-4000-8000-000000000005",
+              "status": "RESOLVED", "resolved_at_clock": "2026-07-18T04:30:00Z",
+              "resolution_response_id": "00000000-0000-4000-8000-000000000004"
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000006",
+              "status": "OPEN", "resolved_at_clock": null, "resolution_response_id": null
+            }
+          ]
+        }
+      ],
+      "late_responses": [
+        {
+          "response_id": "00000000-0000-4000-8000-000000000004",
+          "loop_id": "00000000-0000-4000-8000-000000000003",
+          "expected_by_clock": "2026-07-17T18:29:59Z",
+          "responded_at_clock": "2026-07-18T04:30:00Z", "late_by_seconds": 36001
+        }
+      ],
+      "evc_delays": [
+        {
+          "request_id": "00000000-0000-4000-8000-000000000007",
+          "planned_at_clock": "2026-08-01T04:30:00Z",
+          "actual_at_clock": "2026-08-03T04:30:00Z", "delay_seconds": 172800
+        }
+      ],
+      "route_outcome": {
+        "at_clock": "2026-07-18T04:30:00Z",
+        "expected_stage_list": [
+          {"stage": "SCRUTINY", "when": "always"},
+          {"stage": "EVC", "when": "always"},
+          {"stage": "SHC", "when": "as_applicable"}
+        ],
+        "expected_visited_stages": ["SCRUTINY", "DEFICIENT", "RESCRUTINY"],
+        "expected_status": "IN_PROCESS"
+      },
+      "letters_to_issue": [
+        {
+          "id": "00000000-0000-4000-8000-000000000008", "type": "EOA",
+          "issue_at_clock": "2026-08-10T04:30:00Z", "lists_deficiencies": true
+        }
+      ]
+    }
+  ],
+  "clock_expectations": [
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "application_id": "00000000-0000-4000-8000-000000000002",
+      "subject_type": "application", "subject_id": "00000000-0000-4000-8000-000000000002",
+      "rule_id": "AICTE_PROCESSING", "clock_kind": "INTERNAL", "clock_owner": "AICTE",
+      "at_clock": "2026-07-01T04:30:00Z", "basis": "DEMO_ASSUMPTION", "operation": "OPEN",
+      "anchor_at_clock": "2026-07-01T04:30:00Z", "expected_due_date": "2026-07-31",
+      "expected_due_at_clock": "2026-07-31T18:29:59Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "application_id": "00000000-0000-4000-8000-000000000002",
+      "subject_type": "application", "subject_id": "00000000-0000-4000-8000-000000000002",
+      "rule_id": "AICTE_PROCESSING", "clock_kind": "INTERNAL", "clock_owner": "AICTE",
+      "at_clock": "2026-07-02T04:30:00Z", "basis": "DEMO_ASSUMPTION", "operation": "PAUSE"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "application_id": "00000000-0000-4000-8000-000000000002",
+      "subject_type": "application", "subject_id": "00000000-0000-4000-8000-000000000002",
+      "rule_id": "INSTITUTION_RESPONSE", "clock_kind": "INTERNAL", "clock_owner": "INSTITUTION",
+      "at_clock": "2026-07-02T04:30:00Z", "basis": "DEMO_ASSUMPTION", "operation": "OPEN",
+      "anchor_at_clock": "2026-07-02T04:30:00Z", "expected_due_date": "2026-07-17",
+      "expected_due_at_clock": "2026-07-17T18:29:59Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "application_id": "00000000-0000-4000-8000-000000000002",
+      "subject_type": "application", "subject_id": "00000000-0000-4000-8000-000000000002",
+      "rule_id": "INSTITUTION_RESPONSE", "clock_kind": "INTERNAL", "clock_owner": "INSTITUTION",
+      "at_clock": "2026-07-18T04:30:00Z", "basis": "DEMO_ASSUMPTION", "operation": "CLOSE", "outcome": "MET"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "application_id": "00000000-0000-4000-8000-000000000002",
+      "subject_type": "application", "subject_id": "00000000-0000-4000-8000-000000000002",
+      "rule_id": "AICTE_PROCESSING", "clock_kind": "INTERNAL", "clock_owner": "AICTE",
+      "at_clock": "2026-07-18T04:30:00Z", "basis": "DEMO_ASSUMPTION", "operation": "RESUME"
+    }
+  ],
+  "p2_extensions": {},
+  "p3_extensions": {}
+}
