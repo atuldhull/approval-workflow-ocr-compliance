@@ -5,6 +5,7 @@ from typing import Any
 import yaml
 
 from app.platform.registry import port
+from app.workflow.grammar import validate_workflow
 from contracts.enums import Stage
 from contracts.errors import Forbidden, NotFound, ValidationFailed
 from contracts.ports import DeadlineRuleParserPort
@@ -24,14 +25,20 @@ def parse_routes(raw: dict[str, Any]) -> dict[str, Route]:
     """Static validation: known stages only, and SHC is optional exactly where an EVC is required."""
     routes: dict[str, Route] = {}
     problems: list[str] = []
-    for category, spec in (raw or {}).items():
+    if not isinstance(raw, dict) or not raw:
+        raise ValidationFailed("routes must be a nonempty mapping")
+    for category, spec in raw.items():
+        if not isinstance(spec, dict) or not isinstance(spec.get("stages"), list):
+            raise ValidationFailed(f"{category}: stages must be a list")
         stages: list[RouteStage] = []
         for item in spec.get("stages", []):
+            if not isinstance(item, (str, dict)) or (isinstance(item, dict) and set(item) - {"stage", "when"}):
+                raise ValidationFailed(f"{category}: malformed stage item")
             name, when = (item, "always") if isinstance(item, str) else (item.get("stage"), item.get("when", "always"))
-            if name not in Stage.__members__:
+            if not isinstance(name, str) or name not in Stage.__members__:
                 problems.append(f"{category}: unknown stage {name}")
                 continue
-            if when not in WHEN_VALUES:
+            if not isinstance(when, str) or when not in WHEN_VALUES:
                 problems.append(f"{category}: unknown condition {when}")
             stages.append(RouteStage(Stage(name), when))
         if not stages:
@@ -39,6 +46,14 @@ def parse_routes(raw: dict[str, Any]) -> dict[str, Route]:
         names = [s.stage for s in stages]
         if (Stage.EVC in names) != (Stage.SHC in names):
             problems.append(f"{category}: Table 2.3 pairs SHC with EVC")
+        if len(names) != len(set(names)):
+            problems.append(f"{category}: duplicate stage")
+        if any(s.stage == Stage.SHC and s.when != "as_applicable" for s in stages):
+            problems.append(f"{category}: SHC must be as_applicable")
+        if any(s.stage == Stage.EVC and s.when != "always" for s in stages):
+            problems.append(f"{category}: EVC must be always")
+        if Stage.EVC in names and Stage.SHC in names and names.index(Stage.SHC) < names.index(Stage.EVC):
+            problems.append(f"{category}: SHC must follow EVC")
         routes[category] = Route(category, spec.get("label", category), tuple(stages))
     if problems:
         raise ValidationFailed("; ".join(problems))
@@ -91,17 +106,43 @@ class RulesetRegistry:
         routes_raw = _read(folder / "routes.yaml")
         deadlines_raw = _read(folder / "deadlines.yaml") if (folder / "deadlines.yaml").exists() else {}
         rules = port(DeadlineRuleParserPort).parse(deadlines_raw)
-        on_submit = tuple(routes_raw.get("clocks", {}).get("on_submit", []))
+        clocks = routes_raw.get("clocks", {})
+        if not isinstance(clocks, dict) or not isinstance(clocks.get("on_submit", []), list):
+            raise ValidationFailed(f"{key}: clocks.on_submit must be a list")
+        on_submit = tuple(clocks.get("on_submit", []))
+        if any(not isinstance(r, str) for r in on_submit):
+            raise ValidationFailed(f"{key}: clocks.on_submit must contain rule names")
         missing = [r for r in on_submit if r not in rules]
         if missing:
             raise ValidationFailed(f"{key}: clocks.on_submit refers to unknown deadline rules {missing}")
+        routes = parse_routes(routes_raw.get("routes", {}))
+        validate_workflow(routes_raw, routes, rules)
         return RuleSet(
             key=key, ruleset=ruleset, revision=revision, status=routes_raw.get("status", "unknown"),
-            routes=parse_routes(routes_raw.get("routes", {})), deadline_rules=rules,
+            routes=routes, deadline_rules=rules,
             clocks_on_submit=on_submit, roles=routes_raw.get("roles", {}), banner=routes_raw.get("banner"),
         )
 
 
 def _read(path: Path) -> dict[str, Any]:
-    with path.open(encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+    class UniqueKeyLoader(yaml.SafeLoader):
+        pass
+
+    def mapping(loader, node, deep=False):
+        result = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if not isinstance(key, str) or key in result:
+                raise ValidationFailed(f"{path.name}: non-string or duplicate mapping key {key}")
+            result[key] = loader.construct_object(value_node, deep=deep)
+        return result
+
+    UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+    try:
+        with path.open(encoding="utf-8") as f:
+            raw = yaml.load(f, Loader=UniqueKeyLoader)
+    except (yaml.YAMLError, OSError, RecursionError) as exc:
+        raise ValidationFailed(f"cannot read ruleset {path.name}: {exc}") from None
+    if not isinstance(raw, dict):
+        raise ValidationFailed(f"{path.name}: expected mapping")
+    return raw

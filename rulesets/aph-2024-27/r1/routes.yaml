@@ -13,89 +13,407 @@ clocks:
   on_submit: [AICTE_PROCESSING]
 
 # Table 2.3: SHC is "as applicable" exactly where an EVC is required.
+grammar_version: 1
+workflow_source:
+  status: demo_assumption
+  label: DEMO ASSUMPTION
+  assumption_refs: [TG-001, TG-002, TG-003, TG-004, TG-005, TG-006]
+terminal_states:
+- APPROVED
+- REJECTED
+- WITHDRAWN
+auxiliary_stages:
+  DEFICIENT: SCRUTINY
+  RESCRUTINY: SCRUTINY
+resume_after:
+  RESCRUTINY: SCRUTINY
+
+# DEMO ASSUMPTION TG-001..TG-006: workflow policies below await team/APH confirmation.
+# Event wf.transition_applied is PROPOSED only; this task does not emit it.
+templates:
+  submit:
+    action: submit
+    from_stage: DRAFT
+    to_stage: $first
+    allowed_roles:
+    - INSTITUTION
+    guards:
+    - application_is_draft
+    reason_codes_required: false
+    timers:
+    - op: open
+      rule_id: AICTE_PROCESSING
+      anchor: command.now
+    emits_event: wf.application_submitted
+    letter: null
+  advance:
+    action: advance
+    from_stage: $route
+    to_stage: $next
+    allowed_roles:
+    - SCRUTINY_COMMITTEE
+    - BUREAU_OFFICER
+    guards:
+    - open_items_zero
+    - actor_has_assignment
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    aliases:
+    - scrutinise
+    - complete
+  deficiency:
+    action: record_deficiency
+    from_stage: SCRUTINY
+    to_stage: DEFICIENT
+    allowed_roles:
+    - SCRUTINY_COMMITTEE
+    guards:
+    - reason_code_present
+    - deficiency_items_present
+    reason_codes_required: true
+    timers:
+    - op: pause_internal
+      rule_id: AICTE_PROCESSING
+      anchor: null
+    - op: open
+      rule_id: INSTITUTION_RESPONSE
+      anchor: command.now
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages:
+    - SCRUTINY
+  compliance:
+    action: submit_compliance
+    from_stage: DEFICIENT
+    to_stage: RESCRUTINY
+    allowed_roles:
+    - INSTITUTION
+    guards:
+    - response_received
+    reason_codes_required: false
+    timers:
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: MET
+    - op: resume_internal
+      rule_id: AICTE_PROCESSING
+      anchor: null
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages:
+    - SCRUTINY
+  rescrutiny:
+    action: start_rescrutiny
+    from_stage: DEFICIENT
+    to_stage: RESCRUTINY
+    allowed_roles:
+    - SCRUTINY_COMMITTEE
+    - BUREAU_OFFICER
+    guards:
+    - response_received
+    - actor_has_assignment
+    reason_codes_required: false
+    timers:
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: MET
+    - op: resume_internal
+      rule_id: AICTE_PROCESSING
+      anchor: null
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages:
+    - SCRUTINY
+  to_evc:
+    action: advance_to_evc
+    from_stage: $route
+    to_stage: $next
+    allowed_roles:
+    - SCRUTINY_COMMITTEE
+    - BUREAU_OFFICER
+    guards:
+    - open_items_zero
+    - actor_has_assignment
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    match_to: EVC
+    requires_stages:
+    - EVC
+  evc_complete:
+    action: complete_evc
+    from_stage: EVC
+    to_stage: $next
+    allowed_roles:
+    - SCRUTINY_COMMITTEE
+    - BUREAU_OFFICER
+    guards:
+    - open_items_zero
+    - actor_has_assignment
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages:
+    - EVC
+  to_shc:
+    action: advance_to_shc
+    from_stage: $route
+    to_stage: $next
+    allowed_roles:
+    - SCRUTINY_COMMITTEE
+    - BUREAU_OFFICER
+    guards:
+    - open_items_zero
+    - actor_has_assignment
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    match_to: SHC
+    requires_stages:
+    - SHC
+  loa:
+    action: issue_loa
+    from_stage: $last
+    to_stage: APPROVED
+    allowed_roles:
+    - BUREAU_OFFICER
+    guards:
+    - at_last_applicable_stage
+    - decision_authorised
+    - letter_type_matches_decision
+    - open_items_zero
+    reason_codes_required: false
+    timers:
+    - op: close
+      rule_id: AICTE_PROCESSING
+      anchor: null
+      outcome: MET
+      if_live: true
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: WAIVED
+      if_live: true
+    emits_event: wf.transition_applied
+    letter:
+      type: LOA
+      lists_deficiencies: false
+  eoa:
+    action: issue_eoa
+    from_stage: $last
+    to_stage: APPROVED
+    allowed_roles:
+    - BUREAU_OFFICER
+    guards:
+    - at_last_applicable_stage
+    - decision_authorised
+    - letter_type_matches_decision
+    - open_items_zero
+    reason_codes_required: false
+    timers:
+    - op: close
+      rule_id: AICTE_PROCESSING
+      anchor: null
+      outcome: MET
+      if_live: true
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: WAIVED
+      if_live: true
+    emits_event: wf.transition_applied
+    letter:
+      type: EOA
+      lists_deficiencies: false
+  lod:
+    action: issue_lod
+    from_stage: $last
+    to_stage: REJECTED
+    allowed_roles:
+    - BUREAU_OFFICER
+    guards:
+    - at_last_applicable_stage
+    - decision_authorised
+    - letter_type_matches_decision
+    - open_items_zero
+    reason_codes_required: false
+    timers:
+    - op: close
+      rule_id: AICTE_PROCESSING
+      anchor: null
+      outcome: MET
+      if_live: true
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: WAIVED
+      if_live: true
+    emits_event: wf.transition_applied
+    letter:
+      type: LOD
+      lists_deficiencies: false
+  reject:
+    action: reject
+    from_stage: $active
+    to_stage: REJECTED
+    allowed_roles:
+    - BUREAU_OFFICER
+    guards:
+    - reason_code_present
+    reason_codes_required: true
+    timers:
+    - op: close
+      rule_id: AICTE_PROCESSING
+      anchor: null
+      outcome: MET
+      if_live: true
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: WAIVED
+      if_live: true
+    emits_event: wf.transition_applied
+    letter: null
+  withdraw:
+    action: withdraw
+    from_stage: $active
+    to_stage: WITHDRAWN
+    allowed_roles:
+    - INSTITUTION
+    guards:
+    - reason_code_present
+    reason_codes_required: true
+    timers:
+    - op: close
+      rule_id: AICTE_PROCESSING
+      anchor: null
+      outcome: MET
+      if_live: true
+    - op: close
+      rule_id: INSTITUTION_RESPONSE
+      anchor: null
+      outcome: WAIVED
+      if_live: true
+    emits_event: wf.transition_applied
+    letter: null
+  revert:
+    action: revert
+    from_stage: $active
+    to_stage: $previous
+    allowed_roles:
+    - BUREAU_OFFICER
+    guards:
+    - reason_code_present
+    - previous_stage_visited
+    - second_approval_if_required
+    reason_codes_required: true
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    aliases:
+    - authorised_revert
+
+transitions: &standard [submit, advance, deficiency, compliance, rescrutiny, to_evc, evc_complete, to_shc, loa, eoa, lod, reject, withdraw, revert]
+
 routes:
   EOA_SELF_DISCLOSURE:
     label: Extension of Approval based on self-disclosure
     stages: [SELF_DISCLOSURE]
+    transitions: *standard
   NRI_SEATS:
     label: Introduction/continuation of NRI seats
     stages: [SELF_DISCLOSURE]
+    transitions: *standard
   CONVERSION_LEVEL:
     label: Conversion diploma to degree level or vice versa
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   CHANGE_OF_NAME:
     label: Change of name of institution / affiliating university / board / type
     stages: [SCRUTINY]
+    transitions: *standard
   NEW_PROGRAMME:
     label: New programme / level in existing institution
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   MERGER:
     label: Merger of institutions
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   RESTORATION:
     label: EoA after a break / restoration of intake / hibernation
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   SUPERNUMERARY_SEATS:
     label: Supernumerary seats (foreign nationals / OCI / children of Indian workers in Gulf)
     stages: [SCRUTINY]
+    transitions: *standard
   INCREASE_INTAKE:
     label: Increase in intake / additional course(s)
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   INTEGRATED_DUAL:
     label: Integrated / dual degree course
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   FELLOW_PROGRAMME:
     label: Fellow Programme in Management
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   COURSE_CHANGE_REDUCTION:
     label: Change of course name / merger of courses / reduction in intake
     stages: [SCRUTINY]
+    transitions: *standard
   COLLABORATION_TWINNING:
     label: Collaboration and twinning programme
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   CHANGE_OF_SITE:
     label: Change of site / location
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   CLOSURE_INSTITUTION:
     label: Closure of the institution
     stages: [SCRUTINY]
+    transitions: *standard
   CONVERSION_COED:
     label: Conversion women's to co-ed institution or vice versa
     stages: [SCRUTINY]
+    transitions: *standard
   CLOSURE_PROGRAMME:
     label: Closure of programme(s) / course(s)
     stages: [SCRUTINY]
+    transitions: *standard
   BANK_DETAILS:
     label: Change in bank details
     stages: [SCRUTINY]
+    transitions: *standard
   TRUST_NAME:
     label: Change of name of trust / society / company
     stages: [SCRUTINY]
+    transitions: *standard
   DEEMED_UNIVERSITY:
     label: Conversion into a deemed-to-be university
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   ODL:
     label: Online Learning / ODL courses
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
+    transitions: *standard
   # Chapter I route (sections 1.3-1.12), not part of Table 2.3
   NEW_INSTITUTION:
     label: Setting up a new institution
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}, EC, COUNCIL]
+    transitions: *standard
 
 appeal:
   trigger: decision.adverse_uploaded
   window: APPEAL_7D
   max_appeals: 1
-
-# Timers below are INTERNAL processing timers; legal deadlines are never paused.
-transitions:
-  - {from: SCRUTINY, action: record_deficiency, to: DEFICIENT,
-     roles: [SCRUTINY_COMMITTEE], require: [reason, items],
-     timers: {pause: AICTE_PROCESSING, start: INSTITUTION_RESPONSE}}
-  - {from: DEFICIENT, action: submit_compliance, to: RESCRUTINY,
-     roles: [INSTITUTION],
-     timers: {stop: INSTITUTION_RESPONSE, resume: AICTE_PROCESSING}}
-  - {from: [SCRUTINY, RESCRUTINY], action: complete, to: next_stage,
-     guard: "open_items == 0"}
-  - {from: "*", action: authorised_revert, to: "$target", roles: [BUREAU_OFFICER],
-     require: [reason, second_approver_if: target_is_terminal]}

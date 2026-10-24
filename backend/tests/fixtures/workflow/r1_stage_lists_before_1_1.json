@@ -1,0 +1,130 @@
+{
+  "EOA_SELF_DISCLOSURE": [
+    "SELF_DISCLOSURE"
+  ],
+  "NRI_SEATS": [
+    "SELF_DISCLOSURE"
+  ],
+  "CONVERSION_LEVEL": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "CHANGE_OF_NAME": [
+    "SCRUTINY"
+  ],
+  "NEW_PROGRAMME": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "MERGER": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "RESTORATION": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "SUPERNUMERARY_SEATS": [
+    "SCRUTINY"
+  ],
+  "INCREASE_INTAKE": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "INTEGRATED_DUAL": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "FELLOW_PROGRAMME": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "COURSE_CHANGE_REDUCTION": [
+    "SCRUTINY"
+  ],
+  "COLLABORATION_TWINNING": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "CHANGE_OF_SITE": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "CLOSURE_INSTITUTION": [
+    "SCRUTINY"
+  ],
+  "CONVERSION_COED": [
+    "SCRUTINY"
+  ],
+  "CLOSURE_PROGRAMME": [
+    "SCRUTINY"
+  ],
+  "BANK_DETAILS": [
+    "SCRUTINY"
+  ],
+  "TRUST_NAME": [
+    "SCRUTINY"
+  ],
+  "DEEMED_UNIVERSITY": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "ODL": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    }
+  ],
+  "NEW_INSTITUTION": [
+    "SCRUTINY",
+    "EVC",
+    {
+      "stage": "SHC",
+      "when": "as_applicable"
+    },
+    "EC",
+    "COUNCIL"
+  ]
+}
