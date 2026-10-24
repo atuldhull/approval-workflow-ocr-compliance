@@ -1,0 +1,3 @@
+# Every change is reviewed by the team. Folder ownership (Person 1 / 2 / 3) is listed in docs/OWNERSHIP.md.
+# contracts/ additionally needs approval from all three - enforced by .github/workflows/contracts-approval.yml.
+*    @atuldhull @gundatharuntej2006-hue @ritikakulkarni06-art

@@ -1,0 +1,60 @@
+# Deadline rules for aph-2024-27@r1.
+# source.status: verified | verified_letter_text | demo_assumption (no handbook figure found; configurable)
+rules:
+  - id: AICTE_PROCESSING
+    clock_kind: INTERNAL
+    clock_owner: AICTE
+    source: {status: demo_assumption}
+    anchor: application.submitted
+    duration: {value: 30, unit: calendar_days}
+
+  - id: INSTITUTION_RESPONSE
+    clock_kind: INTERNAL
+    clock_owner: INSTITUTION
+    source: {status: demo_assumption}
+    anchor: deficiency.recorded
+    duration: {value: 15, unit: calendar_days}
+
+  - id: APPEAL_7D
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {clause: "2.24(a)", status: verified}
+    anchor: decision.uploaded
+    # calendar vs working days is not confirmed; configurable
+    duration: {value: 7, unit: calendar_days}
+    on_expiry: close_appeal_window
+
+  - id: DEPOSIT_15D
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {clause: "1.12 / 2.25(f)", status: verified}
+    anchor: deposit.intimated
+    duration: {value: 15, unit: calendar_days}
+    # reminders and escalation are demo assumptions; penalty tiers are a suggestion only
+    reminders: [-7d, -2d, -1d]
+    escalation: [{after: 0d, to: RO_OFFICER}, {after: 5d, to: BUREAU_HEAD}]
+    penalty_tiers: [{until: "05-31", pct: 10}, {until: "07-31", pct: 20}]
+
+  - id: EOA_DEFICIENCY_6M
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {doc: "EoA letters that list deficiencies", status: verified_letter_text}
+    # never attached to an EoA directly; all conditions must hold
+    applies_to: obligation
+    applies_when:
+      - obligation.kind == LETTER_CONDITION
+      - obligation.source_letter.lists_deficiencies == true
+      - obligation.state_origin == OFFICER_CONFIRMED
+    anchor: obligation.source_letter.issue_date
+    # 31 Aug + 6 months -> 28/29 Feb
+    duration: {value: 6, unit: months, month_end: clamp}
+    reminders: [-60d, -30d, -7d]
+
+  - id: LEASE_EOA_STOP
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {clause: "2.1(e)", status: verified}
+    computed: lease_eoa_stop_year
+    inputs: [lease_end_date, max_course_duration_years, ay_start_rule]
+    # relative to the start of the stop academic year; demo assumption
+    reminders: [-18mo, -12mo, -6mo]

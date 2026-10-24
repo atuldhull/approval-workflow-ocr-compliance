@@ -1,0 +1,56 @@
+# Lightweight default: database + backend + frontend.
+#   docker compose up --build
+# Heavier services (Keycloak, Cerbos, ClamAV, MinIO) will be added under the "full" profile
+# so laptops only run them when needed:  docker compose --profile full up
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-awoc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-awoc}
+      POSTGRES_DB: ${POSTGRES_DB:-awoc}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-awoc}"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-awoc}:${POSTGRES_PASSWORD:-awoc}@db:5432/${POSTGRES_DB:-awoc}
+      DEMO_MODE: ${DEMO_MODE:-true}
+      DEMO_AUTH: ${DEMO_AUTH:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/srv/backend
+      - ./contracts:/srv/contracts
+      - ./rulesets:/srv/rulesets
+      - ./generator:/srv/generator
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /srv/frontend
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_API_TARGET: http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/srv/frontend
+      - frontend_modules:/srv/frontend/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  frontend_modules:

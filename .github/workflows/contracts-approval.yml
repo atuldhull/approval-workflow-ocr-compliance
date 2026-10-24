@@ -1,0 +1,38 @@
+# CODEOWNERS accepts approval from any ONE listed owner. Changes to contracts/ need the whole team,
+# so this check fails until both team members other than the author have approved.
+name: contracts-approval
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+jobs:
+  all-three-approve:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const base = { owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number };
+            const files = await github.paginate(github.rest.pulls.listFiles, base);
+            if (!files.some(f => f.filename.startsWith("contracts/"))) {
+              core.info("No changes under contracts/.");
+              return;
+            }
+            const reviews = await github.paginate(github.rest.pulls.listReviews, base);
+            const latest = {};
+            for (const r of reviews) {
+              if (["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) latest[r.user.login] = r.state;
+            }
+            const approvers = Object.keys(latest).filter(u => latest[u] === "APPROVED" && u !== pr.user.login);
+            const needed = 2;
+            if (approvers.length < needed) {
+              core.setFailed(`contracts/ changed: needs approval from both other team members (have ${approvers.length} of ${needed}).`);
+            } else {
+              core.info(`Approved by ${approvers.join(", ")}.`);
+            }

@@ -1,0 +1,9 @@
+# Used ONLY in the rule-change simulation scenario. Refused outside demo mode.
+extends: aph-2024-27@r1
+revision: r3-DEMO
+status: unverified_demo
+# unverified: secondary source only
+effective_from: 2025-12-02
+banner: "SIMULATION - models a reported corrigendum that has NOT been verified"
+roles:
+  evc_constituted_by: COUNCIL
