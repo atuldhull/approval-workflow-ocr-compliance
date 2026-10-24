@@ -117,13 +117,27 @@ class TokenVerifier:
 
 
 def principal_from_claims(claims: dict[str, Any]) -> Principal:
+    """Signed-but-malformed claims are 401 (InvalidToken); a well-formed account without a usable scope is 403.
+
+    Every claim is type-checked before use: a decoded token is attacker-shaped data until proven otherwise.
+    """
+    if not isinstance(claims, dict):
+        raise InvalidToken("claims are not an object")
+    sub = claims.get("sub")
+    if not isinstance(sub, str):
+        raise InvalidToken("subject is not a user id")
     try:
-        user_id = UUID(str(claims["sub"]))
-    except (KeyError, ValueError) as e:
+        user_id = UUID(sub)
+    except ValueError as e:
         raise InvalidToken("subject is not a user id") from e
 
-    realm = claims.get("realm_access") or {}
-    roles = {r for r in realm.get("roles", []) if r in USER_ROLES}
+    realm = claims.get("realm_access", {})
+    if not isinstance(realm, dict):
+        raise InvalidToken("malformed realm_access claim")
+    raw_roles = realm.get("roles", [])
+    if not isinstance(raw_roles, list) or not all(isinstance(r, str) for r in raw_roles):
+        raise InvalidToken("malformed roles claim")
+    roles = {r for r in raw_roles if r in USER_ROLES}   # other Keycloak roles (offline_access, ...) are ignored
     if len(roles) != 1:
         raise Forbidden("account must hold exactly one application role")
     role = Role(roles.pop())
@@ -136,8 +150,13 @@ def principal_from_claims(claims: dict[str, Any]) -> Principal:
 
     institution_id = None
     if role == Role.INSTITUTION:
+        raw = claims.get("institution_id")
+        if raw is None:
+            raise Forbidden("institution account is not linked to an institution")
+        if not isinstance(raw, str):
+            raise InvalidToken("malformed institution_id claim")
         try:
-            institution_id = UUID(str(claims["institution_id"]))
-        except (KeyError, ValueError):
-            raise Forbidden("institution account is not linked to an institution") from None
+            institution_id = UUID(raw)
+        except ValueError:
+            raise InvalidToken("malformed institution_id claim") from None
     return Principal(user_id=user_id, role=role, region=region, institution_id=institution_id)

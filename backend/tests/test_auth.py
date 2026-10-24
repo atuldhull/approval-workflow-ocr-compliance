@@ -385,3 +385,67 @@ def test_api_responses_carry_security_headers_and_never_echo_tokens(client, oidc
 
 def test_unknown_role_header_values_are_rejected_in_demo_mode(client):
     assert client.get("/api/applications", headers={"X-Demo-User": SUNRISE_USER, "X-Demo-Role": "ADMIN"}).status_code == 422
+
+
+# ---- malformed claims (P3-13): never a 500 ----
+
+from app.platform.oidc import principal_from_claims  # noqa: E402
+
+GOOD = {"sub": SUNRISE_USER, "realm_access": {"roles": ["AUDITOR"]}}
+
+
+@pytest.mark.parametrize("claims", [
+    {**GOOD, "realm_access": {"roles": None}},
+    {**GOOD, "realm_access": ["AUDITOR"]},
+    {**GOOD, "realm_access": "AUDITOR"},
+    {**GOOD, "realm_access": None},
+    {**GOOD, "realm_access": {"roles": "AUDITOR"}},          # a string must not be iterated as characters
+    {**GOOD, "realm_access": {"roles": [{"name": "AUDITOR"}]}},
+    {**GOOD, "realm_access": {"roles": ["AUDITOR", 7]}},
+    {**GOOD, "sub": 5},
+    {**GOOD, "sub": {"id": SUNRISE_USER}},
+    {**GOOD, "sub": None},
+    {**GOOD, "sub": "not-a-uuid"},
+    {"realm_access": {"roles": ["AUDITOR"]}},                 # no sub at all
+    {"sub": SUNRISE_USER, "realm_access": {"roles": ["INSTITUTION"]}, "institution_id": ["x"]},
+    {"sub": SUNRISE_USER, "realm_access": {"roles": ["INSTITUTION"]}, "institution_id": 12},
+    {"sub": SUNRISE_USER, "realm_access": {"roles": ["INSTITUTION"]}, "institution_id": "nope"},
+    {"sub": SUNRISE_USER, "realm_access": {"roles": ["RO_OFFICER"]}, "region": 7},
+    {"sub": SUNRISE_USER, "realm_access": {"roles": ["RO_OFFICER"]}, "region": ["Southern"]},
+    "not an object",
+])
+def test_malformed_claims_are_invalid_tokens(claims):
+    with pytest.raises(InvalidToken):
+        principal_from_claims(claims)
+
+
+@pytest.mark.parametrize("claims, message", [
+    ({"sub": SUNRISE_USER}, "exactly one application role"),                               # missing realm_access
+    ({"sub": SUNRISE_USER, "realm_access": {}}, "exactly one application role"),            # missing roles
+    ({"sub": SUNRISE_USER, "realm_access": {"roles": ["ADMIN", "offline_access"]}}, "exactly one application role"),
+    ({"sub": SUNRISE_USER, "realm_access": {"roles": ["AUDITOR", "BUREAU_HEAD"]}}, "exactly one application role"),
+    ({"sub": SUNRISE_USER, "realm_access": {"roles": ["INSTITUTION"]}}, "not linked to an institution"),
+])
+def test_well_formed_accounts_without_a_usable_scope_are_forbidden(claims, message):
+    with pytest.raises(Forbidden, match=message):
+        principal_from_claims(claims)
+
+
+def test_valid_keycloak_shapes_still_work():
+    p = principal_from_claims({"sub": SUNRISE_USER, "realm_access": {"roles": ["default-roles-awoc", "INSTITUTION",
+                                                                             "INSTITUTION"]},
+                               "institution_id": str(SUNRISE), "region": "Southern"})
+    assert (p.role, p.institution_id) == (Role.INSTITUTION, SUNRISE)
+
+
+@pytest.mark.parametrize("claims, status", [
+    ({"realm_access": {"roles": None}}, 401),
+    ({"realm_access": ["AUDITOR"]}, 401),
+    ({"realm_access": {"roles": [{"x": 1}]}}, 401),
+    ({"realm_access": {"roles": ["AUDITOR", "BUREAU_HEAD"]}}, 403),
+    ({"realm_access": {"roles": ["UNKNOWN_ROLE"]}}, 403),
+    ({"sub": 42}, 401),
+])
+def test_signed_tokens_with_malformed_claims_get_controlled_api_errors(client, oidc, claims, status):
+    r = client.get("/api/auth/me", headers=bearer(**claims))
+    assert r.status_code == status, r.text
