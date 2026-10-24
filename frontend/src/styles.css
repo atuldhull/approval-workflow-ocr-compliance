@@ -647,3 +647,10 @@ mark {
   color: var(--bad);
   margin-top: 4px;
 }
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}

@@ -48,11 +48,13 @@ The UI already talks to `frontend/src/integrations/documentReview.js`. The API n
 |---|---|---|
 | `GET /documents/{id}/review` | title, `synthetic` flag, page images (`imageUrl`, `width`, `height`), fields (`key`, `label`, `format`) | **No suggestions, confidence, boxes or OCR text** |
 | `POST /documents/{id}/fields/{key}/reading` with the officer's value | `value`, `confidence`, `box` (page, x, y, w, h in image pixels), `sourceText` | Records the officer's reading **first**, then returns the machine reading |
-| `POST /documents/{id}/fields/{key}/confirm` | - | Only after a reading was recorded by the same user |
+| `POST /documents/{id}/facts/confirm` with `[{fieldKey, value, source: OFFICER\|MACHINE}]` for every field | `{confirmed: [{fieldKey, factId}]}` listing **every** field | All-or-nothing; only fields the same user already committed a reading for; `MACHINE` only for a field whose suggestion was revealed to that user |
 
 - **Security:** enforce the order on the server too; the UI hiding values is not enough. Page images must be the
   original document, not text re-rendered from OCR.
-- **Acceptance:** a review request contains no machine output; a confirm before a reading is 409.
+- **Acceptance:** a review request contains no machine output; a confirm before a reading is 409; a confirm that
+  cannot save every field saves none. The UI shows success only if `confirmed` lists every submitted field
+  (`confirmedAll` in `frontend/src/integrations/documentReview.js`), and sends one request per confirmation.
 - **Contract:** yes (OpenAPI).
 
 ## 7. Obligations and evidence

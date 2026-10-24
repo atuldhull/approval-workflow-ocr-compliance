@@ -177,7 +177,97 @@ describe("document review: commit before reveal", () => {
     expect(JSON.stringify(rest)).not.toMatch(/2031|2001|confidence|suggestion|box|sourceText/);
     expect(Object.keys(pages[0])).toEqual(["imageUrl", "width", "height"]);
     await expect(fixtureAdapter.commitReading(review.documentId, "lease_end", "")).rejects.toThrow();
-    expect(fixtureAdapter.confirmFact).toBeNull();
+    expect(fixtureAdapter.confirmFacts).toBeNull();
+  });
+});
+
+describe("document review: confirmation", () => {
+  function mockAdapter(confirmFacts) {
+    return { ...fixtureAdapter, live: true, confirmFacts };
+  }
+
+  async function commitBoth(user, endValue = "2031-03-31") {
+    const start = await screen.findByRole("group", { name: "Lease start date" });
+    await user.type(within(start).getByLabelText(/Your reading/), "2001-04-01");
+    await user.click(within(start).getByRole("button", { name: "Commit my reading" }));
+    const end = screen.getByRole("group", { name: "Lease end date" });
+    await user.type(within(end).getByLabelText(/Your reading/), endValue);
+    await user.click(within(end).getByRole("button", { name: "Commit my reading" }));
+    await within(end).findByText(/Machine reading/);
+    return end;
+  }
+
+  it("stays unavailable until every field is committed, then sends one request with the officer's values", async () => {
+    const user = userEvent.setup();
+    const calls = [];
+    const adapter = mockAdapter(async (id, decisions) => {
+      calls.push(decisions);
+      return { confirmed: decisions.map((d) => ({ fieldKey: d.fieldKey, factId: `f-${d.fieldKey}` })) };
+    });
+    render(<OcrReviewView adapter={adapter} />);
+    const confirm = await screen.findByRole("button", { name: "Confirm facts" });
+    expect(confirm).toBeDisabled();
+    expect(screen.queryByText(/Preview with sample data/)).toBeNull();
+    await commitBoth(user);
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(await screen.findByText("Facts confirmed by the server.")).toBeInTheDocument();
+    expect(calls).toEqual([[
+      { fieldKey: "lease_start", value: "2001-04-01", source: "OFFICER" },
+      { fieldKey: "lease_end", value: "2031-03-31", source: "OFFICER" },
+    ]]);
+  });
+
+  it("lets the officer adopt the machine reading only after seeing it, and says so", async () => {
+    const user = userEvent.setup();
+    const calls = [];
+    const adapter = mockAdapter(async (id, d) => { calls.push(d); return { confirmed: d.map((x) => ({ fieldKey: x.fieldKey, factId: "f" })) }; });
+    render(<OcrReviewView adapter={adapter} />);
+    const end = await commitBoth(user, "2031-03-30");
+    await user.click(within(end).getByRole("radio", { name: /Use the machine reading/ }));
+    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
+    await screen.findByText("Facts confirmed by the server.");
+    expect(calls[0][1]).toEqual({ fieldKey: "lease_end", value: "2031-03-31", source: "MACHINE" });
+  });
+
+  it("shows a failure and allows a retry", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    const adapter = mockAdapter(async (id, d) => {
+      if (fail) { fail = false; throw new Error("Confirmation service unavailable"); }
+      return { confirmed: d.map((x) => ({ fieldKey: x.fieldKey, factId: "f" })) };
+    });
+    render(<OcrReviewView adapter={adapter} />);
+    await commitBoth(user);
+    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Confirmation service unavailable");
+    expect(screen.queryByText("Facts confirmed by the server.")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
+    expect(await screen.findByText("Facts confirmed by the server.")).toBeInTheDocument();
+  });
+
+  it("does not report success unless the server confirmed every field", async () => {
+    const user = userEvent.setup();
+    const adapter = mockAdapter(async () => ({ confirmed: [{ fieldKey: "lease_start", factId: "f1" }] }));
+    render(<OcrReviewView adapter={adapter} />);
+    await commitBoth(user);
+    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("did not confirm every field");
+    expect(screen.queryByText("Facts confirmed by the server.")).toBeNull();
+  });
+
+  it("sends only one request on a double click", async () => {
+    const user = userEvent.setup();
+    let release;
+    const calls = [];
+    const adapter = mockAdapter((id, d) => { calls.push(d); return new Promise((r) => { release = () => r({ confirmed: d.map((x) => ({ fieldKey: x.fieldKey, factId: "f" })) }); }); });
+    render(<OcrReviewView adapter={adapter} />);
+    await commitBoth(user);
+    await user.dblClick(screen.getByRole("button", { name: "Confirm facts" }));
+    expect(calls).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Confirming…" })).toBeDisabled();
+    release();
+    expect(await screen.findByText("Facts confirmed by the server.")).toBeInTheDocument();
   });
 });
 

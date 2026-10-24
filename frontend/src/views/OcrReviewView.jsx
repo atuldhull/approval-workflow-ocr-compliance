@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Badge, Card, ErrorBox, Loading, PreviewBanner } from "../components/ui.jsx";
-import { fixtureAdapter } from "../integrations/documentReview.js";
+import { Badge, Card, ErrorBox, Loading, PreviewBanner, useSingleFlight } from "../components/ui.jsx";
+import { confirmedAll, fixtureAdapter } from "../integrations/documentReview.js";
 
 // Commit before reveal: the officer reads the page image and types the value BEFORE seeing anything the machine
 // produced - no extracted value, no confidence, no highlighted location, no OCR text. Those appear only after the
@@ -30,7 +30,7 @@ export function PageView({ page, synthetic, boxes = [] }) {
   );
 }
 
-export function FieldReview({ field, onCommit, suggestion }) {
+export function FieldReview({ field, onCommit, suggestion, choice, onChoose, locked }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -41,7 +41,7 @@ export function FieldReview({ field, onCommit, suggestion }) {
     setBusy(true);
     setError(null);
     try {
-      await onCommit(field.key, value);
+      await onCommit(field.key, value.trim());
     } catch (e) {
       setError(e);
     } finally {
@@ -78,6 +78,20 @@ export function FieldReview({ field, onCommit, suggestion }) {
               OCR text at that spot (machine output, shown on the page): <code>{suggestion.sourceText}</code>
             </p>
           )}
+          {!agrees && suggestion.value && (
+            <div role="radiogroup" aria-label={`Value to confirm for ${field.label}`} className="choice">
+              <label className="inline">
+                <input type="radio" name={`${field.key}-choice`} checked={choice !== "MACHINE"} disabled={locked}
+                  onChange={() => onChoose(field.key, "OFFICER")} />
+                Keep my reading ({value.trim()})
+              </label>
+              <label className="inline">
+                <input type="radio" name={`${field.key}-choice`} checked={choice === "MACHINE"} disabled={locked}
+                  onChange={() => onChoose(field.key, "MACHINE")} />
+                Use the machine reading ({suggestion.value}) after checking the page
+              </label>
+            </div>
+          )}
         </div>
       )}
     </fieldset>
@@ -88,6 +102,10 @@ export default function OcrReviewView({ adapter = fixtureAdapter }) {
   const [review, setReview] = useState(null);
   const [error, setError] = useState(null);
   const [suggestions, setSuggestions] = useState({});
+  const [readings, setReadings] = useState({});
+  const [choices, setChoices] = useState({});
+  const [confirm, setConfirm] = useState({ state: "idle", error: null });
+  const once = useSingleFlight();
 
   useEffect(() => {
     adapter.loadReview("SAMPLE-LEASE-001").then(setReview).catch(setError);
@@ -95,8 +113,25 @@ export default function OcrReviewView({ adapter = fixtureAdapter }) {
 
   async function commitReading(fieldKey, value) {
     const s = await adapter.commitReading(review.documentId, fieldKey, value);
+    setReadings((prev) => ({ ...prev, [fieldKey]: value }));
     setSuggestions((prev) => ({ ...prev, [fieldKey]: s }));
   }
+
+  // One request for all fields; success only if the server confirms every one of them.
+  const confirmFacts = () => once(async () => {
+    const decisions = review.fields.map((f) => {
+      const source = choices[f.key] === "MACHINE" && suggestions[f.key]?.value ? "MACHINE" : "OFFICER";
+      return { fieldKey: f.key, value: source === "MACHINE" ? suggestions[f.key].value : readings[f.key], source };
+    });
+    setConfirm({ state: "saving", error: null });
+    try {
+      const result = await adapter.confirmFacts(review.documentId, decisions);
+      if (!confirmedAll(decisions, result)) throw new Error("The server did not confirm every field. Nothing is treated as saved; try again.");
+      setConfirm({ state: "done", error: null });
+    } catch (e) {
+      setConfirm({ state: "idle", error: e });
+    }
+  });
 
   if (error) return <ErrorBox error={error} />;
   if (!review) return <Loading what="Loading document" />;
@@ -112,13 +147,20 @@ export default function OcrReviewView({ adapter = fixtureAdapter }) {
         </Card>
         <Card title="Your readings">
           {review.fields.map((f) => (
-            <FieldReview key={f.key} field={f} onCommit={commitReading} suggestion={suggestions[f.key]} />
+            <FieldReview key={f.key} field={f} onCommit={commitReading} suggestion={suggestions[f.key]}
+              choice={choices[f.key]} locked={confirm.state !== "idle"}
+              onChoose={(key, source) => setChoices((prev) => ({ ...prev, [key]: source }))} />
           ))}
-          <button disabled={!adapter.confirmFact || !allCommitted}
-            title={adapter.confirmFact ? undefined : "Saving needs the fact-confirmation API from Person 2"}>
-            Confirm facts
-          </button>
-          {!adapter.confirmFact && <p className="muted small">Nothing is saved until Person 2's confirmation API exists.</p>}
+          <ErrorBox error={confirm.error} />
+          {confirm.state === "done" ? (
+            <p className="ok" role="status">Facts confirmed by the server.</p>
+          ) : (
+            <button onClick={confirmFacts} disabled={!adapter.confirmFacts || !allCommitted || confirm.state === "saving"}
+              title={adapter.confirmFacts ? undefined : "Saving needs the fact-confirmation API from Person 2"}>
+              {confirm.state === "saving" ? "Confirming…" : "Confirm facts"}
+            </button>
+          )}
+          {!adapter.confirmFacts && <p className="muted small">Nothing is saved until Person 2's confirmation API exists.</p>}
         </Card>
       </div>
     </div>
