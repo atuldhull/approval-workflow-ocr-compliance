@@ -1,7 +1,9 @@
 import { Badge, Card, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
 
+// How each line was measured. The badge colour then comes from what was FOUND (outcomeTone), so a check that ran
+// and failed is never shown green.
 const KIND = {
-  VERIFIED_NOW: ["ok", "Verified now"],
+  VERIFIED_NOW: ["ok", "Checked now"],
   EVALUATED_ON_ANSWER_KEY: ["ok", "Evaluated on answer key"],
   MEASURED_ON_DEMO_TRAFFIC: ["warn", "Measured on synthetic demo traffic"],
   NOT_EVALUATED: ["neutral", "Not evaluated yet"],
@@ -31,6 +33,14 @@ function Result({ item }) {
   return <pre className="result">{JSON.stringify(r, null, 2)}</pre>;
 }
 
+export function outcomeTone(item) {
+  const r = item.result;
+  if (item.key === "ledger_integrity" && r) return !r.ok ? "bad" : r.assurance === "CHECKPOINTED" ? "ok" : "warn";
+  if (item.key === "replay_consistency" && r) return r.verdict === "VERIFIED_COMPLETE" ? "ok" : r.verdict === "MISMATCH" ? "bad" : "warn";
+  if (item.key === "routing" && r) return r.mismatches.length ? "warn" : "ok";
+  return null;
+}
+
 export default function ScorecardView({ who }) {
   const { data, error, loading, reload } = useApi(who, "/analytics/scorecard");
   if (loading && !data) return <Loading what="Computing scorecard" />;
@@ -42,7 +52,8 @@ export default function ScorecardView({ who }) {
       </p>
       <div className="grid cards">
         {data.items.map((item) => {
-          const [tone, label] = KIND[item.kind] ?? ["neutral", item.kind];
+          const [kindTone, label] = KIND[item.kind] ?? ["neutral", item.kind];
+          const tone = outcomeTone(item) ?? kindTone;
           return (
             <Card key={item.key} title={item.title}>
               <p>

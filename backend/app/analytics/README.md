@@ -7,5 +7,11 @@
 - `scorecard.py` - `GET /api/analytics/scorecard`: ledger integrity and replay (verified now), delivery (measured on
   demo traffic), routing and OCR (only when an answer key exists in `ANSWER_KEYS_DIR`).
 
-Dashboards replay the event log on each request. That is fine for demo volumes. If it becomes slow, persist the
+Dashboards keep the projections in a per-process cache that is rebuilt when the event log changes (newest event
+id, sequence and count) or after 60 seconds, since regions come from the workflow module. Ageing and due dates are
+recomputed on every request from the cached projections. Events whose application has no case record are counted
+nationally under "Unknown" and make the section PARTIAL; regional views exclude them. An event a projection cannot
+read is skipped and reported (dashboard PARTIAL, replay MISMATCH) instead of failing the request.
+
+Before the cache, dashboards replayed the event log on each request. That is fine for demo volumes. If it becomes slow, persist the
 projections in schema `an` and update them incrementally; the replay check keeps them honest.

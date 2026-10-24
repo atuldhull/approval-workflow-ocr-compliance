@@ -107,3 +107,72 @@ def test_events_the_dashboard_does_not_understand_make_it_partial(client):
     apps = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "applications")
     assert apps["status"] == "PARTIAL" and "1 wf.stage_changed event(s)" in apps["note"]
     assert apps["data"]["total"] == 1
+
+
+# ---- correctness under bad data, and caching (P3-17) ----
+
+def _insert_event(payload_sql, event_type="wf.application_created"):
+    from sqlalchemy import text
+    from app.platform.db import get_engine
+    with get_engine().begin() as c:
+        c.execute(text("INSERT INTO plat.domain_event (id, at, aggregate_type, aggregate_id, event_type, event_version, "
+                       f"actor_id, role, payload) VALUES (gen_random_uuid(), now(), 'application', gen_random_uuid(), "
+                       f"'{event_type}', 1, gen_random_uuid(), 'SYSTEM', {payload_sql})"))
+
+
+ORPHAN = ("jsonb_build_object('application_id', gen_random_uuid(), 'institution_id', gen_random_uuid(), "
+          "'category', 'NEW_PROGRAMME', 'academic_year', '2027-28')")
+
+
+def test_an_event_without_a_case_record_does_not_break_the_dashboard(client):
+    file(client, SUNRISE_H, SUNRISE)
+    _insert_event(ORPHAN)
+    body = client.get("/api/analytics/dashboard", headers=BUREAU)
+    assert body.status_code == 200
+    apps = section(body.json(), "applications")
+    assert apps["status"] == "PARTIAL" and "1 without a case record" in apps["note"]
+    assert apps["data"]["by_region"] == {"Southern": 1, "Unknown (no case record)": 1}
+    # a regional view never counts a case whose region it cannot confirm
+    south = section(client.get("/api/analytics/dashboard", headers=RO_SOUTH).json(), "applications")
+    assert south["data"]["total"] == 1 and "Unknown (no case record)" not in south["data"]["by_region"]
+
+
+def test_an_unreadable_event_is_reported_not_a_crash(client):
+    file(client, SUNRISE_H, SUNRISE)
+    _insert_event("'{}'::jsonb")
+    apps = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "applications")
+    assert apps["status"] == "PARTIAL" and "1 unreadable" in apps["note"]
+    from app.platform import replay
+    r = replay.replay()
+    assert r["verdict"] == "MISMATCH" and r["ok"] is False
+    assert any(g["kind"] == "UNREADABLE_EVENT" and g["error"] == "KeyError" for g in r["gaps"])
+    items = {i["key"]: i for i in client.get("/api/analytics/scorecard", headers=BUREAU).json()["items"]}
+    assert items["replay_consistency"]["result"]["verdict"] == "MISMATCH"
+
+
+def test_dashboard_projections_are_reused_until_the_log_changes(client, monkeypatch):
+    from app.analytics import service
+    calls = []
+    real = service.stored_events
+    monkeypatch.setattr(service, "stored_events", lambda s: calls.append(1) or real(s))
+    file(client, SUNRISE_H, SUNRISE)
+    client.get("/api/analytics/dashboard", headers=BUREAU)
+    client.get("/api/analytics/dashboard", headers=BUREAU)
+    assert len(calls) == 1
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
+    assert len(calls) == 2 and section(body, "applications")["data"]["total"] == 2
+
+
+def test_ageing_is_recomputed_from_cached_projections(client):
+    file(client, SUNRISE_H, SUNRISE)
+    client.get("/api/analytics/dashboard", headers=BUREAU)
+    clock.advance(40)
+    buckets = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "ageing")["data"]["buckets"]
+    assert buckets["31-60 days"] == 1
+
+
+def test_scorecard_reports_assurance_with_the_ledger_result(client):
+    file(client, SUNRISE_H, SUNRISE)
+    items = {i["key"]: i for i in client.get("/api/analytics/scorecard", headers=BUREAU).json()["items"]}
+    assert items["ledger_integrity"]["result"]["assurance"] == "CHAIN_ONLY"

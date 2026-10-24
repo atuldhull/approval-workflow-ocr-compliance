@@ -75,7 +75,8 @@ def scorecard() -> dict:
     attempts = sum(health["attempts_24h"].values())
     return {"generated_at": now.isoformat(), "items": [
         {"key": "ledger_integrity", "title": "Ledger integrity", "kind": "VERIFIED_NOW",
-         "result": {"status": integrity.status, "ok": integrity.ok, "entries_checked": integrity.checked}},
+         "result": {"status": integrity.status, "ok": integrity.ok, "assurance": integrity.assurance,
+                    "entries_checked": integrity.checked}},
         {"key": "replay_consistency", "title": "Read models vs events (replay)", "kind": "VERIFIED_NOW",
          "result": {"ok": rep["ok"], "verdict": rep["verdict"], "gaps": len(rep["gaps"]), "projections": {p["name"]: p["status"] for p in rep["projections"]},
                     "unhandled_event_types": rep["unhandled_event_types"]}},

@@ -3,6 +3,8 @@
 Every number comes from events (or the platform's own delivery tables). Sections whose data does not exist yet
 are returned as NOT_AVAILABLE with the dependency, never as zeros or estimates.
 """
+import threading
+import time
 from collections import Counter
 from datetime import date, datetime
 from uuid import UUID
@@ -15,6 +17,7 @@ from app.platform import notifier
 from app.platform.db import new_session
 from app.platform.registry import port
 from app.platform.replay import stored_events, project
+from contracts.errors import NotFound
 from contracts.ports import CasePort, ClockPort
 
 IST_OFFSET_NOTE = "Dates are compared in Indian Standard Time."
@@ -32,20 +35,49 @@ def _not_available(key: str, title: str, depends_on: str) -> dict:
     return {"key": key, "title": title, "status": "NOT_AVAILABLE", "depends_on": depends_on}
 
 
+CACHE_SECONDS = 60
+_cache: dict = {}
+_cache_lock = threading.Lock()
+
+
+def _projected() -> dict:
+    """Projections plus each application's region, rebuilt only when the event log changed (or after a minute,
+    since regions come from the workflow module). Per process; dashboards are not an integrity check - replay is."""
+    with new_session() as s:
+        s.execute(text("SET TRANSACTION READ ONLY"))
+        marker = tuple(s.execute(text(
+            "SELECT max(seq), count(*), (SELECT id FROM plat.domain_event ORDER BY seq DESC LIMIT 1) "
+            "FROM plat.domain_event")).one())   # the newest event id makes a reset-and-refilled log differ
+        with _cache_lock:
+            if _cache.get("marker") == marker and time.monotonic() - _cache["built"] < CACHE_SECONDS:
+                s.rollback()
+                return _cache["data"]
+        states, _, unhandled, skipped, unreadable = project(
+            stored_events(s), {"applications": ApplicationsProjection(), "deadlines": DeadlinesProjection()})
+        region_of: dict[str, str | None] = {}
+        cases = port(CasePort)
+        for app_id in states["applications"]:
+            try:
+                region_of[app_id] = cases.lookup(s, UUID(app_id)).region
+            except (NotFound, ValueError):
+                region_of[app_id] = None   # events exist but the workflow module has no such case
+        s.rollback()
+    data = {"states": states, "unhandled": unhandled, "skipped": skipped, "unreadable": unreadable,
+            "region_of": region_of}
+    with _cache_lock:
+        _cache.update(marker=marker, built=time.monotonic(), data=data)
+    return data
+
+
 def dashboard(region: str | None) -> dict:
     now: datetime = port(ClockPort).now()
     today: date = now.astimezone(ZoneInfo("Asia/Kolkata")).date()
-    apps_p, dl_p = ApplicationsProjection(), DeadlinesProjection()
+    p = _projected()
+    states, unhandled, skipped, region_of = p["states"], p["unhandled"], p["skipped"], p["region_of"]
+    orphans = sum(1 for r in region_of.values() if r is None)
+    unreadable = Counter(u["projection"] for u in p["unreadable"])
 
-    with new_session() as s:
-        s.execute(text("SET TRANSACTION READ ONLY"))
-        states, _, unhandled, skipped = project(stored_events(s), {"applications": apps_p, "deadlines": dl_p})
-        region_of: dict[str, str] = {}
-        cases = port(CasePort)
-        for app_id in states["applications"]:
-            region_of[app_id] = cases.lookup(s, UUID(app_id)).region
-        s.rollback()
-
+    # a regional view only counts cases whose region is known to be that region
     apps = {k: v for k, v in states["applications"].items() if region is None or region_of.get(k) == region}
     deadlines = {k: v for k, v in states["deadlines"].items()
                  if v["subject_type"] == "application" and v["subject_id"] in apps}
@@ -56,6 +88,10 @@ def dashboard(region: str | None) -> dict:
     def coverage(section: dict, prefix: str, projection: str) -> dict:
         """Marks a section PARTIAL when stored events of its module were not understood by the projection."""
         missed = {k: v for k, v in unhandled.items() if k.startswith(prefix)} | skipped[projection]
+        if unreadable[projection]:
+            missed = missed | {"unreadable": unreadable[projection]}
+        if projection == "applications" and orphans and region is None:
+            missed = missed | {"without a case record": orphans}
         if missed:
             section["status"] = "PARTIAL"
             section["note"] = (section.get("note", "") + " Not reflected: " + ", ".join(
@@ -68,7 +104,7 @@ def dashboard(region: str | None) -> dict:
          "data": {"total": len(apps),
                   "by_status": dict(Counter(a["status"] for a in apps.values())),
                   "by_stage": dict(Counter(a["current_stage"] for a in apps.values() if a["current_stage"])),
-                  "by_region": dict(Counter(region_of[k] for k in apps))},
+                  "by_region": dict(Counter(region_of[k] or "Unknown (no case record)" for k in apps))},
          "note": "Stage is the stage entered at submission; later transitions appear once they are recorded as events."},
                  "wf.", "applications"),
         {"key": "ageing", "title": "Time since submission (applications in process)", "status": "AVAILABLE",

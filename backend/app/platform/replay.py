@@ -92,25 +92,36 @@ def diff(replayed: dict[str, dict], live: dict[str, dict], fields: tuple[str, ..
     return out
 
 
-def project(events: Iterable[EventRecord], selected: dict[str, Projector]) -> tuple[dict, dict, Counter, Counter]:
-    """Pure fold over events. Deterministic: same events in, same state out."""
+def project(events: Iterable[EventRecord], selected: dict[str, Projector]) -> tuple[dict, dict, Counter, Counter, list]:
+    """Pure fold over events. Deterministic: same events in, same state out.
+
+    An event a projector cannot read (missing or wrongly typed fields - tampering, or a schema the projector
+    misreads) is recorded in `unreadable` and skipped, so one bad row cannot take down every report.
+    """
     states = {n: {} for n in selected}
     applied: Counter = Counter()
     unhandled: Counter = Counter()
     skipped: dict[str, Counter] = {n: Counter() for n in selected}
+    unreadable: list[dict] = []
     known_types = {t for p in selected.values() for t, _ in p.handles}
     for ev in events:
         handled = False
         for name, p in selected.items():
             if (ev.event_type, ev.event_version) in p.handles:
-                p.apply(states[name], ev)
+                try:
+                    p.apply(states[name], ev)
+                except (KeyError, TypeError, ValueError, AttributeError) as e:
+                    unreadable.append({"seq": ev.seq, "event_type": ev.event_type, "projection": name,
+                                       "error": type(e).__name__})
+                    handled = True
+                    continue
                 applied[name] += 1
                 handled = True
             elif ev.event_type in {t for t, _ in p.handles}:
                 skipped[name][f"{ev.event_type}.v{ev.event_version}"] += 1
         if not handled and ev.event_type not in known_types:
             unhandled[ev.event_type] += 1
-    return states, applied, unhandled, skipped
+    return states, applied, unhandled, skipped, unreadable
 
 
 def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None = None) -> dict:
@@ -119,7 +130,7 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
     with new_session() as session:
         session.execute(text("SET TRANSACTION READ ONLY"))
         try:
-            states, applied, unhandled, skipped = project(events if events is not None else stored_events(session), selected)
+            states, applied, unhandled, skipped, unreadable = project(events if events is not None else stored_events(session), selected)
             results = []
             for name, p in selected.items():
                 live = p.live(session)
@@ -133,7 +144,7 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
                 results.append(r)
         finally:
             session.rollback()
-    return summarise(results, unhandled, selected, unknown)
+    return summarise(results, unhandled, selected, unknown, unreadable)
 
 
 def known_schemas() -> set[tuple[str, int]]:
@@ -146,12 +157,12 @@ def known_schemas() -> set[tuple[str, int]]:
 
 
 def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dict[str, Projector],
-              unknown: list[str] = ()) -> dict:
+              unknown: list[str] = (), unreadable: list[dict] = ()) -> dict:
     """Never reports partial coverage as complete.
 
     verdict: VERIFIED_COMPLETE - every stored event was projected and every projection matched a live model;
              CONSISTENT_SUBSET - nothing disagreed, but some events, versions or projections were not checked;
-             MISMATCH          - a projection disagrees with its live model.
+             MISMATCH          - a projection disagrees with its live model, or a stored event cannot be read.
     """
     gaps = [{"kind": "UNHANDLED_EVENT_TYPE", "event_type": et, "events": n} for et, n in sorted(unhandled.items())]
     # nothing checked is not the same as everything verified
@@ -167,7 +178,9 @@ def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dic
             gaps.append({"kind": "NO_LIVE_MODEL", "projection": r.name})
     handled = {h for p in selected.values() for h in p.handles}
     without_projector = sorted(f"{et}.v{v}" for et, v in known_schemas() - handled)
-    if any(r.status == "MISMATCH" for r in results):
+    gaps += [{"kind": "UNREADABLE_EVENT", **u} for u in unreadable[:MAX_DIFFS]]
+    # a stored event a projector cannot read is an integrity-level finding, never a pass
+    if unreadable or any(r.status == "MISMATCH" for r in results):
         verdict = "MISMATCH"
     elif gaps:
         verdict = "CONSISTENT_SUBSET"

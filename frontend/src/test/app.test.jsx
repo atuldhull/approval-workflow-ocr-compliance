@@ -415,3 +415,15 @@ describe("audit screen honesty", () => {
     expect(headline(true, full, { verdict: "MISMATCH" })[0]).toBe("bad");
   });
 });
+
+describe("scorecard colours follow the result", () => {
+  it("never shows a failed or partial check as green", async () => {
+    const { outcomeTone } = await import("../views/ScorecardView.jsx");
+    expect(outcomeTone({ key: "ledger_integrity", result: { ok: false, assurance: "NONE" } })).toBe("bad");
+    expect(outcomeTone({ key: "ledger_integrity", result: { ok: true, assurance: "CHAIN_ONLY" } })).toBe("warn");
+    expect(outcomeTone({ key: "ledger_integrity", result: { ok: true, assurance: "CHECKPOINTED" } })).toBe("ok");
+    expect(outcomeTone({ key: "replay_consistency", result: { verdict: "MISMATCH" } })).toBe("bad");
+    expect(outcomeTone({ key: "replay_consistency", result: { verdict: "CONSISTENT_SUBSET" } })).toBe("warn");
+    expect(outcomeTone({ key: "routing", result: { mismatches: [{}] } })).toBe("warn");
+  });
+});
