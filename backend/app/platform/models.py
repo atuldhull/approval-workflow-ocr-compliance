@@ -82,3 +82,19 @@ class Outbox(Base):
     status: Mapped[str] = mapped_column(Text, default="PENDING")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IdempotencyRecord(Base):
+    """One retried command, keyed per user + method + route. Written in the command's own transaction."""
+    __tablename__ = "idempotency_key"
+    __table_args__ = {"schema": SCHEMA}
+
+    principal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    method: Mapped[str] = mapped_column(Text, primary_key=True)
+    route: Mapped[str] = mapped_column(Text, primary_key=True)
+    key_hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    request_hash: Mapped[str] = mapped_column(Text)
+    response_status: Mapped[int | None] = mapped_column(Integer)
+    response_body: Mapped[dict | list | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
