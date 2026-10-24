@@ -3,10 +3,12 @@ from pydantic import BaseModel
 
 from app.platform.auth import current_principal
 from app.platform.registry import port
+from app.workflow.loader import sync_at_startup
 from contracts.ports import AuthzPort, RulesetPort
 from contracts.types import Principal, ResourceRef
 
 router = APIRouter(tags=["rulesets"])
+router.add_event_handler("startup", sync_at_startup)
 
 
 class StageOut(BaseModel):
