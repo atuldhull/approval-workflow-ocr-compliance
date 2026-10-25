@@ -98,5 +98,10 @@ class CaseInputErrorOut(BaseModel):
     detail: list[dict]
 
 
+class CaseSubmissionErrorOut(CaseErrorOut):
+    reason_code: Literal["MANDATORY_ITEMS_MISSING"]
+    missing_item_keys: list[str]
+
+
 ERROR_RESPONSES = {code: {"model": CaseErrorOut} for code in (403, 404, 409)}
-ERROR_RESPONSES[422] = {"model": CaseErrorOut | CaseInputErrorOut}
+ERROR_RESPONSES[422] = {"model": CaseErrorOut | CaseInputErrorOut | CaseSubmissionErrorOut}

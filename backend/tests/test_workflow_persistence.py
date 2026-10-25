@@ -23,6 +23,7 @@ from app.workflow.loader import sync_rulesets
 from app.workflow.models import CaseState, RouteDefinition, Ruleset, TransitionDefinition
 from app.workflow.registry import RulesetRegistry
 from conftest import SUNRISE, headers
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from contracts.errors import Conflict, ValidationFailed
 from contracts.fakes import FakeClock
 from contracts.ports import ClockPort
@@ -57,13 +58,15 @@ def add_revision(root):
 
 
 def submitted(client):
+    ensure_intake_rules(client)
     auth = headers("INSTITUTION", SUNRISE)
     response = client.post("/api/applications", headers=auth, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28",
     })
     assert response.status_code == 201
     app_id = response.json()["id"]
-    response = client.post(f"/api/applications/{app_id}/submit", headers=auth)
+    provide_fixture_items(app_id)
+    response = client.post(f"/api/applications/{app_id}/submit", headers=auth, json={"dsc_present": True})
     assert response.status_code == 200
     return response.json()
 
@@ -89,7 +92,7 @@ def test_loader_idempotent_without_reading_clock_or_changing_metadata(client):
         assert all(r.status == "DRAFT" and r.approved_at is None and r.approved_by_ref is None for r in rows)
         assert all(r.created_at == AT for r in rows)
         assert [r.demo_only for r in rows] == [False, True]
-        assert [len(r.source_files) for r in rows] == [2, 3]
+        assert [len(r.source_files) for r in rows] == [3, 4]
         assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 44
         transitions = session.scalar(select(func.count()).select_from(TransitionDefinition))
         assert transitions > 0
@@ -271,7 +274,7 @@ def test_workflow_models_match_migrations(database):
         inspector = inspect(connection)
         assert inspector.get_pk_constraint("case_state", schema="wf")["constrained_columns"] == ["application_id"]
         assert any(i["column_names"] == ["ruleset_key", "route_id"] for i in inspector.get_indexes("case_state", schema="wf"))
-        assert len(metadata.tables) == 7
+        assert len(metadata.tables) == 8
         for table in metadata.tables.values():
             assert all(fk.column.table.schema == "wf" for fk in table.foreign_keys)
 
@@ -282,7 +285,9 @@ def test_one_head_per_module_and_inherited_workflow_label():
     for head in scripts.get_heads():
         rev = scripts.get_revision(head)
         heads[Path(rev.path).parent.name].append(head)
-    assert dict(heads) == {"platform": ["plat_0001"], "workflow": ["wf_0002"], "deadlines": ["dl_0001"]}
+    assert dict(heads) == {"platform": ["plat_0001"], "workflow": ["wf_0003"], "deadlines": ["dl_0001"]}
+    assert scripts.get_revision("wf_0003").branch_labels == {"workflow"}
+    assert scripts.get_revision("wf_0003").down_revision == "wf_0002"
     assert scripts.get_revision("wf_0002").branch_labels == {"workflow"}
     assert scripts.get_revision("wf_0002").down_revision == "wf_0001"
 

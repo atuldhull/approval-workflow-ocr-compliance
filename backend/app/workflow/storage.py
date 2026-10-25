@@ -3,7 +3,7 @@
 This standalone Table is not added to Base.metadata and creates no second table.
 The existing mapped schema remains the migration/autogeneration authority.
 """
-from sqlalchemy import Column, DateTime, MetaData, Table, Text
+from sqlalchemy import Boolean, Column, DateTime, MetaData, Table, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 visits = Table(
@@ -27,5 +27,10 @@ applications = Table(
     Column("ruleset_rev", Text),
     Column("route", JSONB),
     Column("submitted_at", DateTime(timezone=True)),
+    Column("dsc_present", Boolean, nullable=False),
     schema="wf",
 )
+
+application_items = Table("application_item", MetaData(),
+    Column("application_id", UUID(as_uuid=True), primary_key=True), Column("item_key", Text, primary_key=True),
+    Column("state", Text), Column("document_ref", UUID(as_uuid=True)), schema="wf")

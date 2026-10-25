@@ -60,6 +60,7 @@ def context_and_command(category, spec):
     command = Command(application_id=application_id, action=spec.action, expected_version=1,
                       reason_code="DEMO_REASON", actor=actor, payload=payload)
     facts = GuardFacts(open_item_count=0, checklist_complete=True, has_assignment=True,
+                       dsc_required=True, dsc_present=True, missing_item_keys=(),
                        reason_codes=frozenset({"DEMO_REASON"}), item_refs=frozenset({ITEM}),
                        response_refs=frozenset({RESPONSE}), decision_refs=frozenset({DECISION}), confirmed_letter=data,
                        applicability={"SHC": spec.source == "SHC" or spec.target == "SHC"},

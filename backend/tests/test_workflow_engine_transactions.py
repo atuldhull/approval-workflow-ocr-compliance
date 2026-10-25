@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator
 from sqlalchemy import event, func, insert, select
 import pytest
 
-from app.intake.models import Application, StageVisit
+from app.intake.models import Application, ApplicationItem, StageVisit
 from app.platform.db import get_engine, new_session, unit_of_work
 from app.platform.ledger import Ledger
 from app.platform.models import DomainEvent, LedgerEntry
@@ -101,7 +101,7 @@ class TxLedger(FakeLedger):
     def append(self, uow, value):
         journal(uow, self, ["events"])
         schema_path = ROOT / "contracts/events" / value.event_type.replace(".", "/", 1)
-        schema = json.loads(schema_path.with_suffix(".v1.json").read_text(encoding="utf-8"))
+        schema = json.loads(schema_path.with_suffix(f".v{value.event_version}.json").read_text(encoding="utf-8"))
         Draft202012Validator(schema).validate(json.loads(json.dumps(value.payload, default=str)))
         self.attempt_ids.extend(uow.session.scalars(select(visits.c.id).where(visits.c.exited_at.is_(None))).all())
         seq = super().append(uow, value)
@@ -145,8 +145,10 @@ def seed(lab, *, category="NEW_INSTITUTION", stage="SCRUTINY", status="IN_PROCES
         session.add(Application(id=application_id, institution_id=SUNRISE, category=category, academic_year="2027-28",
                                 status=status, current_stage=None if status == "DRAFT" else stage,
                                 ruleset_rev=None if status == "DRAFT" else R1, route=None,
-                                created_at=AT, submitted_at=None if status == "DRAFT" else AT))
+                                created_at=AT, submitted_at=None if status == "DRAFT" else AT, dsc_present=True))
         session.flush()
+        if status == "DRAFT":
+            session.add(ApplicationItem(application_id=application_id, item_key="DEMO_CORE_REFERENCE", state="PROVIDED", document_ref=ITEM))
         session.add(CaseState(application_id=application_id, route_id=category, ruleset_key=R1,
                               current_stage=None if status == "DRAFT" else stage, status=status))
         if status != "DRAFT":
@@ -229,11 +231,12 @@ def test_deficiency_compliance_rescrutiny_sequence_calls_all_timer_operations(la
     assert len(lab.ledger.events) == 9
 
 
-def test_draft_submit_keeps_existing_submit_schema_and_opens_logical_clock(lab):
+def test_draft_submit_uses_v2_schema_and_opens_logical_clock(lab):
     application_id = seed(lab, category="EOA_SELF_DISCLOSURE", stage="SELF_DISCLOSURE", status="DRAFT")
     result = engine.execute(command(application_id, "submit", Role.INSTITUTION))
     assert (result.status, result.current_stage, result.version) == ("IN_PROCESS", "SELF_DISCLOSURE", 2)
     assert [e.event_type for e in lab.ledger.events] == ["wf.application_submitted", "wf.stage_entered"]
+    assert lab.ledger.events[0].event_version == 2 and lab.ledger.events[0].payload["dsc_present"] is True
     assert lab.deadlines.anchors[0].at == AT and lab.deadlines.anchors[0].event_seq is None
 
 

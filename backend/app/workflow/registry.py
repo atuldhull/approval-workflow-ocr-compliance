@@ -6,6 +6,8 @@ import yaml
 
 from app.platform.registry import port
 from app.workflow.grammar import validate_workflow
+from app.workflow.checklists import Citation, validate_checklists
+from pydantic import ValidationError
 from contracts.enums import Stage
 from contracts.errors import Forbidden, NotFound, ValidationFailed
 from contracts.ports import DeadlineRuleParserPort
@@ -85,6 +87,29 @@ class RulesetRegistry:
         except KeyError:
             raise ValidationFailed(f"category {category} has no route in {key}") from None
 
+    def intake_definitions(self, key: str) -> dict:
+        """Workflow-local loader capability; not an addition to shared RulesetPort."""
+        name, revision = split_key(key)
+        folder = self.root / name / revision
+        overlay = folder / "overlay.yaml"
+        if overlay.exists():
+            return self.intake_definitions(_read(overlay)["extends"])
+        path = folder / "checklists.yaml"
+        routes_raw = _read(folder / "routes.yaml")
+        if routes_raw.get("intake") is not None:
+            if routes_raw["intake"] != {"checklist_file": "checklists.yaml"} or not path.exists():
+                raise ValidationFailed("intake checklist file is missing or invalid")
+        if not path.exists():
+            return {}
+        routes = routes_raw["routes"]
+        result = validate_checklists(_read(path), set(routes))
+        for category, route in routes.items():
+            try:
+                Citation.model_validate(route.get("clause_citation"))
+            except ValidationError:
+                raise ValidationFailed(f"{category}: intake route citation is missing or invalid") from None
+        return result
+
     def _load(self, key: str) -> RuleSet:
         ruleset, revision = split_key(key)
         folder = self.root / ruleset / revision
@@ -116,6 +141,11 @@ class RulesetRegistry:
         if missing:
             raise ValidationFailed(f"{key}: clocks.on_submit refers to unknown deadline rules {missing}")
         routes = parse_routes(routes_raw.get("routes", {}))
+        intake = self.intake_definitions(key)
+        if intake:
+            submits = [t for t in routes_raw.get("templates", {}).values() if t.get("action") == "submit"]
+            if not submits or any(not {"checklist_complete", "dsc_required"} <= set(t.get("guards", [])) for t in submits):
+                raise ValidationFailed("intake submit requires checklist_complete and dsc_required guards")
         validate_workflow(routes_raw, routes, rules)
         return RuleSet(
             key=key, ruleset=ruleset, revision=revision, status=routes_raw.get("status", "unknown"),

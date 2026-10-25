@@ -14,6 +14,7 @@ clocks:
 
 # Table 2.3: SHC is "as applicable" exactly where an EVC is required.
 grammar_version: 1
+intake: {checklist_file: checklists.yaml}
 workflow_source:
   status: demo_assumption
   label: DEMO ASSUMPTION
@@ -39,6 +40,8 @@ templates:
     - INSTITUTION
     guards:
     - application_is_draft
+    - checklist_complete
+    - dsc_required
     reason_codes_required: false
     timers:
     - op: open
@@ -324,91 +327,113 @@ transitions: &standard [submit, advance, deficiency, compliance, rescrutiny, to_
 
 routes:
   EOA_SELF_DISCLOSURE:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Extension of Approval based on self-disclosure
     stages: [SELF_DISCLOSURE]
     transitions: *standard
   NRI_SEATS:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Introduction/continuation of NRI seats
     stages: [SELF_DISCLOSURE]
     transitions: *standard
   CONVERSION_LEVEL:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Conversion diploma to degree level or vice versa
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   CHANGE_OF_NAME:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Change of name of institution / affiliating university / board / type
     stages: [SCRUTINY]
     transitions: *standard
   NEW_PROGRAMME:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: New programme / level in existing institution
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   MERGER:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Merger of institutions
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   RESTORATION:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: EoA after a break / restoration of intake / hibernation
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   SUPERNUMERARY_SEATS:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Supernumerary seats (foreign nationals / OCI / children of Indian workers in Gulf)
     stages: [SCRUTINY]
     transitions: *standard
   INCREASE_INTAKE:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Increase in intake / additional course(s)
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   INTEGRATED_DUAL:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Integrated / dual degree course
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   FELLOW_PROGRAMME:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Fellow Programme in Management
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   COURSE_CHANGE_REDUCTION:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Change of course name / merger of courses / reduction in intake
     stages: [SCRUTINY]
     transitions: *standard
   COLLABORATION_TWINNING:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Collaboration and twinning programme
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   CHANGE_OF_SITE:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Change of site / location
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   CLOSURE_INSTITUTION:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Closure of the institution
     stages: [SCRUTINY]
     transitions: *standard
   CONVERSION_COED:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Conversion women's to co-ed institution or vice versa
     stages: [SCRUTINY]
     transitions: *standard
   CLOSURE_PROGRAMME:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Closure of programme(s) / course(s)
     stages: [SCRUTINY]
     transitions: *standard
   BANK_DETAILS:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Change in bank details
     stages: [SCRUTINY]
     transitions: *standard
   TRUST_NAME:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Change of name of trust / society / company
     stages: [SCRUTINY]
     transitions: *standard
   DEEMED_UNIVERSITY:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Conversion into a deemed-to-be university
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   ODL:
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Online Learning / ODL courses
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   # Chapter I route (sections 1.3-1.12), not part of Table 2.3
   NEW_INSTITUTION:
+    clause_citation: {source_document: APH_2024_27, locator: CHAPTER_I, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Setting up a new institution
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}, EC, COUNCIL]
     transitions: *standard

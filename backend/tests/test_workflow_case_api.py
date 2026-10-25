@@ -13,6 +13,7 @@ from app.workflow.commands import GuardFacts
 from app.workflow.models import CaseState
 from app.workflow.registry import _read
 from conftest import SUNRISE, NORTHFIELD, headers
+from backend.tests.intake_test_helpers import provide_fixture_items
 from contracts.enums import Role
 from contracts.errors import Forbidden
 from contracts.ports import AuthzPort, LedgerPort
@@ -39,14 +40,16 @@ def create(api, institution=SUNRISE):
     response = api.post("/api/applications", headers=headers("INSTITUTION", institution), json={
         "institution_id": str(institution), "category": "NEW_INSTITUTION", "academic_year": "2027-28"})
     assert response.status_code == 201, response.text
+    provide_fixture_items(response.json()["id"])
     return response.json()["id"]
 
 
 def act(api, case_id, action, version, role="INSTITUTION", institution=SUNRISE, **extra):
     request_headers = headers(role, institution if role == "INSTITUTION" else None)
     request_headers["Idempotency-Key"] = f"DEMO-{case_id}-{version}-{action}"
+    payload = {"dsc_present": True} if action == "submit" else {}
     return api.post(f"/api/cases/{case_id}/actions", headers=request_headers,
-                    json={"action": action, "expected_version": version, "payload": {}, **extra})
+                    json={"action": action, "expected_version": version, "payload": payload, **extra})
 
 
 def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
@@ -174,7 +177,7 @@ def test_http_errors_replay_and_payload_actor_are_safe(api):
 
 def test_legacy_submit_is_adopted_without_duplicate_clocks_or_visits(api):
     case_id = create(api)
-    legacy = api.post(f"/api/applications/{case_id}/submit", headers=headers("INSTITUTION", SUNRISE))
+    legacy = api.post(f"/api/applications/{case_id}/submit", headers=headers("INSTITUTION", SUNRISE), json={"dsc_present": True})
     assert legacy.status_code == 200
     read = api.get(f"/api/cases/{case_id}", headers=headers("INSTITUTION", SUNRISE)).json()
     assert read["version"] == 1 and read["stage"] == "SCRUTINY" and len(read["stage_history"]) == 1

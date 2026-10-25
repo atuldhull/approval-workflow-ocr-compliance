@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, synonym
 
@@ -34,6 +34,21 @@ class Application(Base):
     route: Mapped[list | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dsc_present: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+
+
+class ApplicationItem(Base):
+    __tablename__ = "application_item"
+    __table_args__ = (
+        CheckConstraint("state IN ('PROVIDED', 'MISSING')", name="ck_wf_application_item_state"),
+        CheckConstraint("item_key ~ '^[A-Z][A-Z0-9_]*$'", name="ck_wf_application_item_key"),
+        CheckConstraint("(state = 'PROVIDED') = (document_ref IS NOT NULL)", name="ck_wf_application_item_document"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.application.id"), primary_key=True)
+    item_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    state: Mapped[str] = mapped_column(Text)
+    document_ref: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
 class StageVisit(Base):

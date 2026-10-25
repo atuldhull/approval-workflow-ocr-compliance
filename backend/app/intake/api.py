@@ -1,11 +1,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.intake import service
 from app.intake.models import Application, Institution
+from app.intake.rules import SubmissionBlocked, plan
+from app.intake.shapes import ItemIn, ItemsIn, ItemsOut, SubmissionIn, SubmissionErrorOut, SubmissionInputErrorOut
 from app.platform.auth import current_principal
 from app.platform.db import new_session, unit_of_work
 from app.platform.registry import port
@@ -28,6 +31,9 @@ class ApplicationIn(BaseModel):
     institution_id: UUID
     category: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
     academic_year: str = Field(pattern=r"^[0-9]{4}-[0-9]{2}$")
+    items: list[ItemIn] = Field(default_factory=list)
+    submit: bool = Field(default=False, strict=True, description="Create and submit in one transaction when true.")
+    dsc_present: bool = Field(default=False, strict=True)
 
 
 class ApplicationOut(BaseModel):
@@ -41,6 +47,15 @@ class ApplicationOut(BaseModel):
     route: list[dict] | None
     created_at: str
     submitted_at: str | None
+    dsc_present: bool
+
+
+class SubmissionOut(ApplicationOut):
+    route_id: str
+    stages: list[dict]
+    clause_citation: dict
+    ruleset_key: str
+    assumptions: list[str]
 
 
 def _out(a: Application) -> ApplicationOut:
@@ -48,7 +63,19 @@ def _out(a: Application) -> ApplicationOut:
         id=a.id, institution_id=a.institution_id, category=a.category, academic_year=a.academic_year,
         status=a.status, current_stage=a.current_stage, ruleset_rev=a.ruleset_rev, route=a.route,
         created_at=a.created_at.isoformat(), submitted_at=a.submitted_at.isoformat() if a.submitted_at else None,
+        dsc_present=a.dsc_present,
     )
+
+
+def _submitted(a: Application, session) -> SubmissionOut:
+    route = plan(session, a.category, a.ruleset_rev)
+    return SubmissionOut(**_out(a).model_dump(), route_id=route.route_id, stages=route.stages,
+                         clause_citation=route.clause_citation, ruleset_key=route.ruleset_key, assumptions=route.assumptions)
+
+
+def _blocked(exc: SubmissionBlocked) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"error": "ValidationFailed", "detail": exc.reason_code,
+        "reason_code": exc.reason_code, "missing_item_keys": list(exc.missing_item_keys)})
 
 
 @router.get("/institutions", response_model=list[InstitutionOut])
@@ -59,16 +86,37 @@ def list_institutions(principal: Principal = Depends(current_principal)):
         return [InstitutionOut(id=i.id, name=i.name, ro_region=i.ro_region, is_demo=i.is_demo) for i in rows]
 
 
-@router.post("/applications", response_model=ApplicationOut, status_code=status.HTTP_201_CREATED)
+@router.post("/applications", response_model=SubmissionOut | ApplicationOut, status_code=status.HTTP_201_CREATED,
+             responses={422: {"model": SubmissionErrorOut | SubmissionInputErrorOut}})
 def create(body: ApplicationIn, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return _out(service.create_application(uow, body.institution_id, body.category, body.academic_year))
+    try:
+        with unit_of_work(principal) as uow:
+            app = service.create_application(uow, body.institution_id, body.category, body.academic_year)
+            if body.items:
+                service.mark_items(uow, app.id, body.items)
+            if body.submit:
+                app = service.submit_application(uow, app.id, dsc_present=body.dsc_present)
+                return _submitted(app, uow.session)
+            return _out(app)
+    except SubmissionBlocked as exc:
+        return _blocked(exc)
 
 
-@router.post("/applications/{application_id}/submit", response_model=ApplicationOut)
-def submit(application_id: UUID, principal: Principal = Depends(current_principal)):
+@router.post("/applications/{application_id}/submit", response_model=SubmissionOut,
+             responses={422: {"model": SubmissionErrorOut | SubmissionInputErrorOut}})
+def submit(application_id: UUID, body: SubmissionIn | None = None, principal: Principal = Depends(current_principal)):
+    try:
+        with unit_of_work(principal) as uow:
+            app = service.submit_application(uow, application_id, dsc_present=body.dsc_present if body else False)
+            return _submitted(app, uow.session)
+    except SubmissionBlocked as exc:
+        return _blocked(exc)
+
+
+@router.post("/applications/{application_id}/items", response_model=ItemsOut)
+def provide_items(application_id: UUID, body: ItemsIn, principal: Principal = Depends(current_principal)):
     with unit_of_work(principal) as uow:
-        return _out(service.submit_application(uow, application_id))
+        return service.mark_items(uow, application_id, body.items)
 
 
 @router.get("/applications", response_model=list[ApplicationOut])

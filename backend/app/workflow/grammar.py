@@ -19,7 +19,7 @@ GUARDS = frozenset({
     "application_is_draft", "open_items_zero", "actor_has_assignment", "reason_code_present",
     "deficiency_items_present", "response_received", "at_last_applicable_stage",
     "decision_authorised", "letter_type_matches_decision", "previous_stage_visited",
-    "second_approval_if_required", "checklist_complete",
+    "second_approval_if_required", "checklist_complete", "dsc_required",
 })
 TERMINALS = frozenset({ApplicationStatus.APPROVED, ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN})
 

@@ -1,0 +1,267 @@
+# DEMO ASSUMPTION: fictional Annexure-2 stand-ins. Full AICTE category lists remain open question Q3.
+schema_version: 1
+checklists:
+  EOA_SELF_DISCLOSURE:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  NRI_SEATS:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  CONVERSION_LEVEL:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  CHANGE_OF_NAME:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  NEW_PROGRAMME:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  MERGER:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  RESTORATION:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  SUPERNUMERARY_SEATS:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  INCREASE_INTAKE:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  INTEGRATED_DUAL:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  FELLOW_PROGRAMME:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  COURSE_CHANGE_REDUCTION:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  COLLABORATION_TWINNING:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  CHANGE_OF_SITE:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  CLOSURE_INSTITUTION:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  CONVERSION_COED:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  CLOSURE_PROGRAMME:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  BANK_DETAILS:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  TRUST_NAME:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  DEEMED_UNIVERSITY:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  ODL:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  NEW_INSTITUTION:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false

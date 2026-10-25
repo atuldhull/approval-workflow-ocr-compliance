@@ -126,10 +126,28 @@
             "title": "Category",
             "type": "string"
           },
+          "dsc_present": {
+            "default": false,
+            "title": "Dsc Present",
+            "type": "boolean"
+          },
           "institution_id": {
             "format": "uuid",
             "title": "Institution Id",
             "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemIn"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "submit": {
+            "default": false,
+            "description": "Create and submit in one transaction when true.",
+            "title": "Submit",
+            "type": "boolean"
           }
         },
         "required": [
@@ -164,6 +182,10 @@
               }
             ],
             "title": "Current Stage"
+          },
+          "dsc_present": {
+            "title": "Dsc Present",
+            "type": "boolean"
           },
           "id": {
             "format": "uuid",
@@ -226,7 +248,8 @@
           "ruleset_rev",
           "route",
           "created_at",
-          "submitted_at"
+          "submitted_at",
+          "dsc_present"
         ],
         "title": "ApplicationOut",
         "type": "object"
@@ -501,6 +524,38 @@
         "title": "CasePageOut",
         "type": "object"
       },
+      "CaseSubmissionErrorOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "missing_item_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Item Keys",
+            "type": "array"
+          },
+          "reason_code": {
+            "const": "MANDATORY_ITEMS_MISSING",
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "detail",
+          "reason_code",
+          "missing_item_keys"
+        ],
+        "title": "CaseSubmissionErrorOut",
+        "type": "object"
+      },
       "ClockOut": {
         "properties": {
           "now": {
@@ -672,6 +727,135 @@
         "title": "InstitutionOut",
         "type": "object"
       },
+      "ItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "document_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Ref"
+          },
+          "item_key": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Item Key",
+            "type": "string"
+          },
+          "state": {
+            "default": "PROVIDED",
+            "enum": [
+              "PROVIDED",
+              "MISSING"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_key"
+        ],
+        "title": "ItemIn",
+        "type": "object"
+      },
+      "ItemOut": {
+        "properties": {
+          "document_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Ref"
+          },
+          "item_key": {
+            "title": "Item Key",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "PROVIDED",
+              "MISSING"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_key",
+          "mandatory",
+          "state",
+          "document_ref"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "ItemsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemIn"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ItemsIn",
+        "type": "object"
+      },
+      "ItemsOut": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "dsc_required": {
+            "title": "Dsc Required",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "application_id",
+          "items",
+          "dsc_required",
+          "assumptions"
+        ],
+        "title": "ItemsOut",
+        "type": "object"
+      },
       "LetterPayload": {
         "additionalProperties": false,
         "properties": {
@@ -779,6 +963,17 @@
               }
             ],
             "title": "Decision Ref"
+          },
+          "dsc_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dsc Present"
           },
           "evidence_refs": {
             "default": [],
@@ -979,6 +1174,195 @@
           "when"
         ],
         "title": "StageOut",
+        "type": "object"
+      },
+      "SubmissionErrorOut": {
+        "properties": {
+          "detail": {
+            "const": "MANDATORY_ITEMS_MISSING",
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "const": "ValidationFailed",
+            "title": "Error",
+            "type": "string"
+          },
+          "missing_item_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Item Keys",
+            "type": "array"
+          },
+          "reason_code": {
+            "const": "MANDATORY_ITEMS_MISSING",
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "detail",
+          "reason_code",
+          "missing_item_keys"
+        ],
+        "title": "SubmissionErrorOut",
+        "type": "object"
+      },
+      "SubmissionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "dsc_present": {
+            "default": false,
+            "title": "Dsc Present",
+            "type": "boolean"
+          }
+        },
+        "title": "SubmissionIn",
+        "type": "object"
+      },
+      "SubmissionInputErrorOut": {
+        "properties": {
+          "detail": {
+            "items": {
+              "type": "object"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "SubmissionInputErrorOut",
+        "type": "object"
+      },
+      "SubmissionOut": {
+        "properties": {
+          "academic_year": {
+            "title": "Academic Year",
+            "type": "string"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "clause_citation": {
+            "title": "Clause Citation",
+            "type": "object"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage"
+          },
+          "dsc_present": {
+            "title": "Dsc Present",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "institution_id": {
+            "format": "uuid",
+            "title": "Institution Id",
+            "type": "string"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "ruleset_rev": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleset Rev"
+          },
+          "stages": {
+            "items": {
+              "type": "object"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          }
+        },
+        "required": [
+          "id",
+          "institution_id",
+          "category",
+          "academic_year",
+          "status",
+          "current_stage",
+          "ruleset_rev",
+          "route",
+          "created_at",
+          "submitted_at",
+          "dsc_present",
+          "route_id",
+          "stages",
+          "clause_citation",
+          "ruleset_key",
+          "assumptions"
+        ],
+        "title": "SubmissionOut",
         "type": "object"
       },
       "TimelineEvent": {
@@ -1370,7 +1754,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SubmissionOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApplicationOut"
+                    }
+                  ],
+                  "title": "Response Create Api Applications Post"
                 }
               }
             },
@@ -1380,11 +1772,19 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SubmissionErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SubmissionInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Api Applications Post"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Entity"
           }
         },
         "summary": "Create",
@@ -1502,6 +1902,125 @@
         ]
       }
     },
+    "/api/applications/{application_id}/items": {
+      "post": {
+        "operationId": "provide_items_api_applications__application_id__items_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Provide Items",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
     "/api/applications/{application_id}/submit": {
       "post": {
         "operationId": "submit_api_applications__application_id__submit_post",
@@ -1583,12 +2102,29 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SubmissionIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationOut"
+                  "$ref": "#/components/schemas/SubmissionOut"
                 }
               }
             },
@@ -1598,11 +2134,19 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SubmissionErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SubmissionInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Submit Api Applications  Application Id  Submit Post"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Entity"
           }
         },
         "summary": "Submit",
@@ -1806,6 +2350,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
                     }
                   ],
                   "title": "Response 422 Cases Api Cases Get"
@@ -1953,6 +2500,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
                     }
                   ],
                   "title": "Response 422 Case Detail Api Cases  Application Id  Get"
@@ -2131,6 +2681,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
                     }
                   ],
                   "title": "Response 422 Case Action Api Cases  Application Id  Actions Post"

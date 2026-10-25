@@ -12,8 +12,9 @@ from contracts.types import Principal, ResourceRef
 
 
 class WorkflowValidationFailed(ValidationFailed):
-    def __init__(self, reason_code: str):
+    def __init__(self, reason_code: str, missing_item_keys: tuple[str, ...] = ()):
         self.reason_code = reason_code
+        self.missing_item_keys = missing_item_keys
         super().__init__(reason_code)
 
 
@@ -38,6 +39,7 @@ class LetterPayload(Record):
 
 
 class Payload(Record):
+    dsc_present: Annotated[bool, Field(strict=True)] | None = None
     target_stage: Stage | None = None
     item_refs: tuple[UUID, ...] = ()
     response_ref: UUID | None = None
@@ -59,6 +61,10 @@ class Command(Record):
 
 @dataclass(frozen=True)
 class GuardFacts:
+    missing_item_keys: tuple[str, ...] | None = None
+    provided_item_keys: tuple[str, ...] = ()
+    dsc_required: bool | None = None
+    dsc_present: bool | None = None
     open_item_count: int | None = None
     checklist_complete: bool | None = None
     has_assignment: bool | None = None

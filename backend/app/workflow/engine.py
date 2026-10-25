@@ -21,7 +21,7 @@ from app.workflow.commands import (
 )
 from app.workflow.grammar import ACTIONS, ALIASES, TERMINALS, Transition
 from app.workflow.models import CaseState, RouteDefinition, Ruleset, TransitionDefinition
-from app.workflow.storage import visits
+from app.workflow.storage import visits, applications
 from contracts.enums import ApplicationStatus, ClockKind, Stage
 from contracts.errors import ContractError, Forbidden, NotFound
 from contracts.ports import AuthzPort, CasePort, ClockPort, CompliancePort, DeadlinePort, LedgerPort, NotesPort, RulesetPort, UnitOfWork
@@ -279,6 +279,9 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
         uow.session.execute(insert(visits).values(id=new_visit, application_id=row.application_id, stage=decision.current_stage,
                                                  entered_at=now, exited_at=None, outcome=None, reason_code=command.reason_code, note_ref=note_ref))
     row.current_stage, row.status, row.version = decision.current_stage, decision.status, next_version
+    if decision.transition.action == "submit":
+        uow.session.execute(update(applications).where(applications.c.id == row.application_id)
+                            .values(dsc_present=context.facts.dsc_present))
     uow.session.flush()
     opened, closed = _timers(uow, context, decision, command, now)
     letter_ref = None
@@ -303,8 +306,10 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
     if decision.transition.action == "submit":
         event_type = "wf.application_submitted"
         payload = dict(application_id=row.application_id, institution_id=case_ref.institution_id, category=row.route_id,
-                       ruleset_rev=row.ruleset_key, first_stage=decision.current_stage, route=[s for s, _ in context.stages])
-    seqs = [ledger.append(uow, EventIn(event_type=event_type, payload=payload, **common))]
+                       ruleset_rev=row.ruleset_key, first_stage=decision.current_stage, route=[s for s, _ in context.stages],
+                       dsc_present=context.facts.dsc_present, provided_item_keys=list(context.facts.provided_item_keys))
+    event_version = 2 if decision.transition.action == "submit" else 1
+    seqs = [ledger.append(uow, EventIn(event_type=event_type, event_version=event_version, payload=payload, **common))]
     if current:
         seqs.append(ledger.append(uow, EventIn(event_type="wf.stage_exited", payload=dict(
             application_id=row.application_id, stage_visit_id=current[0]["id"], stage=current[0]["stage"],

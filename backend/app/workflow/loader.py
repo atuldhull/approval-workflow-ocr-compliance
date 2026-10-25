@@ -57,6 +57,9 @@ def _sources(root: Path, key: str, seen: frozenset[str] = frozenset()) -> tuple[
     deadlines = folder / "deadlines.yaml"
     if deadlines.is_file():
         files.append(deadlines)
+    checklists = folder / "checklists.yaml"
+    if checklists.is_file():
+        files.append(checklists)
     return files, raw, raw.get("demo_only") is True or raw.get("status") == "unverified_demo"
 
 
@@ -118,6 +121,7 @@ def sync_rulesets(session: Session, registry: RulesetRegistry, *, created_by_ref
             continue
         checksum, manifest = _manifest(fresh.root, files)
         rules = fresh.get(key)
+        intake = fresh.intake_definitions(key)
         compiled = validate_workflow(raw, rules.routes, rules.deadline_rules)
         after_files, _, _ = _sources(fresh.root, key)
         if _manifest(fresh.root, after_files)[0] != checksum:
@@ -134,7 +138,7 @@ def sync_rulesets(session: Session, registry: RulesetRegistry, *, created_by_ref
             id=_id(f"ruleset:{key}"), key=key, version=rules.revision, status="DRAFT", checksum=checksum,
             demo_only=demo_only, source_status=rules.status, source_files=manifest,
             source_metadata={"source": raw.get("source"), "workflow_source": raw.get("workflow_source"),
-                             "roles": rules.roles, "banner": rules.banner},
+                             "roles": rules.roles, "banner": rules.banner, "intake": intake},
             created_at=now, created_by_ref=created_by_ref, approved_at=None, approved_by_ref=None,
         )
         session.add(row)

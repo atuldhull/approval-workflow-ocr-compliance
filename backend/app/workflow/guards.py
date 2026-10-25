@@ -1,8 +1,11 @@
 """Named pure guards and explicit workflow-local authoritative fact injection."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
+from sqlalchemy import select
 
 from app.workflow.commands import CaseContext, Command, GuardFacts, Spec, WorkflowValidationFailed
+from app.workflow.models import Ruleset
+from app.workflow.storage import applications, application_items
 from contracts.ports import UnitOfWork
 
 
@@ -37,6 +40,23 @@ def read_facts(uow: UnitOfWork, case, command: Command) -> GuardFacts:
     facts = _fact_loader(uow, case, command) if _fact_loader else GuardFacts()
     if not isinstance(facts, GuardFacts):
         raise WorkflowValidationFailed("GUARD_CONTEXT_UNAVAILABLE")
+    if case.status == "DRAFT" and command.action in {"submit", "list_actions"}:
+        metadata = uow.session.scalar(select(Ruleset.source_metadata).where(Ruleset.key == case.ruleset_key))
+        config = (metadata or {}).get("intake", {}).get(case.route_id)
+        if config is None:
+            raise WorkflowValidationFailed("INTAKE_RULESET_NOT_LOADED")
+        provided = tuple(uow.session.scalars(select(application_items.c.item_key).where(
+            application_items.c.application_id == case.application_id, application_items.c.state == "PROVIDED")
+            .order_by(application_items.c.item_key)))
+        missing = [i["item_key"] for i in config["items"] if i["mandatory"] and i["item_key"] not in provided]
+        present = command.payload.dsc_present
+        if present is None:
+            present = uow.session.scalar(select(applications.c.dsc_present).where(applications.c.id == case.application_id))
+        if config["dsc_required"] and not present:
+            missing.append("DSC")
+        facts = replace(facts, checklist_complete=not any(key != "DSC" for key in missing),
+                        missing_item_keys=tuple(sorted(missing)), provided_item_keys=provided,
+                        dsc_required=config["dsc_required"], dsc_present=bool(present))
     return facts
 
 
@@ -127,7 +147,18 @@ def open_items_zero(c: Context) -> None:
 
 @register("checklist_complete")
 def checklist_complete(c: Context) -> None:
+    if c.case.facts.missing_item_keys and not (c.preview and c.case.facts.missing_item_keys == ("DSC",)):
+        raise WorkflowValidationFailed("MANDATORY_ITEMS_MISSING", c.case.facts.missing_item_keys)
     require(c.case.facts.checklist_complete, "CHECKLIST_INCOMPLETE")
+
+
+@register("dsc_required")
+def dsc_required(c: Context) -> None:
+    require(c.case.facts.dsc_required is not None, "GUARD_CONTEXT_UNAVAILABLE")
+    if c.preview:
+        return  # UI may collect the required presence flag in the submit form.
+    if c.case.facts.dsc_required and not c.case.facts.dsc_present:
+        raise WorkflowValidationFailed("MANDATORY_ITEMS_MISSING", c.case.facts.missing_item_keys or ("DSC",))
 
 
 @register("actor_has_assignment")

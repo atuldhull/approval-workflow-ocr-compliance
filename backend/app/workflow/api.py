@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.platform.auth import current_principal
@@ -8,6 +9,7 @@ from app.platform.db import new_session, unit_of_work
 from app.platform.registry import port
 from app.workflow.loader import sync_at_startup
 from app.workflow import case_service
+from app.workflow.commands import WorkflowValidationFailed
 from app.workflow.case_api_models import ActionIn, CaseActionOut, CaseOut, CasePageOut, ERROR_RESPONSES
 from contracts.enums import ApplicationStatus, Stage
 from contracts.ports import AuthzPort, RulesetPort
@@ -63,8 +65,14 @@ def case_action(application_id: UUID, body: ActionIn,
                 idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=1, max_length=200,
                     description="Reserved for P3 idempotency middleware; not enforced by this handler."),
                 principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return case_service.apply_action(uow, application_id, body)
+    try:
+        with unit_of_work(principal) as uow:
+            return case_service.apply_action(uow, application_id, body)
+    except WorkflowValidationFailed as exc:
+        if exc.reason_code != "MANDATORY_ITEMS_MISSING":
+            raise
+        return JSONResponse(status_code=422, content={"error": "ValidationFailed", "detail": exc.reason_code,
+            "reason_code": exc.reason_code, "missing_item_keys": list(exc.missing_item_keys)})
 
 
 @router.get("/cases", response_model=CasePageOut, tags=["cases"], responses=ERROR_RESPONSES)
