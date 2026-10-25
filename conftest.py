@@ -12,6 +12,11 @@ os.environ.setdefault("DEMO_MODE", "true")
 os.environ.setdefault("DEMO_AUTH", "true")
 sys.path[:0] = [str(ROOT), str(ROOT / "backend")]
 
+from scripts.database_safety import (  # noqa: E402
+    is_test_cleanup_table,
+    validate_disposable_test_database,
+)
+
 SUNRISE = UUID("00000000-0000-4000-8000-000000000001")
 NORTHFIELD = UUID("00000000-0000-4000-8000-000000000002")
 
@@ -28,9 +33,11 @@ def database():
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
-    from sqlalchemy.engine import make_url
 
-    url = make_url(os.environ["DATABASE_URL"])
+    url = validate_disposable_test_database(
+        os.environ.get("DATABASE_URL"),
+        confirmation=os.environ.get("AWOC_TEST_DATABASE_DISPOSABLE"),
+    )
     admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     with admin.connect() as c:
         c.execute(text(f'DROP DATABASE IF EXISTS "{url.database}" WITH (FORCE)'))
@@ -55,9 +62,11 @@ def client(database):
 
     app = create_app()
     with get_engine().begin() as c:
-        tables = c.execute(text(
-            "SELECT format('%I.%I', schemaname, tablename) FROM pg_tables "
-            "WHERE schemaname NOT IN ('public', 'pg_catalog', 'information_schema')")).scalars().all()
+        rows = c.execute(text(
+            "SELECT schemaname, tablename, format('%I.%I', schemaname, tablename) "
+            "FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')"
+        )).all()
+        tables = [qualified for schema, table, qualified in rows if is_test_cleanup_table(schema, table)]
         if tables:
             c.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
     seed()

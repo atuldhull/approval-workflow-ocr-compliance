@@ -56,6 +56,17 @@ python scripts/check_migration_heads.py   # one migration head per module
 
 Tests use `DATABASE_URL` pointing at a database named `awoc_test` by default
 (`postgresql+psycopg://awoc:awoc@localhost:5432/awoc_test`).
+The database fixture drops and recreates that database. Before running tests that
+use PostgreSQL, verify it is disposable and explicitly opt in:
+
+```powershell
+$env:AWOC_TEST_DATABASE_DISPOSABLE = "1"
+python -m pytest
+```
+
+The fixture rejects non-local PostgreSQL hosts, database names other than
+`awoc_test`, URL query overrides, and runs without this opt-in. Unit tests that
+do not request the database fixture do not need the opt-in.
 
 ## Repository layout
 

@@ -1,9 +1,12 @@
 """PostgreSQL integration checks for calendar constraints and immutability."""
 from datetime import date
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, event, func, select
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
@@ -158,3 +161,79 @@ def test_database_rejects_calendar_and_holiday_changes_but_allows_a_new_version(
 
     assert pg_session.get(CalendarVersion, old_id).working_weekdays == [0, 1, 2, 3, 4]
     assert pg_session.get(CalendarVersion, new_id).working_weekdays == [0, 1, 2, 3, 4, 5]
+
+
+def test_database_rejects_truncating_calendar_source_data(pg_session):
+    key = calendar_id("truncate")
+    holiday_date = date(2026, 7, 3)
+    register_calendar_version(
+        pg_session,
+        WorkingCalendar(
+            key,
+            frozenset({0, 1, 2, 3, 4}),
+            "verified",
+            "official circular 2026",
+            frozenset({holiday_date}),
+        ),
+    )
+    pg_session.commit()
+
+    for statement in (
+        "TRUNCATE TABLE dl.holiday",
+        "TRUNCATE TABLE dl.calendar_version CASCADE",
+    ):
+        with pytest.raises(DBAPIError):
+            pg_session.execute(text(statement))
+        pg_session.rollback()
+
+        assert pg_session.get(CalendarVersion, key) is not None
+        assert pg_session.get(CalendarHoliday, (key, holiday_date)) is not None
+
+
+def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.attributes["configure_logger"] = False
+
+    protected_triggers = text(
+        "SELECT t.tgname FROM pg_trigger t "
+        "JOIN pg_class c ON c.oid = t.tgrelid "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'dl' AND t.tgname IN ("
+        "'trg_dl_calendar_version_no_truncate', 'trg_dl_holiday_no_truncate') "
+        "AND NOT t.tgisinternal"
+    )
+    migration_versions = text("SELECT version_num FROM alembic_version")
+
+    expected_heads = {"dl_0004_calendar_truncate_guards", "plat_0001", "wf_0001"}
+    assert set(pg_session.scalars(protected_triggers).all()) == {
+        "trg_dl_calendar_version_no_truncate",
+        "trg_dl_holiday_no_truncate",
+    }
+    assert set(pg_session.scalars(migration_versions).all()) == expected_heads
+    pg_session.commit()
+
+    try:
+        command.downgrade(config, "deadlines@dl_0003_immutable_calendars")
+        pg_session.expire_all()
+        downgraded_versions = set(pg_session.scalars(migration_versions).all())
+        assert downgraded_versions == {"dl_0003_immutable_calendars", "plat_0001", "wf_0001"}
+        assert set(pg_session.scalars(protected_triggers).all()) == set()
+        pg_session.commit()
+
+        pg_session.execute(text("TRUNCATE TABLE dl.holiday"))
+        pg_session.commit()
+
+        command.upgrade(config, "heads")
+        pg_session.expire_all()
+        assert set(pg_session.scalars(migration_versions).all()) == expected_heads
+        assert set(pg_session.scalars(protected_triggers).all()) == {
+            "trg_dl_calendar_version_no_truncate",
+            "trg_dl_holiday_no_truncate",
+        }
+        pg_session.commit()
+        with pytest.raises(DBAPIError):
+            pg_session.execute(text("TRUNCATE TABLE dl.holiday"))
+        pg_session.rollback()
+    finally:
+        pg_session.rollback()
+        command.upgrade(config, "heads")
