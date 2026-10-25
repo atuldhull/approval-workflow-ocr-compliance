@@ -1,3 +1,4 @@
+import World from '../nebula/World.jsx';
 import { Badge, Card, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
 
 // How each line was measured. The badge colour then comes from what was FOUND (outcomeTone), so a check that ran
@@ -47,6 +48,7 @@ export default function ScorecardView({ who }) {
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   return (
     <div>
+      <World kind="scorecard" records={data.items.map(i=>({id:i.key,label:i.title,state:outcomeTone(i)||"unknown",detail:KIND[i.kind]?.[1]||i.kind,facts:[["Result",i.result?JSON.stringify(i.result):"Not evaluated"],["Evidence",i.source||i.note||"No source supplied"],["Ruleset",i.ruleset||"Not supplied"]]}))} />
       <p className="muted">
         Generated {when(data.generated_at)}. Each line says how it was measured; nothing is shown for parts not yet evaluated.
       </p>

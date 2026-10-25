@@ -649,11 +649,11 @@ describe("redesign interactions", () => {
     expect(screen.getByText("First broken link")).toBeInTheDocument();
   });
 
-  it("the journey marks done, current and ahead stages for assistive technology", () => {
+  it("the journey distinguishes route position from proven completion", () => {
     render(<RouteJourney route={[{ stage: "SCRUTINY", when: "always" }, { stage: "EVC", when: "always" }, { stage: "SHC", when: "as_applicable" }]}
       current="EVC" status="IN_PROCESS" />);
     const items = within(screen.getByRole("list")).getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("Done");
+    expect(items[0]).toHaveTextContent("Before current (completion not supplied)");
     expect(items[1]).toHaveAttribute("aria-current", "step");
     expect(items[2]).toHaveTextContent("Ahead · if applicable");
   });

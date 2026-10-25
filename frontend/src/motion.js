@@ -158,13 +158,13 @@ export function useScrollProgress(ref) {
 // Which arrival each screen uses (MOTION.md, "World transitions").
 export const WORLDS = {
   overview: { motion: "zoom", world: "mission" },
-  dashboard: { motion: "zoom", world: "control" },
+  dashboard: { motion: "pan", world: "control" },
   applications: { motion: "slide", world: "cases" },
   inbox: { motion: "drift", world: "signal" },
   ocr: { motion: "scan", world: "evidence" },
-  evc: { motion: "pan", world: "field" },
-  compliance: { motion: "pan", world: "field" },
+  evc: { motion: "rewind", world: "field" },
+  compliance: { motion: "collapse", world: "field" },
   audit: { motion: "iris", world: "chamber" },
-  delivery: { motion: "slide", world: "traffic" },
+  delivery: { motion: "tunnel", world: "traffic" },
   scorecard: { motion: "rise", world: "board" },
 };

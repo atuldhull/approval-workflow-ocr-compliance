@@ -39,8 +39,8 @@ export function Sidebar({ items, current, onNavigate, collapsed, onToggleCollaps
       <div className="brand">
         <Mark />
         <span className="brand-name">
-          Approval Workflow
-          <small>AICTE approvals · compliance</small>
+          NEBULA
+          <small>AICTE · Approval observatory</small>
         </span>
         <span className="phone-title" aria-hidden="true">{title}</span>
         <button ref={menuButton} className="ghost icon-only menu-button" aria-expanded={open}

@@ -1,3 +1,4 @@
+import World from '../nebula/World.jsx';
 import { useEffect, useState } from "react";
 import { Badge, Card, ErrorBox, Loading, PreviewBanner, useSingleFlight } from "../components/ui.jsx";
 import { confirmedAll, fixtureAdapter } from "../integrations/documentReview.js";
@@ -167,6 +168,7 @@ export default function OcrReviewView({ adapter = fixtureAdapter }) {
   return (
     <div>
       {!adapter.live && <PreviewBanner owner="Person 2" api="document review and fact-confirmation API" />}
+      <World kind="ocr" preview={!adapter.live} records={review.pages.map((p,i)=>({id:String(i),label:`Source page ${i+1}`,imageUrl:p.imageUrl,pageWidth:p.width,pageHeight:p.height,boxes:boxes.filter(b=>b.page===i),state:'source',detail:`${Object.keys(suggestions).length} independent readings committed`,facts:[['Document',review.title],['Source',review.synthetic?'Synthetic facsimile':'Supplied source image'],['Comparison','Only committed fields are eligible'],['Facts',confirm.state==='done'?'Confirmed by server':'Not confirmed']]}))} />
       <div className="grid two evidence-layout">
         <Card title={review.title}>
           <PageView page={review.pages[0]} synthetic={review.synthetic} boxes={boxes} />

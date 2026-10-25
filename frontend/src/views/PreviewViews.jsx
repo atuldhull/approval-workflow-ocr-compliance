@@ -1,3 +1,4 @@
+import World from '../nebula/World.jsx';
 import { Badge, Card, PreviewBanner } from "../components/ui.jsx";
 import { EVC_SAMPLE, OBLIGATION_SAMPLE } from "../fixtures/previews.js";
 
@@ -5,8 +6,9 @@ export function EvcView() {
   return (
     <div>
       <PreviewBanner owner="Person 1" api="EVC scheduling API" />
+      <World kind="evc" preview records={EVC_SAMPLE.map(r=>({id:r.request,label:r.institution,date:r.slot.replace(" ","T")+":00+05:30",dateLabel:r.slot+" IST",state:"sample",detail:r.slot+" · "+r.experts+" experts · SAMPLE",facts:[["Request",r.request],["Conflicts",r.conflicts],["Status","Sample candidate · not confirmed"],["Participants",r.experts+" experts; identities not supplied"]]}))} />
       <Card title="Proposed EVC slots (sample)">
-        <table className="table">
+        <table className="table" tabIndex={0}>
           <thead>
             <tr>
               <th scope="col">Request</th>
@@ -43,8 +45,9 @@ export function ComplianceView() {
   return (
     <div>
       <PreviewBanner owner="Person 2" api="obligations and evidence API" />
+      <World kind="compliance" preview records={OBLIGATION_SAMPLE.map(o=>({id:o.title,label:o.title,evidence:o.evidence,state:o.state,date:o.due,detail:o.due+" · "+o.state.replaceAll("_"," ")+" · SAMPLE",facts:[["Category",o.kind],["Due",o.due],["Evidence",o.evidence||"Not supplied"],["Status",o.state],["Authority","Sample only; no approval implied"]]}))} />
       <Card title="Compliance items (sample)">
-        <table className="table">
+        <table className="table" tabIndex={0}>
           <thead>
             <tr>
               <th scope="col">Kind</th>
@@ -76,3 +79,4 @@ export function ComplianceView() {
     </div>
   );
 }
+

@@ -61,13 +61,19 @@ const SUBTITLES = {
 
 export function Workspace({ who, me, config, identityControl }) {
   const items = useMemo(() => navFor(me.role), [me.role]);
-  const [view, setView] = useState(items[0]?.key);        // what the navigation shows as current
-  const [shown, setShown] = useState(items[0]?.key);      // what the content area shows
+  const initialRoute = () => {
+    const requested = window.location.hash.slice(1).split('?')[0];
+    return items.some(i => i.key === requested) ? requested : items[0]?.key;
+  };
+  const [view, setView] = useState(initialRoute);
+  const [shown, setShown] = useState(initialRoute);
   const [phase, setPhase] = useState("in");
-  const [focusCase, setFocusCase] = useState(null);
+  const [focusCase, setFocusCase] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('case'));
   const [collapsed, setCollapsed] = useState(() => remembered.get("awoc.sidebar") === "rail");
   const contentRef = useRef(null);
   const timer = useRef(null);
+  const restoringScroll = useRef(false);
+  const scrollFrame = useRef(0);
   const reduced = useMotionRoot();
   useScrollVar();
   useReveal(contentRef, shown);
@@ -80,11 +86,45 @@ export function Workspace({ who, me, config, identityControl }) {
   }, [items, view]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  useEffect(() => {
+    const rememberScroll = () => {
+      if (!restoringScroll.current) history.replaceState({ ...history.state, nebulaScroll: window.scrollY }, '');
+    };
+    window.addEventListener('scroll', rememberScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', rememberScroll); cancelAnimationFrame(scrollFrame.current); };
+  }, []);
+
+  useEffect(() => {
+    const restore = (event) => {
+      clearTimeout(timer.current);
+      cancelAnimationFrame(scrollFrame.current);
+      const key = window.location.hash.slice(1).split('?')[0];
+      const allowed = items.some(i => i.key === key) ? key : items[0]?.key;
+      setView(allowed); setShown(allowed); setPhase('in');
+      setFocusCase(new URLSearchParams(window.location.hash.split('?')[1]).get('case'));
+      requestAnimationFrame(() => contentRef.current?.focus({ preventScroll: true }));
+      const top = event.state?.nebulaScroll || 0;
+      const started = performance.now();
+      restoringScroll.current = true;
+      const restorePosition = () => {
+        if (document.documentElement.scrollHeight >= top + window.innerHeight || performance.now() - started > 1800) {
+          window.scrollTo?.({ top }); restoringScroll.current = false;
+        } else scrollFrame.current = requestAnimationFrame(restorePosition);
+      };
+      scrollFrame.current = requestAnimationFrame(restorePosition);
+    };
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [items]);
+
   const navigate = (key, opts = {}) => {
-    if (opts.caseId) setFocusCase(opts.caseId);
+    if (!items.some(i => i.key === key)) return;
+    setFocusCase(opts.caseId || null);
+    history.replaceState({ ...history.state, nebulaScroll: window.scrollY }, '');
+    history.pushState({ nebulaScroll: 0 }, '', `#${key}${opts.caseId ? '?case=' + encodeURIComponent(opts.caseId) : ''}`);
     setView(key);
-    if (key === shown) return;
     clearTimeout(timer.current);
+    if (key === shown) { setPhase('in'); return; }
     const arrive = () => {
       setShown(key);
       setPhase("in");
@@ -157,7 +197,10 @@ function DemoApp({ config }) {
 
   useEffect(() => {
     setMe(null);
-    api(who, "/auth/me").then(setMe).catch(setError);
+    setError(null);
+    let active = true;
+    api(who, "/auth/me").then(value => active && setMe(value)).catch(value => active && setError(value));
+    return () => { active = false; };
   }, [who]);
 
   const switcher = (
@@ -236,7 +279,7 @@ export default function App() {
   useEffect(() => {
     publicApi("/auth/config").then(setConfig).catch(setError);
   }, []);
-  if (error) return <ErrorBox error={new Error("The server cannot be reached. Try again shortly.")} />;
+  if (error) return <div className="sign-in"><div className="card"><h1>Connection interrupted.</h1><p>The server cannot be reached. Your work has not been replaced with demo results.</p><ErrorBox error={new Error("Check the configured API service, then reconnect.")} onRetry={() => window.location.reload()} /></div></div>;
   if (!config) return <Loading />;
   return config.mode === "oidc" ? <OidcApp config={config} /> : <DemoApp config={config} />;
 }

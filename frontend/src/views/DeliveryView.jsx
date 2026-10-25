@@ -1,3 +1,4 @@
+import World from '../nebula/World.jsx';
 import { useState } from "react";
 import { api } from "../api.js";
 import { Badge, Card, Empty, ErrorBox, Loading, StatTile, useApi, useSingleFlight, when } from "../components/ui.jsx";
@@ -49,6 +50,7 @@ export default function DeliveryView({ who, me }) {
   const h = health.data;
   return (
     <div>
+      <World kind="delivery" records={(outbox.data||[]).map(o=>({id:o.id,label:o.template,state:o.status,attemptCount:o.attempts,detail:o.channel+' · '+o.status,facts:[['Queued',o.created_at],['Message',o.id],['Recorded attempts',o.attempts],['Last problem',errorText(o.last_error)||'None reported']]}))} onSelect={showAttempts} actionLabel="Inspect recorded attempts" />
       <Card title="Delivery health" actions={<button className="secondary small" onClick={refresh}>Refresh</button>}>
         {health.loading && !h && <Loading />}
         <ErrorBox error={health.error} onRetry={health.reload} />
@@ -166,7 +168,8 @@ export default function DeliveryView({ who, me }) {
       {attempts && (
         <Card title={`Attempts for message ${attempts.id.slice(0, 8)}`}>
           {attempts.rows.length === 0 && <Empty>No attempts yet.</Empty>}
-          <ol className="timeline">
+          <p className="source">Recorded attempts only. Spacing is ordinal; it does not represent elapsed time. Outcomes do not change while scrolling.</p>
+          <ol className="timeline attempt-register">
             {attempts.rows.map((a) => (
               <li key={`${a.attempt_no}-${a.finished_at}`}>
                 #{a.attempt_no}{" "}
@@ -187,7 +190,7 @@ export default function DeliveryView({ who, me }) {
 // lane only while that lane has messages in it, so motion means traffic.
 function Pipeline({ counts }) {
   const lanes = [["PENDING", "Pending"], ["SENDING", "Sending"], ["DELIVERED", "Delivered"]];
-  const flowing = (counts.PENDING ?? 0) + (counts.SENDING ?? 0) > 0;
+  const flowing = false; // Snapshot counts are not evidence of transitions between these states.
   return (
     <ol className={`pipeline${flowing ? " flowing" : ""}`} aria-label="Messages by state">
       {lanes.map(([k, label], i) => (

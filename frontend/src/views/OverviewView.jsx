@@ -1,3 +1,5 @@
+import World, { DeadlineTimeline } from '../nebula/World.jsx';
+import { applicationRecords } from '../nebula/semanticData.js';
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { STAGE_LABEL, stageLabel } from "../components/RouteJourney.jsx";
@@ -40,6 +42,7 @@ export default function OverviewView({ who, onNavigate }) {
 
   return (
     <div className="overview">
+      <World kind="overview" records={applicationRecords(apps)} onSelect={id=>onNavigate?.("applications",{caseId:id})} />
       <section className="figure-strip" data-reveal aria-label="Your applications in figures">
         <div><span className="stat-label">Applications</span><span className="stat-value num">{apps.length}</span></div>
         <div><span className="stat-label">In process</span><span className="stat-value num">{inProcess.length}</span></div>
@@ -61,13 +64,14 @@ export default function OverviewView({ who, onNavigate }) {
       </Card>
 
       <Card title="Due next">
+        <DeadlineTimeline deadlines={upcoming} />
         {deadlineError && <ErrorBox error={deadlineError} />}
         {!deadlines && !deadlineError && <Loading what="Reading deadlines" rows={2} />}
         {deadlines && upcoming.length === 0 && <Empty>No deadlines are running on your applications.</Empty>}
         {upcoming.length > 0 && (
           <ul className="due-list">
             {upcoming.slice(0, 5).map((d) => (
-              <li key={d.id}>
+              <li key={`${d.app}-${d.id}`}>
                 <span className="due-date num">{d.due_date}</span>
                 <span className="due-what">
                   {sentence(d.rule_id)}

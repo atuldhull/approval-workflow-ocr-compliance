@@ -1,3 +1,4 @@
+import World from '../nebula/World.jsx';
 import { useMemo, useState } from "react";
 import { api } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
@@ -54,6 +55,7 @@ export default function InboxView({ who }) {
 
   return (
     <div className={`stream-layout${open ? " has-detail" : ""}`}>
+      <World kind="inbox" records={(data ?? []).map(n=>({id:n.id,label:n.id.slice(0,8),category:n.template,state:n.read_at?'read':'unread',detail:n.read_at?'Read':'Unread',facts:[['Category',n.template],['Created',n.created_at],['Application',n.subject_id||'Linkage not supplied'],['Triggering event','Specific event linkage not supplied']]}))} onSelect={id=>setOpenId(id)} actionLabel="Inspect notification" />
       <Card title="Inbox" actions={<button className="secondary small" onClick={reload}><Icon name="refresh" /> Refresh</button>}>
         <div className="chips" role="group" aria-label="Show">
           {FILTERS.map(([key, label]) => (

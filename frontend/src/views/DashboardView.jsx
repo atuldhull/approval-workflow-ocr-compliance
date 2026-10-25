@@ -1,6 +1,6 @@
+import World from '../nebula/World.jsx';
 import { useEffect } from "react";
 import { Icon } from "../components/Icons.jsx";
-import RegionColumns, { AgeingRadar } from "../components/RegionColumns.jsx";
 import { Badge, BarList, Card, ErrorBox, Loading, NotAvailable, StatTile, useApi, when } from "../components/ui.jsx";
 
 function Section({ s }) {
@@ -55,36 +55,6 @@ function Section({ s }) {
   );
 }
 
-// The hero answers the screen's question first. National scope ("Where is the load across the
-// country?"): regional offices as 3D columns. Regional scope ("How old is my region's queue?"): the
-// ageing radar (2D). Both are drawn from the same dashboard response as the panels below.
-function Hero({ data }) {
-  const by = Object.fromEntries(data.sections.map((s) => [s.key, s]));
-  const apps = by.applications?.data;
-  const ageing = by.ageing?.data?.buckets;
-  if (!apps) return null;
-  const inProcess = apps.by_status?.IN_PROCESS ?? 0;
-  const regional = Boolean(data.scope.region);
-  const regions = Object.keys(apps.by_region ?? {}).length;
-  const old = ageing ? Object.entries(ageing).slice(2).reduce((a, [, n]) => a + n, 0) : null;
-  return (
-    <section className={`hero-band ${regional ? "regional" : "national"}`} data-reveal aria-labelledby="hero-title">
-      <div className="hero-copy">
-        <h2 id="hero-title">{regional ? `${data.scope.region} regional office` : "National control room"}</h2>
-        <p className="hero-figure"><span className="num">{inProcess}</span> in process</p>
-        <p className="hero-finding">
-          {regional
-            ? old == null ? "Ageing is not available." : old > 0 ? `${old} case${old === 1 ? " is" : "s are"} older than 30 days.` : "No case in process is older than 30 days."
-            : `${apps.total} application${apps.total === 1 ? "" : "s"} across ${regions} regional office${regions === 1 ? "" : "s"} with cases.`}
-        </p>
-      </div>
-      <div className="hero-visual">
-        {regional ? (ageing ? <AgeingRadar buckets={ageing} /> : null) : <RegionColumns byRegion={apps.by_region} />}
-      </div>
-    </section>
-  );
-}
-
 export default function DashboardView({ who }) {
   const { data, error, loading, reload } = useApi(who, "/analytics/dashboard");
   useEffect(() => {
@@ -103,7 +73,7 @@ export default function DashboardView({ who }) {
         </span>
         <button className="ghost small" onClick={reload}><Icon name="refresh" /> Refresh</button>
       </div>
-      <Hero data={data} />
+      <World kind={data.scope.region ? 'officer' : 'dashboard'} records={Object.entries(data.scope.region ? data.sections.find(s=>s.key==='ageing' && s.status!=='NOT_AVAILABLE')?.data?.buckets || {} : data.sections.find(s=>s.key==='applications' && s.status!=='NOT_AVAILABLE')?.data?.by_region || {}).map(([label,value])=>({id:label,label,value,detail:value+' applications',state:'reported',facts:[['Scope',data.scope.region||'All supplied regions'],['As of',data.scope.as_of],['Measure',data.scope.region?'Age since submission; not priority':'Regional application count'],['Coverage',data.scope.region?'Individual work assignments are not supplied':'Per-region status breakdown is not supplied']]}))} />
       <div className="grid cards">
         {data.sections.map((s) => (
           <Section key={s.key} s={s} />

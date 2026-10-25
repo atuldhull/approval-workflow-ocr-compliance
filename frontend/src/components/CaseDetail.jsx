@@ -1,3 +1,5 @@
+import World, { DeadlineTimeline } from '../nebula/World.jsx';
+import { routeRecords } from '../nebula/semanticData.js';
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { humanise, sentence } from "../nav.js";
@@ -68,6 +70,7 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded }) {
 
       {app.route ? (
         <section className="case-zone">
+          <World compact kind="route" records={routeRecords(app)} />
           <h3>Approval route</h3>
           <RouteJourney route={app.route} current={app.current_stage} status={app.status} />
         </section>
@@ -78,6 +81,7 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded }) {
       <div className="case-grid">
         <section className="case-zone">
           <h3>Deadlines</h3>
+          <DeadlineTimeline deadlines={deadlines} submittedAt={app.submitted_at} />
           {deadlines.length === 0 && <p className="muted">No deadlines running.</p>}
           {deadlines.map((d) => (
             <div key={d.id} className="clock">

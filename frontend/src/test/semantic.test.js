@@ -1,0 +1,11 @@
+import {describe,it,expect} from 'vitest';
+import {routeRecords,applicationRecords,auditRecords,datePositions} from '../nebula/semanticData.js';
+describe('semantic evidence boundaries',()=>{
+ it('does not turn earlier or conditional route positions into approvals',()=>{const app={status:'IN_PROCESS',current_stage:'EVC',route:[{stage:'SCRUTINY'},{stage:'SHC',when:'as_applicable'},{stage:'EVC'}]};const r=routeRecords(app);expect(r).toHaveLength(3);expect(r[0].state).toBe('unknown');expect(r[1].detail).toContain('completion not supplied');expect(r[2].state).toBe('active');expect(r[1].facts).toContainEqual(['Applicability','If applicable']);expect(app.route[0].status).toBeUndefined()});
+ it('does not create stages for a draft or unknown current position',()=>{expect(applicationRecords([{id:'draft',status:'DRAFT'}])[0].stages).toEqual([]);expect(routeRecords({route:[{stage:'SCRUTINY'}]}).every(r=>r.state==='unknown')).toBe(true)});
+ it('preserves explicit stage status without guessing timestamps',()=>{const [r]=routeRecords({route:[{stage:'SCRUTINY',status:'COMPLETED',completed_at:'2026-01-01'}]});expect(r.state).toBe('COMPLETED');expect(r.facts).toContainEqual(['Stage timestamp','2026-01-01'])});
+ it('does not manufacture ledger events from a checked count',()=>{const r=auditRecords({checked:999,ok:true},{assurance:'CHAIN_ONLY',status:'OK',ok:true},null);expect(r).toHaveLength(3);expect(r.map(x=>x.id)).toEqual(['continuity','witness','replay']);expect(r[1].state).toBe('unknown');expect(r[2].detail).toBe('Not run')});
+ it('does not upgrade partial replay or ignore a broken chain',()=>{const r=auditRecords({ok:false,first_bad_seq:4},{ok:true,assurance:'CHECKPOINTED',checkpoint_seq:10},{verdict:'CONSISTENT_SUBSET',gaps:[{}]});expect(r[0].state).toBe('broken');expect(r[1].facts).toContainEqual(['Coverage limit','Chain failure: no combined assurance claimed']);expect(r[2].state).toBe('unknown')});
+ it('spaces dates proportionally and leaves invalid dates unplaced',()=>{expect(datePositions([{date:'2027-01-01'},{date:'2027-01-02'},{date:'2027-01-05'},{date:'unknown'}])).toEqual([8,29,92,null])});
+ it('does not invent elapsed time for a single date',()=>{expect(datePositions([{date:'2027-01-01'}])).toEqual([50]);expect(datePositions([])).toEqual([])});
+});

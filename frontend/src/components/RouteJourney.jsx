@@ -34,7 +34,7 @@ export default function RouteJourney({ route, current, status }) {
 
   const at = route.findIndex((s) => s.stage === current);
   const state = (i) => (status === "DRAFT" || at < 0 ? "ahead" : i < at ? "done" : i === at ? "current" : "ahead");
-  const word = { done: "Done", current: "Here now", ahead: "Ahead" };
+  const word = { done: "Before current (completion not supplied)", current: "Here now", ahead: "Ahead" };
   const tilt = reduced ? 0 : arrived ? 46 - 36 * progress : 58;
 
   const onMove = (e) => {

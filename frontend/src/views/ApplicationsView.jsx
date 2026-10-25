@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import World from '../nebula/World.jsx';
+import { applicationRecords } from '../nebula/semanticData.js';
+import { sentence } from '../nav.js';
 import { prefersReducedMotion } from "../motion.js";
 import ApplicationList from "../components/ApplicationList.jsx";
 import CaseDetail from "../components/CaseDetail.jsx";
@@ -13,10 +16,17 @@ export default function ApplicationsView({ who, me, focusCase }) {
 
   // When the list and the case are stacked (narrow screens), the case opens below the list: bring it into view.
   const pendingScroll = useRef(false);
+  // The open case is part of the address, so a refresh or a shared link reopens it.
+  const linkCase = (id) => {
+    const target = '#applications?case=' + encodeURIComponent(id);
+    if (window.location.hash.startsWith('#applications') && window.location.hash !== target) history.pushState(null, '', target);
+  };
   const choose = (id) => {
     setSelected(id);
+    linkCase(id);
     pendingScroll.current = window.innerWidth <= 1100;
   };
+  useEffect(() => { setSelected(focusCase ?? null); }, [focusCase]);
   // Scroll once the case has loaded: before that the page is too short to bring it to the top.
   const caseLoaded = () => {
     if (!pendingScroll.current) return;
@@ -31,7 +41,10 @@ export default function ApplicationsView({ who, me, focusCase }) {
   }, []);
 
   const changed = (id) => {
-    if (id) setSelected(id);
+    if (id) {
+      setSelected(id);
+      linkCase(id);
+    }
     setVersion((v) => v + 1);
     reload();
   };
@@ -41,6 +54,7 @@ export default function ApplicationsView({ who, me, focusCase }) {
 
   return (
     <div className="grid two cases-layout">
+      {!selected && apps && <div className="case-corridor"><World kind="applications" records={applicationRecords(apps)} onSelect={choose} /></div>}
       <div>
         {me.role === "INSTITUTION" && <NewApplication who={who} institution={me.institution_id} onChanged={changed} />}
         {loading && !apps && <Loading what="Loading applications" />}
