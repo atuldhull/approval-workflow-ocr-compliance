@@ -1,10 +1,11 @@
 import World, { DeadlineTimeline } from '../nebula/World.jsx';
 import { routeRecords } from '../nebula/semanticData.js';
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { humanise, sentence } from "../nav.js";
 import { Loading, useSingleFlight, when } from "./ui.jsx";
 import RouteJourney, { stageLabel } from "./RouteJourney.jsx";
+import { CALENDAR_NOTE, INTERNAL_REF_TITLE, OFFICIAL_REFERENCES, STATUS_NOTE, deadlineSource, internalRef } from "../provenance.js";
 
 export default function CaseDetail({ who, me, id, onChanged, onLoaded }) {
   const [app, setApp] = useState(null);
@@ -54,12 +55,18 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded }) {
     <article className="card case" aria-labelledby={`case-${app.id}`}>
       <header className="case-head">
         <div>
-          <p className="case-ref"><code>{app.id.slice(0, 8)}</code> · {app.academic_year}</p>
+          <p className="case-ref">Internal ref <code title={INTERNAL_REF_TITLE}>{internalRef(app.id)}</code> · {app.academic_year}</p>
           <h2 id={`case-${app.id}`}>{sentence(app.category)}</h2>
           <p className="muted">
             {STATUS_TEXT[app.status] ?? app.status} · {stage}
             {app.ruleset_rev && <> · rules <code>{app.ruleset_rev}</code></>}
           </p>
+          <p className="muted small status-note">{STATUS_NOTE}</p>
+          <dl className="facts official-refs" aria-label="Official AICTE references">
+            {OFFICIAL_REFERENCES.map(([k, v]) => (
+              <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>
+            ))}
+          </dl>
         </div>
         {app.status === "DRAFT" && me.role === "INSTITUTION" && (
           <button onClick={submit} disabled={busy}>
@@ -83,20 +90,26 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded }) {
           <h3>Deadlines</h3>
           <DeadlineTimeline deadlines={deadlines} submittedAt={app.submitted_at} />
           {deadlines.length === 0 && <p className="muted">No deadlines running.</p>}
-          {deadlines.map((d) => (
+          {deadlines.map((d) => {
+            const src = deadlineSource(d);
+            return (
             <div key={d.id} className="clock">
               <div className="clock-head">
                 <strong>{sentence(d.rule_id)}</strong>
                 <span className="badge neutral">{d.clock_kind === "LEGAL" ? "Legal clock" : "Internal clock"}</span>
                 <span className={`badge ${d.status === "BREACHED" ? "bad" : d.status === "RUNNING" ? "ok" : "neutral"}`}>{sentence(d.status)}</span>
+                <span className={`badge ${src.tone}`}>{src.label}</span>
               </div>
               <p className="clock-due">Due <strong className="num">{d.due_date}</strong></p>
+              <p className="muted small clock-source">{src.detail}</p>
               <details>
                 <summary>Why is this due then?</summary>
                 <p className="why">{d.explanation}</p>
               </details>
             </div>
-          ))}
+            );
+          })}
+          {deadlines.length > 0 && <p className="muted small calendar-note">{CALENDAR_NOTE}</p>}
         </section>
 
         <section className="case-zone">

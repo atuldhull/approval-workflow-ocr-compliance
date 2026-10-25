@@ -23,3 +23,6 @@
 html:not(.motion) .semantic-register,html:not(.motion) .semantic-record{transform:none!important}html:not(.motion) .case{animation:none!important}
 .journey-list{position:static!important;width:auto!important;height:auto!important;overflow:visible!important;clip:auto!important}.journey-list li{grid-template-columns:14px 1fr;align-content:start}.journey-list .stage-state{grid-column:2}.semantic-spatial .world-viewport{pointer-events:auto}.semantic-spatial .world-viewport:focus-visible{outline:1px solid #F4D9A0}
 .semantic-audit .semantic-record{background:linear-gradient(120deg,#493525,#241a13)}.semantic-audit .semantic-record[aria-pressed=true]{background:linear-gradient(120deg,#5B4632,#302219)}
+/* Provenance: where a fact comes from (src/provenance.js). Quiet, never a success colour. */
+.case .status-note,.case .clock-source,.case .calendar-note{margin:4px 0 0;color:var(--faint)}
+.case .official-refs{font-size:12px;margin-top:8px}.case .official-refs dd{color:var(--muted)}

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { sentence } from "../nav.js";
 import { stageLabel } from "./RouteJourney.jsx";
 import { dateIST } from "./ui.jsx";
+import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
 
 const FILTERS = [
   ["all", "All"],
@@ -44,7 +45,7 @@ export default function ApplicationList({ apps, selected, onSelect }) {
               <span className="row-main">
                 <span className="row-title">{sentence(a.category)}</span>
                 <span className="row-sub muted">
-                  <code>{a.id.slice(0, 8)}</code> · {a.academic_year} · filed {dateIST(a.created_at)}
+                  <code title={INTERNAL_REF_TITLE}>{internalRef(a.id)}</code> · {a.academic_year} · filed {dateIST(a.created_at)}
                 </span>
               </span>
               <span className={`badge ${a.status === "DRAFT" ? "draft" : "in_process"}`}>

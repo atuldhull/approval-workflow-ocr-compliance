@@ -1,5 +1,6 @@
 import World, { DeadlineTimeline } from '../nebula/World.jsx';
 import { applicationRecords } from '../nebula/semanticData.js';
+import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { STAGE_LABEL, stageLabel } from "../components/RouteJourney.jsx";
@@ -75,7 +76,7 @@ export default function OverviewView({ who, onNavigate }) {
                 <span className="due-date num">{d.due_date}</span>
                 <span className="due-what">
                   {sentence(d.rule_id)}
-                  <span className="muted small"> · {sentence(appById[d.app]?.category)} <code>{d.app.slice(0, 8)}</code></span>
+                  <span className="muted small"> · {sentence(appById[d.app]?.category)} <code title={INTERNAL_REF_TITLE}>{internalRef(d.app)}</code></span>
                 </span>
                 <button className="ghost small" onClick={() => onNavigate?.("applications", { caseId: d.app })}>Open case</button>
               </li>

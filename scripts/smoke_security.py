@@ -57,6 +57,12 @@ def main() -> int:
     expect("regional officer lists unfiltered applications", api.get("/applications", headers=h["ro.southern"]), 403)
     expect("institution verifies the ledger", api.get("/ledger/verify", headers=h["inst.sunrise"]), 403)
     expect("auditor verifies the ledger", api.get("/ledger/verify", headers=h["auditor"]), 200)
+    # read-only and scoped roles cannot write, whatever the frontend shows them
+    expect("auditor files an application", api.post("/applications", headers=h["auditor"], json={
+        "institution_id": SUNRISE, "category": "NEW_PROGRAMME", "academic_year": "2027-28"}), 403)
+    expect("regional officer submits for the institution", api.post(f"/applications/{app_id}/submit", headers=h["ro.southern"]), 403)
+    expect("auditor retries a delivery", api.post(f"/notifications/outbox/{app_id}/retry", headers=h["auditor"]), 403)
+    expect("token in the query string is ignored", api.get("/auth/me", params={"access_token": h["inst.sunrise"]["Authorization"][7:]}), 401)
     print(f"\n{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 

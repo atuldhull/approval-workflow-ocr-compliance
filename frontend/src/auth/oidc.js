@@ -65,12 +65,18 @@ async function endpoints(issuer) {
 
 const redirectUri = () => `${window.location.origin}/`;
 
+// The screen the visitor asked for before signing in (#inbox, #applications?case=<id>). The provider returns to
+// the one registered redirect URI, so the fragment travels in the pending sign-in instead. Only this shape is
+// kept; the workspace still checks the screen against the signed-in role.
+const RETURN_HASH = /^#[a-z]+(\?case=[A-Za-z0-9-]{1,64})?$/;
+export const safeReturnHash = (hash) => (RETURN_HASH.test(hash || "") ? hash : "");
+
 export async function signIn(config) {
   const ep = await endpoints(config.issuer);
   const verifier = randomString(48);
   const state = randomString(16);
   const nonce = randomString(16);
-  store.set(PENDING, { verifier, state, nonce });
+  store.set(PENDING, { verifier, state, nonce, back: safeReturnHash(window.location.hash) });
   const q = new URLSearchParams({
     response_type: "code",
     client_id: config.client_id,
@@ -124,6 +130,7 @@ export async function completeSignIn(config) {
   });
   if (decodePayload(t.id_token)?.nonce !== pending.nonce) throw new Error("Sign-in response failed the replay check.");
   adoptTokens(t);
+  window.history.replaceState({}, "", url.pathname + safeReturnHash(pending.back));
   return true;
 }
 
