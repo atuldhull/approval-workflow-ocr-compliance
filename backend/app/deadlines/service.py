@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.deadlines.calendars import load_calendar
 from app.deadlines.models import Deadline
 from app.deadlines.rules import IST, DeadlineRule, due_date, end_of_day
 from app.platform.registry import port
@@ -16,7 +17,11 @@ LIVE = (DeadlineStatus.RUNNING, DeadlineStatus.PAUSED)
 def explain(rule: DeadlineRule, anchor: Anchor, due) -> str:
     source = f"clause {rule.clause}" if rule.clause else rule.source_status.replace("_", " ")
     d = rule.duration
-    return (f"{rule.id} ({source}): {d.value} {d.unit.replace('_', ' ')} from "
+    count_note = ""
+    if d.unit == "working_days":
+        count_note = (f" using calendar {rule.calendar_id}; anchor day "
+                      f"{'counts' if rule.count_anchor_day else 'does not count'}")
+    return (f"{rule.id} ({source}): {d.value} {d.unit.replace('_', ' ')}{count_note} from "
             f"{rule.anchor or 'anchor'} on {anchor.at.astimezone(IST).date().isoformat()}, due {due.isoformat()}; "
             f"{rule.clock_kind} clock owned by {rule.clock_owner}")
 
@@ -31,13 +36,19 @@ class DeadlineEngine:
         if self._live(uow, subject, rule_id) is not None:
             raise Conflict(f"{rule_id} is already running for this {subject.type}")
 
-        due = due_date(anchor.at, rule.duration)
+        calendar = None
+        if rule.duration.unit == "working_days":
+            if not rule.calendar_id or rule.count_anchor_day is None:
+                raise ValidationFailed(f"{rule_id} needs a versioned calendar and anchor-day convention")
+            calendar = load_calendar(uow.session, rule.calendar_id)
+        due = due_date(anchor.at, rule.duration, calendar=calendar, count_anchor_day=rule.count_anchor_day)
         ruleset, _, revision = ruleset_key.partition("@")
         row = Deadline(
             subject_type=subject.type, subject_id=subject.id, rule_id=rule_id, ruleset=ruleset, revision=revision,
             clause=rule.clause, source_status=rule.source_status, anchor_event_seq=anchor.event_seq,
             anchor_at=anchor.at, duration_value=rule.duration.value, duration_unit=rule.duration.unit,
             clock_kind=rule.clock_kind, clock_owner=rule.clock_owner, status=DeadlineStatus.RUNNING,
+            calendar_id=rule.calendar_id, count_anchor_day=rule.count_anchor_day,
             due_at=end_of_day(due), due_date=due, due_version=1, explanation=explain(rule, anchor, due),
         )
         uow.session.add(row)
@@ -62,14 +73,24 @@ class DeadlineEngine:
             raise Conflict("legal clocks are never paused by workflow actions")
         if row.status == DeadlineStatus.PAUSED:
             return
+        now = port(ClockPort).now()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValidationFailed("clock must return a timezone-aware datetime")
         row.status = DeadlineStatus.PAUSED
-        row.paused_at = port(ClockPort).now()
+        row.paused_at = now
 
     def resume_internal(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str) -> None:
         row = self._require_live(uow, subject, rule_id)
         if row.status != DeadlineStatus.PAUSED:
             return
-        held = port(ClockPort).now() - row.paused_at
+        if row.paused_at is None:
+            raise Conflict("paused internal deadline is missing paused_at")
+        now = port(ClockPort).now()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValidationFailed("clock must return a timezone-aware datetime")
+        held = now - row.paused_at
+        if held.total_seconds() < 0:
+            raise Conflict("clock cannot resume an internal deadline before it was paused")
         row.due_at += held
         row.due_date = row.due_at.astimezone(IST).date()
         row.due_version += 1
