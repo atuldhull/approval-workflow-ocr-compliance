@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.transition_applied v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "action",
+    "from_state",
+    "to_state",
+    "from_version",
+    "to_version",
+    "from_status",
+    "to_status",
+    "ruleset_rev",
+    "letter_ref"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "advance",
+        "advance_to_evc",
+        "advance_to_shc",
+        "complete_evc",
+        "issue_eoa",
+        "issue_loa",
+        "issue_lod",
+        "record_deficiency",
+        "reject",
+        "revert",
+        "start_rescrutiny",
+        "submit",
+        "submit_compliance",
+        "withdraw"
+      ]
+    },
+    "from_state": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "SELF_DISCLOSURE",
+        "SCRUTINY",
+        "RESCRUTINY",
+        "DEFICIENT",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ]
+    },
+    "to_state": {
+      "type": "string",
+      "enum": [
+        "SELF_DISCLOSURE",
+        "SCRUTINY",
+        "RESCRUTINY",
+        "DEFICIENT",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL",
+        "APPROVED",
+        "REJECTED",
+        "WITHDRAWN"
+      ]
+    },
+    "from_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "to_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "from_status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "IN_PROCESS",
+        "APPROVED",
+        "REJECTED",
+        "WITHDRAWN"
+      ]
+    },
+    "to_status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "IN_PROCESS",
+        "APPROVED",
+        "REJECTED",
+        "WITHDRAWN"
+      ]
+    },
+    "ruleset_rev": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$"
+    },
+    "letter_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

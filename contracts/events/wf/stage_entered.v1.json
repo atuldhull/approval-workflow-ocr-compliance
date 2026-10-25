@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.stage_entered v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "stage_visit_id",
+    "stage",
+    "entered_at",
+    "version"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "stage_visit_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "SELF_DISCLOSURE",
+        "SCRUTINY",
+        "RESCRUTINY",
+        "DEFICIENT",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ]
+    },
+    "entered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

@@ -1,0 +1,18 @@
+"""Core access to P1's stable wf.stage_visit schema, without intake imports.
+
+This standalone Table is not added to Base.metadata and creates no second table.
+The existing mapped schema remains the migration/autogeneration authority.
+"""
+from sqlalchemy import Column, DateTime, MetaData, Table, Text
+from sqlalchemy.dialects.postgresql import UUID
+
+visits = Table(
+    "stage_visit", MetaData(),
+    Column("id", UUID(as_uuid=True), primary_key=True),
+    Column("application_id", UUID(as_uuid=True), nullable=False),
+    Column("stage", Text, nullable=False),
+    Column("entered_at", DateTime(timezone=True), nullable=False),
+    Column("exited_at", DateTime(timezone=True)),
+    Column("outcome", Text), Column("reason_code", Text), Column("note_ref", UUID(as_uuid=True)),
+    schema="wf",
+)
