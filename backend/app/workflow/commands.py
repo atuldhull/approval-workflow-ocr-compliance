@@ -138,6 +138,19 @@ class ActionAvailability:
 
 
 @dataclass(frozen=True)
+class OpenedDeadline:
+    deadline_id: UUID
+    rule_id: str
+
+
+@dataclass(frozen=True)
+class ClosedDeadline:
+    subject_id: UUID
+    rule_id: str
+    outcome: str
+
+
+@dataclass(frozen=True)
 class Result:
     application_id: UUID
     route_id: str
@@ -148,3 +161,5 @@ class Result:
     event_seqs: tuple[int, ...]
     letter_ref: UUID | None
     assumption_status: str | None
+    opened_deadlines: tuple[OpenedDeadline, ...] = ()
+    closed_deadlines: tuple[ClosedDeadline, ...] = ()

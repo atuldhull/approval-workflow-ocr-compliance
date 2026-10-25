@@ -26,6 +26,21 @@ POLICY: dict[str, set[Role]] = {
     "case.timeline": EVERYONE,
     "ledger.verify": {Role.AUDITOR, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
     "sim.clock": EVERYONE,
+    # Case actions are further constrained by the pinned YAML stage/guards.
+    "case.submit": {Role.INSTITUTION},
+    "case.advance": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "case.record_deficiency": {Role.SCRUTINY_COMMITTEE},
+    "case.submit_compliance": {Role.INSTITUTION},
+    "case.start_rescrutiny": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "case.advance_to_evc": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "case.complete_evc": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "case.advance_to_shc": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "case.issue_loa": {Role.BUREAU_OFFICER},
+    "case.issue_eoa": {Role.BUREAU_OFFICER},
+    "case.issue_lod": {Role.BUREAU_OFFICER},
+    "case.reject": {Role.BUREAU_OFFICER},
+    "case.withdraw": {Role.INSTITUTION},
+    "case.revert": {Role.BUREAU_OFFICER},
 }
 
 
@@ -40,6 +55,10 @@ class Authz:
         if principal.role == Role.INSTITUTION and resource.owner_institution_id is not None:
             if principal.institution_id != resource.owner_institution_id:
                 raise Forbidden("institution may only access its own records")
+        if principal.role == Role.RO_OFFICER and resource.id is not None and resource.type == "application":
+            if resource.region is not None or action.startswith("case."):
+                if not principal.region or principal.region != resource.region:
+                    raise Forbidden("regional officer may only access their own region")
 
 
 def current_principal(

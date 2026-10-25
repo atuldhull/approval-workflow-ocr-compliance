@@ -4,7 +4,7 @@ This standalone Table is not added to Base.metadata and creates no second table.
 The existing mapped schema remains the migration/autogeneration authority.
 """
 from sqlalchemy import Column, DateTime, MetaData, Table, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 visits = Table(
     "stage_visit", MetaData(),
@@ -14,5 +14,18 @@ visits = Table(
     Column("entered_at", DateTime(timezone=True), nullable=False),
     Column("exited_at", DateTime(timezone=True)),
     Column("outcome", Text), Column("reason_code", Text), Column("note_ref", UUID(as_uuid=True)),
+    schema="wf",
+)
+
+# P1-owned intake projection. Use only these stable columns; no module imports.
+applications = Table(
+    "application", MetaData(),
+    Column("id", UUID(as_uuid=True), primary_key=True),
+    Column("category", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("current_stage", Text),
+    Column("ruleset_rev", Text),
+    Column("route", JSONB),
+    Column("submitted_at", DateTime(timezone=True)),
     schema="wf",
 )

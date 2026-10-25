@@ -1,6 +1,104 @@
 {
   "components": {
     "schemas": {
+      "ActionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/Payload"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9_]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version"
+        ],
+        "title": "ActionIn",
+        "type": "object"
+      },
+      "ActionOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_codes_required": {
+            "title": "Reason Codes Required",
+            "type": "boolean"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Targets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action",
+          "targets",
+          "enabled",
+          "reason_code",
+          "reason_codes_required",
+          "aliases"
+        ],
+        "title": "ActionOut",
+        "type": "object"
+      },
       "AdvanceIn": {
         "properties": {
           "days": {
@@ -133,6 +231,276 @@
         "title": "ApplicationOut",
         "type": "object"
       },
+      "ApplicationStatus": {
+        "enum": [
+          "DRAFT",
+          "IN_PROCESS",
+          "APPROVED",
+          "REJECTED",
+          "WITHDRAWN"
+        ],
+        "title": "ApplicationStatus",
+        "type": "string"
+      },
+      "CaseActionOut": {
+        "properties": {
+          "assumption_status": {
+            "anyOf": [
+              {
+                "const": "DEMO_ASSUMPTION",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assumption Status"
+          },
+          "available_actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOut"
+            },
+            "title": "Available Actions",
+            "type": "array"
+          },
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "closed_deadlines": {
+            "items": {
+              "$ref": "#/components/schemas/ClosedDeadlineOut"
+            },
+            "title": "Closed Deadlines",
+            "type": "array"
+          },
+          "opened_deadlines": {
+            "items": {
+              "$ref": "#/components/schemas/OpenedDeadlineOut"
+            },
+            "title": "Opened Deadlines",
+            "type": "array"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Stage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "case_id",
+          "stage",
+          "status",
+          "version",
+          "available_actions",
+          "opened_deadlines",
+          "closed_deadlines",
+          "assumption_status"
+        ],
+        "title": "CaseActionOut",
+        "type": "object"
+      },
+      "CaseErrorOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "detail"
+        ],
+        "title": "CaseErrorOut",
+        "type": "object"
+      },
+      "CaseInputErrorOut": {
+        "properties": {
+          "detail": {
+            "items": {
+              "type": "object"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "CaseInputErrorOut",
+        "type": "object"
+      },
+      "CaseOut": {
+        "properties": {
+          "assumption_status": {
+            "anyOf": [
+              {
+                "const": "DEMO_ASSUMPTION",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assumption Status"
+          },
+          "available_actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOut"
+            },
+            "title": "Available Actions",
+            "type": "array"
+          },
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "clause_citation": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clause Citation"
+          },
+          "institution_id": {
+            "format": "uuid",
+            "title": "Institution Id",
+            "type": "string"
+          },
+          "preview_ruleset_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Ruleset Key"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "route": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStageOut"
+            },
+            "title": "Route",
+            "type": "array"
+          },
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleset Key"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Stage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage_history": {
+            "items": {
+              "$ref": "#/components/schemas/VisitOut"
+            },
+            "title": "Stage History",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "case_id",
+          "institution_id",
+          "region",
+          "stage",
+          "status",
+          "version",
+          "route_id",
+          "ruleset_key",
+          "preview_ruleset_key",
+          "route",
+          "clause_citation",
+          "stage_history",
+          "available_actions",
+          "assumption_status"
+        ],
+        "title": "CaseOut",
+        "type": "object"
+      },
+      "CasePageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaseOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "CasePageOut",
+        "type": "object"
+      },
       "ClockOut": {
         "properties": {
           "now": {
@@ -149,6 +517,30 @@
           "offset_days"
         ],
         "title": "ClockOut",
+        "type": "object"
+      },
+      "ClosedDeadlineOut": {
+        "properties": {
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "subject_id": {
+            "format": "uuid",
+            "title": "Subject Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "rule_id",
+          "outcome"
+        ],
+        "title": "ClosedDeadlineOut",
         "type": "object"
       },
       "DeadlineOut": {
@@ -280,6 +672,180 @@
         "title": "InstitutionOut",
         "type": "object"
       },
+      "LetterPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "academic_year": {
+            "pattern": "^[0-9]{4}-[0-9]{2}$",
+            "title": "Academic Year",
+            "type": "string"
+          },
+          "document_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "issue_date": {
+            "format": "date",
+            "title": "Issue Date",
+            "type": "string"
+          },
+          "issue_date_fact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Date Fact Id"
+          },
+          "issue_date_source": {
+            "enum": [
+              "PORTAL_EVENT",
+              "CONFIRMED_FACT"
+            ],
+            "title": "Issue Date Source",
+            "type": "string"
+          },
+          "lists_deficiencies": {
+            "title": "Lists Deficiencies",
+            "type": "boolean"
+          },
+          "type": {
+            "$ref": "#/components/schemas/LetterType"
+          }
+        },
+        "required": [
+          "type",
+          "academic_year",
+          "issue_date",
+          "issue_date_source",
+          "lists_deficiencies"
+        ],
+        "title": "LetterPayload",
+        "type": "object"
+      },
+      "LetterType": {
+        "enum": [
+          "LOA",
+          "EOA",
+          "LOD",
+          "LOR",
+          "CORRIGENDUM"
+        ],
+        "title": "LetterType",
+        "type": "string"
+      },
+      "OpenedDeadlineOut": {
+        "properties": {
+          "deadline_id": {
+            "format": "uuid",
+            "title": "Deadline Id",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deadline_id",
+          "rule_id"
+        ],
+        "title": "OpenedDeadlineOut",
+        "type": "object"
+      },
+      "Payload": {
+        "additionalProperties": false,
+        "properties": {
+          "decision_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "evidence_refs": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "item_refs": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Item Refs",
+            "type": "array"
+          },
+          "letter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LetterPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "response_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Ref"
+          },
+          "second_approver_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Second Approver Ref"
+          },
+          "target_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Stage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Payload",
+        "type": "object"
+      },
       "Role": {
         "enum": [
           "INSTITUTION",
@@ -317,6 +883,27 @@
           "stages"
         ],
         "title": "RouteOut",
+        "type": "object"
+      },
+      "RouteStageOut": {
+        "properties": {
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          },
+          "when": {
+            "enum": [
+              "always",
+              "as_applicable"
+            ],
+            "title": "When",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "when"
+        ],
+        "title": "RouteStageOut",
         "type": "object"
       },
       "RulesetOut": {
@@ -361,6 +948,20 @@
         ],
         "title": "RulesetOut",
         "type": "object"
+      },
+      "Stage": {
+        "enum": [
+          "SELF_DISCLOSURE",
+          "SCRUTINY",
+          "RESCRUTINY",
+          "DEFICIENT",
+          "EVC",
+          "SHC",
+          "EC",
+          "COUNCIL"
+        ],
+        "title": "Stage",
+        "type": "string"
       },
       "StageOut": {
         "properties": {
@@ -498,6 +1099,80 @@
           "detail"
         ],
         "title": "VerifyOut",
+        "type": "object"
+      },
+      "VisitOut": {
+        "properties": {
+          "entered_at": {
+            "format": "date-time",
+            "title": "Entered At",
+            "type": "string"
+          },
+          "exited_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exited At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Ref"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          }
+        },
+        "required": [
+          "id",
+          "stage",
+          "entered_at",
+          "exited_at",
+          "outcome",
+          "reason_code",
+          "note_ref"
+        ],
+        "title": "VisitOut",
         "type": "object"
       }
     }
@@ -933,6 +1608,541 @@
         "summary": "Submit",
         "tags": [
           "applications"
+        ]
+      }
+    },
+    "/api/cases": {
+      "get": {
+        "operationId": "cases_api_cases_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Stage"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ApplicationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Cases Api Cases Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Cases",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/api/cases/{application_id}": {
+      "get": {
+        "operationId": "case_detail_api_cases__application_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Case Detail Api Cases  Application Id  Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Case Detail",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/api/cases/{application_id}/actions": {
+      "post": {
+        "description": "Apply one versioned action atomically. Idempotency-Key is accepted for future P3 middleware; this handler does not cache/replay responses. Reusing a consumed expected_version returns 409. Guard facts must come from trusted server providers; unavailable facts reject the action.",
+        "operationId": "case_action_api_cases__application_id__actions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reserved for P3 idempotency middleware; not enforced by this handler.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reserved for P3 idempotency middleware; not enforced by this handler.",
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Case Action Api Cases  Application Id  Actions Post"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Case Action",
+        "tags": [
+          "cases"
         ]
       }
     },

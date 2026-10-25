@@ -16,7 +16,7 @@ from app.platform.registry import port
 from app.platform.settings import settings
 from app.workflow import guards
 from app.workflow.commands import (
-    ActionAvailability, CaseContext, Command, Decision, Options, Payload, Result,
+    ActionAvailability, CaseContext, ClosedDeadline, Command, Decision, OpenedDeadline, Options, Payload, Result,
     Spec, State, WorkflowConflict, WorkflowValidationFailed,
 )
 from app.workflow.grammar import ACTIONS, ALIASES, TERMINALS, Transition
@@ -187,9 +187,11 @@ def _get_port(kind):
         raise WorkflowValidationFailed("DEPENDENCY_UNAVAILABLE") from exc
 
 
-def _timers(uow: UnitOfWork, context: CaseContext, decision: Decision, command: Command, now: datetime) -> None:
+def _timers(uow: UnitOfWork, context: CaseContext, decision: Decision, command: Command,
+            now: datetime) -> tuple[tuple[OpenedDeadline, ...], tuple[ClosedDeadline, ...]]:
+    opened, closed = [], []
     if not decision.transition.timers:
-        return
+        return (), ()
     rules = _get_port(RulesetPort).get(context.state.ruleset_key)
     if rules.key != context.state.ruleset_key:
         raise WorkflowValidationFailed("RULESET_PIN_MISMATCH")
@@ -216,15 +218,18 @@ def _timers(uow: UnitOfWork, context: CaseContext, decision: Decision, command: 
                 if command.payload.letter is None:
                     raise WorkflowValidationFailed("LETTER_DATA_REQUIRED")
                 at = datetime.combine(command.payload.letter.issue_date, time.min, ZoneInfo("Asia/Kolkata"))
-            deadlines.open(uow, subject, timer["rule_id"], Anchor(at=at), context.state.ruleset_key)
+            deadline_id = deadlines.open(uow, subject, timer["rule_id"], Anchor(at=at), context.state.ruleset_key)
+            opened.append(OpenedDeadline(deadline_id, timer["rule_id"]))
         elif op == "close":
             deadlines.close(uow, subject, timer["rule_id"], timer["outcome"])
+            closed.append(ClosedDeadline(subject.id, timer["rule_id"], timer["outcome"]))
         elif op == "pause_internal":
             deadlines.pause_internal(uow, subject, timer["rule_id"])
         elif op == "resume_internal":
             deadlines.resume_internal(uow, subject, timer["rule_id"])
         else:
             raise WorkflowValidationFailed("INVALID_TIMER_OPERATION")
+    return tuple(opened), tuple(closed)
 
 
 def _handle(uow: UnitOfWork, command: Command) -> Result:
@@ -275,7 +280,7 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
                                                  entered_at=now, exited_at=None, outcome=None, reason_code=command.reason_code, note_ref=note_ref))
     row.current_stage, row.status, row.version = decision.current_stage, decision.status, next_version
     uow.session.flush()
-    _timers(uow, context, decision, command, now)
+    opened, closed = _timers(uow, context, decision, command, now)
     letter_ref = None
     if decision.transition.letter is not None:
         letter = command.payload.letter
@@ -310,7 +315,8 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
             entered_at=now.isoformat(), version=row.version), **common)))
     assumption = metadata.source_metadata.get("workflow_source") or {}
     return Result(row.application_id, row.route_id, row.ruleset_key, row.current_stage, ApplicationStatus(row.status), row.version,
-                  tuple(seqs), letter_ref, "DEMO_ASSUMPTION" if assumption.get("status") == "demo_assumption" else None)
+                  tuple(seqs), letter_ref, "DEMO_ASSUMPTION" if assumption.get("status") == "demo_assumption" else None,
+                  opened, closed)
 
 
 def handle(uow: UnitOfWork, command: Command | dict) -> Result:
