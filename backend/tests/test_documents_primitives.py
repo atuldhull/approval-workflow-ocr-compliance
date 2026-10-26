@@ -13,6 +13,7 @@ import pytest
 from pypdf import PdfWriter
 from PIL import Image
 
+from app.documents import storage as storage_module
 from app.documents.config import DocumentConfigurationError, DocumentLimits
 from app.documents.ownership import resolve_document_owner
 from app.documents.storage import (
@@ -486,8 +487,126 @@ def test_final_object_is_invisible_until_complete_and_reconciler_skips_active_st
     assert list(storage.staging.rglob("upload.part")) == []
 
 
-def test_reconciler_removes_only_unleased_abandoned_part_files(tmp_path):
+def test_reconciler_waits_for_stage_initialization_and_skips_active_upload(tmp_path, monkeypatch):
+    initialization_paused = threading.Event()
+    allow_operation_lease = threading.Event()
+    read_paused = threading.Event()
+    allow_read_to_finish = threading.Event()
+    reconcile_waiting = threading.Event()
+    reconcile_finished = threading.Event()
+    stage_result: list[object] = []
+    stage_errors: list[BaseException] = []
+    reconcile_result: list[int] = []
+
+    class BlockingStream:
+        def __init__(self):
+            self.calls = 0
+
+        def read(self, size):
+            self.calls += 1
+            if self.calls == 1:
+                return PDF[:5]
+            if self.calls == 2:
+                read_paused.set()
+                assert allow_read_to_finish.wait(timeout=5)
+                return PDF[5:]
+            return b""
+
     storage = make_storage(tmp_path / "private-store")
+    real_acquire = storage_module._acquire_file_lock
+
+    def controlled_acquire(path, *, blocking):
+        path = Path(path)
+        thread_name = threading.current_thread().name
+        if path.name == "owner.lock" and thread_name == "stage-initializer":
+            initialization_paused.set()
+            assert allow_operation_lease.wait(timeout=5)
+        if path == storage.coordination_lock and thread_name == "reconciler":
+            reconcile_waiting.set()
+        return real_acquire(path, blocking=blocking)
+
+    monkeypatch.setattr(storage_module, "_acquire_file_lock", controlled_acquire)
+
+    def stage():
+        try:
+            stage_result.append(
+                storage.stage(BlockingStream(), institution_id=uuid4(), application_id=uuid4())
+            )
+        except BaseException as exc:
+            stage_errors.append(exc)
+
+    def reconcile():
+        try:
+            reconcile_result.append(storage.reconcile_abandoned_staging())
+        finally:
+            reconcile_finished.set()
+
+    stage_thread = threading.Thread(target=stage, name="stage-initializer")
+    reconcile_thread = threading.Thread(target=reconcile, name="reconciler")
+    stage_thread.start()
+    try:
+        assert initialization_paused.wait(timeout=5)
+        operation_dirs = [entry for entry in storage.staging.iterdir() if entry.is_dir()]
+        assert len(operation_dirs) == 1
+        operation_dir = operation_dirs[0]
+        assert (operation_dir / "owner.lock").is_file()
+        assert not (operation_dir / "upload.part").exists()
+
+        reconcile_thread.start()
+        assert reconcile_waiting.wait(timeout=5)
+        # Reconciliation has attempted the shared lock but cannot enter the
+        # pre-lease state while stage initialization owns that lock.
+        assert operation_dir.exists()
+        assert not reconcile_finished.is_set()
+
+        allow_operation_lease.set()
+        assert read_paused.wait(timeout=5)
+        assert reconcile_finished.wait(timeout=5)
+        assert reconcile_result == [0]
+        assert (operation_dir / "upload.part").exists()
+
+        allow_read_to_finish.set()
+        stage_thread.join(timeout=5)
+        reconcile_thread.join(timeout=5)
+        assert not stage_thread.is_alive()
+        assert not reconcile_thread.is_alive()
+        assert not stage_errors
+        staged = stage_result[0]
+        assert stored_path(storage, staged.storage_ref).read_bytes() == PDF
+        assert not operation_dir.exists()
+        assert storage.coordination_lock.is_file()
+    finally:
+        allow_operation_lease.set()
+        allow_read_to_finish.set()
+        stage_thread.join(timeout=5)
+        if reconcile_thread.ident is not None:
+            reconcile_thread.join(timeout=5)
+
+
+@pytest.mark.parametrize(
+    "artifacts",
+    [(), ("owner.lock",), ("owner.lock", "upload.part")],
+    ids=("empty-directory", "lock-only", "abandoned-partial-upload"),
+)
+def test_reconciler_removes_abandoned_staging_states(tmp_path, artifacts):
+    storage = make_storage(tmp_path / "private-store")
+    operation_dir = storage.staging / str(uuid4())
+    operation_dir.mkdir()
+    if "owner.lock" in artifacts:
+        (operation_dir / "owner.lock").write_bytes(b"\0")
+    if "upload.part" in artifacts:
+        (operation_dir / "upload.part").write_bytes(b"partial")
+    coordination_lock_contents = storage.coordination_lock.read_bytes()
+
+    assert storage.reconcile_abandoned_staging() == 1
+    assert not operation_dir.exists()
+    assert storage.coordination_lock.read_bytes() == coordination_lock_contents
+
+
+def test_reconciler_leaves_published_quarantine_objects_untouched(tmp_path):
+    storage = make_storage(tmp_path / "private-store")
+    staged = storage.stage(io.BytesIO(PDF), institution_id=uuid4(), application_id=uuid4())
+    published_path = stored_path(storage, staged.storage_ref)
     operation_dir = storage.staging / str(uuid4())
     operation_dir.mkdir()
     (operation_dir / "owner.lock").write_bytes(b"\0")
@@ -495,6 +614,7 @@ def test_reconciler_removes_only_unleased_abandoned_part_files(tmp_path):
 
     assert storage.reconcile_abandoned_staging() == 1
     assert not operation_dir.exists()
+    assert published_path.read_bytes() == PDF
 
 
 def test_case_owner_is_resolved_from_case_port_without_client_institution(monkeypatch):

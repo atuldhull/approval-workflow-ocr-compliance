@@ -95,16 +95,18 @@ def _acquire_file_lock(path: Path, *, blocking: bool) -> BinaryIO | None:
 
 
 def _release_file_lock(handle: BinaryIO) -> None:
-    handle.seek(0)
-    if os.name == "nt":
-        import msvcrt
+    try:
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
 
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
 
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    handle.close()
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 class LocalQuarantineStorage:
@@ -145,9 +147,20 @@ class LocalQuarantineStorage:
             self.staging.mkdir(mode=0o700, exist_ok=True)
             if _is_link_or_junction(self.staging) or not self.staging.is_dir():
                 raise StorageConfigurationError("staging directory must be a real directory")
+            self.coordination_lock = self.staging / ".coordination.lock"
+            if _is_link_or_junction(self.coordination_lock):
+                raise StorageConfigurationError("staging coordination lock may not be a link")
+            with self.coordination_lock.open("a+b") as lock_file:
+                lock_file.seek(0, os.SEEK_END)
+                if lock_file.tell() == 0:
+                    lock_file.write(b"\0")
+                    lock_file.flush()
+            if _is_link_or_junction(self.coordination_lock) or not self.coordination_lock.is_file():
+                raise StorageConfigurationError("staging coordination lock must be a regular file")
             if os.name != "nt":
                 os.chmod(self.root, 0o700)
                 os.chmod(self.staging, 0o700)
+                os.chmod(self.coordination_lock, 0o600)
         except StorageConfigurationError:
             raise
         except OSError as exc:
@@ -212,6 +225,8 @@ class LocalQuarantineStorage:
             raise StorageError("private staging directory is unavailable")
         if self.staging.resolve(strict=False).parent != self.root:
             raise StorageError("private staging directory escaped storage root")
+        if _is_link_or_junction(self.coordination_lock) or not self.coordination_lock.is_file():
+            raise StorageError("staging coordination lock is unavailable")
 
     def _mkdir_private(self, directory: Path) -> None:
         relative = directory.relative_to(self.root)
@@ -259,29 +274,85 @@ class LocalQuarantineStorage:
         if size != metadata.size_bytes or digest.hexdigest() != metadata.sha256:
             raise StorageError("stored quarantine object failed byte-count or digest verification")
 
-    @staticmethod
     def _cleanup_operation(
+        self,
         operation_dir: Path,
-        part_path: Path,
-        lock_path: Path,
         lock_handle: BinaryIO | None,
     ) -> list[OSError]:
         errors: list[OSError] = []
-        try:
-            part_path.unlink(missing_ok=True)
-        except OSError as exc:
-            errors.append(exc)
         if lock_handle is not None:
             try:
                 _release_file_lock(lock_handle)
             except OSError as exc:
                 errors.append(exc)
+
+        coordination_handle: BinaryIO | None = None
         try:
-            lock_path.unlink(missing_ok=True)
-            operation_dir.rmdir()
+            coordination_handle = _acquire_file_lock(self.coordination_lock, blocking=True)
+            if operation_dir.exists() and not self._remove_abandoned_operation_locked(operation_dir):
+                errors.append(OSError("staging operation could not be safely cleaned"))
         except OSError as exc:
             errors.append(exc)
+        finally:
+            if coordination_handle is not None:
+                try:
+                    _release_file_lock(coordination_handle)
+                except OSError as exc:
+                    errors.append(exc)
         return errors
+
+    def _remove_abandoned_operation_locked(self, operation_dir: Path) -> bool:
+        """Remove known staging artifacts while holding the coordination lock.
+
+        Lock order is always coordination lock, then the per-operation lease.
+        Stage initialization and reconciliation share this lock, so a directory
+        without its per-operation lease cannot be an upload in initialization.
+        """
+        if _is_link_or_junction(operation_dir) or not operation_dir.is_dir():
+            return False
+
+        part_path = operation_dir / "upload.part"
+        lock_path = operation_dir / "owner.lock"
+        if _is_link_or_junction(part_path) or _is_link_or_junction(lock_path):
+            return False
+        try:
+            if not {entry.name for entry in operation_dir.iterdir()}.issubset(
+                {"owner.lock", "upload.part"}
+            ):
+                return False
+        except OSError:
+            return False
+        if part_path.exists() and not part_path.is_file():
+            return False
+
+        operation_handle: BinaryIO | None = None
+        if lock_path.exists():
+            if not lock_path.is_file():
+                return False
+            try:
+                operation_handle = _acquire_file_lock(lock_path, blocking=False)
+            except OSError:
+                return False
+            if operation_handle is None:
+                return False
+
+        try:
+            part_path.unlink(missing_ok=True)
+            if operation_handle is not None:
+                handle = operation_handle
+                operation_handle = None
+                _release_file_lock(handle)
+            lock_path.unlink(missing_ok=True)
+            operation_dir.rmdir()
+            return True
+        except OSError:
+            return False
+        finally:
+            if operation_handle is not None:
+                try:
+                    _release_file_lock(operation_handle)
+                except OSError:
+                    pass
 
     @staticmethod
     def _add_cleanup_notes(error: BaseException, cleanup_errors: list[OSError]) -> None:
@@ -305,19 +376,31 @@ class LocalQuarantineStorage:
         self._assert_root_safe()
         operation_id = uuid4()
         operation_dir = self.staging / str(operation_id)
-        operation_dir.mkdir(mode=0o700)
         lock_path = operation_dir / "owner.lock"
         part_path = operation_dir / "upload.part"
         lock_handle: BinaryIO | None = None
+        coordination_handle: BinaryIO | None = None
+        operation_dir_created = False
         final_path: Path | None = None
         published = False
         try:
-            with lock_path.open("xb") as lease:
-                lease.write(b"\0")
-                lease.flush()
-            lock_handle = _acquire_file_lock(lock_path, blocking=True)
-            if lock_handle is None:
-                raise StorageError("failed to acquire staging lease")
+            # Lock order: coordination lock, then per-operation lease. Hold the
+            # coordination lock only until the operation lease is established.
+            coordination_handle = _acquire_file_lock(self.coordination_lock, blocking=True)
+            try:
+                operation_dir.mkdir(mode=0o700)
+                operation_dir_created = True
+                with lock_path.open("xb") as lease:
+                    lease.write(b"\0")
+                    lease.flush()
+                lock_handle = _acquire_file_lock(lock_path, blocking=True)
+                if lock_handle is None:
+                    raise StorageError("failed to acquire staging lease")
+            finally:
+                if coordination_handle is not None:
+                    handle = coordination_handle
+                    coordination_handle = None
+                    _release_file_lock(handle)
 
             with part_path.open("xb") as destination:
                 metadata = copy_and_hash(
@@ -355,24 +438,28 @@ class LocalQuarantineStorage:
                 sha256=metadata.sha256,
                 operation_id=operation_id,
             )
-            cleanup_errors = self._cleanup_operation(
-                operation_dir, part_path, lock_path, lock_handle
-            )
+            cleanup_errors = self._cleanup_operation(operation_dir, lock_handle)
             lock_handle = None
             if cleanup_errors:
                 raise StorageError("staging lease cleanup failed") from cleanup_errors[0]
             return staged
         except BaseException as exc:
             cleanup_errors: list[OSError] = []
+            if coordination_handle is not None:
+                handle = coordination_handle
+                coordination_handle = None
+                try:
+                    _release_file_lock(handle)
+                except OSError as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
             if published and final_path is not None:
                 try:
                     final_path.unlink(missing_ok=True)
                     self._sync_directory(final_path.parent)
                 except OSError as cleanup_error:
                     cleanup_errors.append(cleanup_error)
-            cleanup_errors.extend(
-                self._cleanup_operation(operation_dir, part_path, lock_path, lock_handle)
-            )
+            if operation_dir_created:
+                cleanup_errors.extend(self._cleanup_operation(operation_dir, lock_handle))
             lock_handle = None
             self._add_cleanup_notes(exc, cleanup_errors)
             if isinstance(exc, (UploadValidationError, ValueError, StorageError)):
@@ -397,40 +484,22 @@ class LocalQuarantineStorage:
             raise StorageError("failed to abort staged object") from exc
 
     def reconcile_abandoned_staging(self) -> int:
-        """Delete only abandoned .part files whose OS lease can be acquired.
+        """Remove abandoned staging artifacts without touching active uploads.
 
-        Active operations hold their lease before creating upload.part, so they
-        cannot be mistaken for abandoned work. Persisted quarantine objects are
-        never considered by reconciliation.
+        The coordination lock serializes enumeration with stage initialization
+        and final staging cleanup. Established uploads are then skipped unless
+        their per-operation lease can be acquired nonblocking. Final objects in
+        quarantine are outside this walk and are never removed here.
         """
         self._assert_root_safe()
+        coordination_handle = _acquire_file_lock(self.coordination_lock, blocking=True)
         removed = 0
-        for operation_dir in self.staging.iterdir():
-            if _is_link_or_junction(operation_dir) or not operation_dir.is_dir():
-                continue
-            part_path = operation_dir / "upload.part"
-            lock_path = operation_dir / "owner.lock"
-            if _is_link_or_junction(part_path) or _is_link_or_junction(lock_path):
-                continue
-            if not part_path.is_file() or not lock_path.is_file():
-                continue
-            try:
-                lock_handle = _acquire_file_lock(lock_path, blocking=False)
-            except OSError:
-                continue
-            if lock_handle is None:
-                continue
-            try:
-                part_path.unlink(missing_ok=True)
-                removed += 1
-                _release_file_lock(lock_handle)
-                lock_handle = None
-                lock_path.unlink(missing_ok=True)
-                operation_dir.rmdir()
-            except OSError:
-                if lock_handle is not None:
-                    try:
-                        _release_file_lock(lock_handle)
-                    except OSError:
-                        pass
+        try:
+            for operation_dir in self.staging.iterdir():
+                if operation_dir == self.coordination_lock or not operation_dir.is_dir():
+                    continue
+                if self._remove_abandoned_operation_locked(operation_dir):
+                    removed += 1
+        finally:
+            _release_file_lock(coordination_handle)
         return removed
