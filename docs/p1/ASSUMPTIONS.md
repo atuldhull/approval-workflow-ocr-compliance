@@ -1,5 +1,11 @@
 # P1 assumptions
 
+## Answer-key verifier 2.6 (26 October 2026)
+
+- VERIFY-001 — DEMO ASSUMPTION: verify only the existing scale-generator scenario semantics. An earlier unresolved item in a superseded round maps to REJECTED, a resolved item to ACCEPTED, and final closure time to the key's review snapshot. These are operational demo mappings, not new APH clauses or changes to shared schema semantics.
+- VERIFY-002 — the P1 CLI composes the real application with a controlled logical ClockPort and trusted DEMO assignment/optional-SHC facts, as in the scale acceptance test. Successful real DeadlinePort calls are observed in process because P2 does not emit every pause/resume/close event. Only a fully completed replay can PASS; this observer is not a production audit/outbox or proof of durable P2 notifications. No fake compliance/deadline/ledger/auth implementation is introduced.
+- Positive letter issuance remains blocked by the existing LetterIn contract request. Zero expected/observed triggers is labelled NO_POSITIVE_COVERAGE, and absent letter flags are not inferred. Empty P2/P3 extension objects stay valid and NOT_SUPPLIED. The CLI requires an explicit migrated *_verify database and refuses an already loaded seed; it performs no database reset/deletion.
+
 ## Scale generator 2.5 (26 October 2026)
 
 - SCALE-001 — DEMO ASSUMPTION: equal category frequencies across 21 Table 2.3 routes plus NEW_INSTITUTION; exact weights/counts/rounding are in category_mix.md. Table 2.3 provides no supplied frequency evidence. Nine DEMO_REGION/DEMO_RO codes and fictional technical institutions are synthetic, not official RO taxonomy.

@@ -17,7 +17,7 @@ class Client(Protocol):
 
 def load_seed(data: dict, answer: dict, client: Client, clock: LogicalClock, *,
               bootstrap_institutions: Callable[[list[dict]], int],
-              configure_scenario: Callable[[dict], None]) -> dict:
+              configure_scenario: Callable[[dict], None], validate_outcome: bool = True) -> dict:
     """Load into a fresh disposable DEMO server; fail fast on API/answer mismatch.
 
     Not a retry/idempotency middleware: a partial run needs a fresh demo database.
@@ -97,9 +97,9 @@ def load_seed(data: dict, answer: dict, client: Client, clock: LogicalClock, *,
             version = result["version"]
         final = request("GET", prefix)
         outcome = expected[logical_id].route_outcome
-        if final["stage"] is not None or final["status"] != outcome.expected_status.value:
+        if validate_outcome and (final["stage"] is not None or final["status"] != outcome.expected_status.value):
             raise RuntimeError("final case does not match answer key")
-        if final["route"] != [s.model_dump(mode="json") for s in outcome.expected_stage_list]:
+        if validate_outcome and final["route"] != [s.model_dump(mode="json") for s in outcome.expected_stage_list]:
             raise RuntimeError("route differs from answer key")
         receipt["cases"].append(dict(application_id=logical_id, case_id=case_id, stage=final["stage"],
                                      status=final["status"], ruleset_key=final["ruleset_key"]))

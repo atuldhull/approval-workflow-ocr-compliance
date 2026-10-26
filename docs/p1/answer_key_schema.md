@@ -1,5 +1,7 @@
 # Per-seed answer key: proposal 0.1.0
 
+Verifier update (26 October 2026): `python -m generator.cases.verify_answer_key --seed N` now replays and compares P1 workflow observations. See RUN.md for its explicit demo/database prerequisites and generator_report.md for seeds 1–5. Schema/models and empty reserved extensions are unchanged. Zero-letter runs explicitly report NO_POSITIVE_COVERAGE; P2/P3 metrics remain NOT_SUPPLIED.
+
 Update (scale-generator task, 26 October 2026): P1 now produces this proposed format with `generator/cases/scale_generator.py`; see category_mix.md for CLI/replay, DEMO assumptions and coverage limits. The generator task explicitly authorizes P1 use of the proposal; P2/P3 adoption still awaits review. Historical references below to a future generator describe the original proposal scope. Reserved extensions and the 0.1.0 schema/models are unchanged.
 
 **PROPOSED_TEAM_REVIEW. DEMO data only. Not an agreed shared contract.** This schema intentionally lives in `docs/p1/`, not `contracts/`. It adds no API, table or event type. The separately authorized P1 scale generator now produces this format; P2/P3 must review the questions below before integrating their scorecard/extensions.
