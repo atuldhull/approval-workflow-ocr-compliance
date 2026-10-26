@@ -25,6 +25,7 @@ resourcePolicy:
   - name: scrutiny_committee
     actions:
     - analytics.dashboard
+    - analytics.report
     - application.read
     - auth.me
     - case.timeline
@@ -39,6 +40,7 @@ resourcePolicy:
   - name: ro_officer
     actions:
     - analytics.dashboard
+    - analytics.report
     - application.read
     - auth.me
     - case.timeline
@@ -56,6 +58,8 @@ resourcePolicy:
   - name: bureau_officer
     actions:
     - analytics.dashboard
+    - analytics.export
+    - analytics.report
     - analytics.scorecard
     - application.read
     - audit.checkpoint.read
@@ -74,6 +78,8 @@ resourcePolicy:
   - name: bureau_head
     actions:
     - analytics.dashboard
+    - analytics.export
+    - analytics.report
     - analytics.scorecard
     - application.read
     - audit.checkpoint.create
@@ -95,6 +101,8 @@ resourcePolicy:
   - name: auditor
     actions:
     - analytics.dashboard
+    - analytics.export
+    - analytics.report
     - analytics.scorecard
     - application.read
     - audit.checkpoint.create

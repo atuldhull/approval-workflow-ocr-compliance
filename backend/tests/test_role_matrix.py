@@ -65,6 +65,13 @@ MATRIX = [
     ("another region's dashboard", "GET", "/api/analytics/dashboard?region=Northern", None,
      expect(("committee", "ro_north") + OVERSIGHT)),
     ("scorecard", "GET", "/api/analytics/scorecard", None, expect(OVERSIGHT)),
+    ("pendency report", "GET", "/api/dashboards/pendency", None,
+     expect(("committee", "ro_south", "ro_north") + OVERSIGHT)),
+    ("another region's pendency", "GET", "/api/dashboards/pendency?region=Northern", None,
+     expect(("committee", "ro_north") + OVERSIGHT)),
+    ("report by type", "GET", "/api/reports/pendency", None,
+     expect(("committee", "ro_south", "ro_north") + OVERSIGHT)),
+    ("event-log export", "POST", "/api/exports", {"format": "ocel2"}, expect(OVERSIGHT)),
 ]
 
 

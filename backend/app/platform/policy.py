@@ -32,6 +32,8 @@ POLICY: dict[str, frozenset[Role]] = {
     "notification.retry": frozenset({R.BUREAU_HEAD}),
     "analytics.dashboard": OFFICERS | {R.AUDITOR},
     "analytics.scorecard": OVERSIGHT,
+    "analytics.report": OFFICERS | {R.AUDITOR},
+    "analytics.export": OVERSIGHT,
 }
 
 # Resource kinds the policy knows. Any other kind is denied.

@@ -12,6 +12,7 @@ Items are independent and can be approved one by one.
 | C3 | `stage` / `assigned_to` on `ResourceRef` | Proposed only; waits for Person 1's assignment data |
 | C4 | `Idempotency-Key` in the snapshot | Waits for Person 1 to apply the idempotency patch |
 | C5 | Checkpoint publication endpoint and fields | Patch file only, **not applied**; re-verified to apply cleanly and to make `check_contracts.py` pass |
+| C6 | Reports and exports endpoints | Patch file only, **not applied**; applies on top of C5 and `check_contracts.py` passes with both (Python 3.12) |
 
 Any API change after these were prepared means regenerating the snapshot (`python scripts/check_contracts.py
 --write`) on the integration branch and reviewing the whole diff again, rather than applying an old patch blindly.
@@ -42,6 +43,25 @@ applied in a scratch worktree `python scripts/check_contracts.py` prints `contra
 3. Open the PR; the contract-approval status needs both teammates other than the author on the final commit.
 
 Until C5 is applied, `check_contracts.py` fails on `person-3`. That is expected and must not be disabled.
+
+## C6 - reports and exports
+
+C6 adds three endpoints from the Person 3 work pack; nothing existing changes:
+
+- `GET /api/dashboards/pendency?region=` - applications in process by regional office and stage, with the ledger
+  head and a snapshot hash so the report can be reproduced (officers and auditor; region-scoped like the dashboard).
+- `GET /api/reports/{type}` - the same through the generic report path; `pendency` is the only type so far.
+- `POST /api/exports` with `{"format": "ocel2"}` - the event log as OCEL 2.0 (event type, time, role, ruleset and
+  case id only; no payloads, notes or personal references), for the bureau and the auditor.
+
+Exact patch: `docs/proposals/openapi-reports-exports.patch`, generated with Python 3.12 (the CI and Docker
+version; 3.13 words HTTP 422 differently and the check would fail). Apply it after C5:
+
+```bash
+git apply docs/proposals/openapi-checkpoint-publication.patch
+git apply docs/proposals/openapi-reports-exports.patch
+python scripts/check_contracts.py          # must print: contracts ok (run with Python 3.12)
+```
 
 ## C2 - RecipientPort
 
