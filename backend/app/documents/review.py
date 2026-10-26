@@ -27,6 +27,8 @@ def _require_aware(value: datetime) -> None:
 
 def enter_value_before_reveal(fact: Fact, *, reviewer_id: UUID, value: str, at: datetime) -> None:
     """Persist the reviewer's initial value without returning the OCR suggestion."""
+    if not isinstance(reviewer_id, UUID):
+        raise ValueError("reviewer_id must be a UUID")
     _require_aware(at)
     if fact.state != FactState.PROPOSED.value:
         raise ValueError("only proposed facts can enter review")

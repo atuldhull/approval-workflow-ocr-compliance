@@ -138,3 +138,35 @@ def test_review_requires_same_reviewer_and_rejects_empty_initial_entry():
             at=NOW + timedelta(seconds=2),
             reviewed_value="corrected",
         )
+
+
+@pytest.mark.parametrize("reviewer_id", [None, "not-a-uuid"], ids=["none", "invalid-string"])
+def test_invalid_reviewer_identity_is_rejected_without_mutating_fact(reviewer_id):
+    fact = make_fact()
+    initial_state = (
+        fact.state,
+        fact.review_typed_value,
+        fact.review_typed_by,
+        fact.review_typed_at,
+        fact.suggestion_revealed_at,
+        fact.reviewed_value,
+        fact.reviewed_at,
+    )
+
+    with pytest.raises(ValueError, match="reviewer_id must be a UUID"):
+        enter_value_before_reveal(
+            fact,
+            reviewer_id=reviewer_id,
+            value="2025-03-12",
+            at=NOW,
+        )
+
+    assert (
+        fact.state,
+        fact.review_typed_value,
+        fact.review_typed_by,
+        fact.review_typed_at,
+        fact.suggestion_revealed_at,
+        fact.reviewed_value,
+        fact.reviewed_at,
+    ) == initial_state
