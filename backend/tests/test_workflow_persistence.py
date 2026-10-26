@@ -285,7 +285,11 @@ def test_one_head_per_module_and_inherited_workflow_label():
     for head in scripts.get_heads():
         rev = scripts.get_revision(head)
         heads[Path(rev.path).parent.name].append(head)
-    assert dict(heads) == {"platform": ["plat_0001"], "workflow": ["wf_0006"], "deadlines": ["dl_0001"]}
+    assert dict(heads) == {"platform": ["plat_0001"], "workflow": ["wf_0006"],
+                           "deadlines": ["dl_0001"], "evc": ["evc_0001"]}
+    assert scripts.get_revision("evc_0001").down_revision is None
+    assert scripts.get_revision("evc_0001").branch_labels == {"evc"}
+    assert scripts.get_revision("evc_0001").dependencies == "wf_0001"
     assert scripts.get_revision("wf_0006").down_revision == "wf_0005"
     assert scripts.get_revision("wf_0006").branch_labels == {"workflow"}
     assert scripts.get_revision("wf_0005").down_revision == "wf_0004"
