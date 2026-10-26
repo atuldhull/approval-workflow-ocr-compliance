@@ -236,8 +236,7 @@ def test_deficiency_compliance_rescrutiny_sequence_calls_all_timer_operations(la
         item = uow.session.scalar(select(DeficiencyItem))
         review(uow, application_id, item.deficiency_id, ReviewIn(expected_version=3,
             decisions=[{"item_id": item.id, "state": "ACCEPTED", "reason_code": "DEMO_REASON"}]))
-    third = engine.execute(command(application_id, version=4))
-    assert (third.current_stage, third.version) == ("EVC", 5)
+    assert snapshot(application_id)[:3] == ("EVC", "IN_PROCESS", 4)
     assert len(lab.ledger.events) == 14
 
 

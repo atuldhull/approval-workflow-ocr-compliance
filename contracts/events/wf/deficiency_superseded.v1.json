@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["application_id", "deficiency_id", "next_deficiency_id"],
+  "properties": {
+    "application_id": {"type": "string", "format": "uuid"},
+    "deficiency_id": {"type": "string", "format": "uuid"},
+    "next_deficiency_id": {"type": "string", "format": "uuid"}
+  }
+}

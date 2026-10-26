@@ -31,7 +31,7 @@ def validate_config(raw: dict, rules: dict) -> dict | None:
     if duration is None:
         raise ValidationFailed("DEFICIENCY_RESPONSE_RULE_MISSING")
     for template in raw.get("templates", {}).values():
-        if template.get("action") in {"record_deficiency", "submit_compliance", "start_rescrutiny"}:
+        if template.get("action") in {"record_deficiency", "submit_compliance"}:
             operation = "open" if template["action"] == "record_deficiency" else "close"
             if not any(t.get("op") == operation and t.get("rule_id") == config.response_rule_id for t in template.get("timers", [])):
                 raise ValidationFailed("DEFICIENCY_RESPONSE_TIMER_MISMATCH")

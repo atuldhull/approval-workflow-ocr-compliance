@@ -771,6 +771,17 @@
             "title": "Item Id",
             "type": "string"
           },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
           "reason_code": {
             "pattern": "^[A-Z][A-Z0-9_]*$",
             "title": "Reason Code",
@@ -1105,6 +1116,232 @@
         "title": "Payload",
         "type": "object"
       },
+      "RescrutinyItemOut": {
+        "properties": {
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_key": {
+            "title": "Item Key",
+            "type": "string"
+          },
+          "previous_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Item Id"
+          },
+          "response_history": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseHistoryOut"
+            },
+            "title": "Response History",
+            "type": "array"
+          },
+          "response_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Ref"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "RESPONDED",
+              "ACCEPTED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "item_key",
+          "state",
+          "response_ref",
+          "decided_by",
+          "decision_reason_code",
+          "previous_item_id",
+          "response_history"
+        ],
+        "title": "RescrutinyItemOut",
+        "type": "object"
+      },
+      "RescrutinyOut": {
+        "properties": {
+          "assumption_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Assumption Status",
+            "type": "string"
+          },
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "deficiency_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deficiency Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RescrutinyItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "round_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Round No"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "case_id",
+          "version",
+          "ruleset_key",
+          "deficiency_id",
+          "round_no",
+          "items"
+        ],
+        "title": "RescrutinyOut",
+        "type": "object"
+      },
+      "ResponseHistoryOut": {
+        "properties": {
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason Code"
+          },
+          "deficiency_id": {
+            "format": "uuid",
+            "title": "Deficiency Id",
+            "type": "string"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "response_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Ref"
+          },
+          "round_no": {
+            "title": "Round No",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "RESPONDED",
+              "ACCEPTED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "deficiency_id",
+          "round_no",
+          "response_ref",
+          "state",
+          "decided_by",
+          "decision_reason_code"
+        ],
+        "title": "ResponseHistoryOut",
+        "type": "object"
+      },
       "ReviewIn": {
         "additionalProperties": false,
         "properties": {
@@ -1167,6 +1404,21 @@
             ],
             "title": "Closed At"
           },
+          "closure_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ACCEPTED",
+                  "SUPERSEDED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Kind"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1204,6 +1456,7 @@
           "status",
           "opened_at",
           "closed_at",
+          "closure_kind",
           "items"
         ],
         "title": "RoundOut",
@@ -1822,6 +2075,18 @@
             "title": "Item Key",
             "type": "string"
           },
+          "previous_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Item Id"
+          },
           "response_ref": {
             "anyOf": [
               {
@@ -1851,7 +2116,8 @@
           "state",
           "response_ref",
           "decided_by",
-          "decision_reason_code"
+          "decision_reason_code",
+          "previous_item_id"
         ],
         "title": "ItemOut",
         "type": "object"
@@ -3311,6 +3577,156 @@
           }
         },
         "summary": "Review Deficiency",
+        "tags": [
+          "deficiencies"
+        ]
+      }
+    },
+    "/api/cases/{application_id}/rescrutiny": {
+      "get": {
+        "operationId": "get_rescrutiny_api_cases__application_id__rescrutiny_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RescrutinyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Get Rescrutiny Api Cases  Application Id  Rescrutiny Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Rescrutiny",
         "tags": [
           "deficiencies"
         ]

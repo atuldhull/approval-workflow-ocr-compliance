@@ -27,6 +27,13 @@ def get_deficiencies(application_id: UUID, principal: Principal = Depends(curren
         return deficiency.read(session, application_id, principal)
 
 
+@router.get("/cases/{application_id}/rescrutiny", response_model=deficiency.RescrutinyOut,
+            tags=["deficiencies"], responses=ERROR_RESPONSES)
+def get_rescrutiny(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return deficiency.rescrutiny(session, application_id, principal)
+
+
 @router.post("/cases/{application_id}/deficiencies/{deficiency_id}/review", response_model=deficiency.DeficienciesOut,
              tags=["deficiencies"], responses=ERROR_RESPONSES)
 def review_deficiency(application_id: UUID, deficiency_id: UUID, body: deficiency.ReviewIn,

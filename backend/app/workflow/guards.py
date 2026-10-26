@@ -192,6 +192,10 @@ def deficiency_items_present(c: Context) -> None:
 
 @register("response_received")
 def response_received(c: Context) -> None:
+    if c.command.action == "start_rescrutiny" and c.case.facts.deficiency_status is not None:
+        require(c.case.facts.deficiency_status == "RESPONDED", "DEFICIENCY_NOT_RESPONDED")
+        require(bool(c.case.facts.response_refs), "RESPONSE_REQUIRED")
+        return
     if c.case.facts.deficiency_status is not None:
         require(c.case.facts.deficiency_status == "OPEN", "NO_OPEN_DEFICIENCY")
     if c.command.payload.responses:

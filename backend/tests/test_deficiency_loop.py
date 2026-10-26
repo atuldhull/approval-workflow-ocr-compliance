@@ -74,37 +74,25 @@ def review(api, case_id, data, state="ACCEPTED", note=None):
 
 def test_two_rounds_trace_responses_close_and_advance(api):
     case_id = create(api)
-    for number in (1, 2):
-        before = read(api, case_id)
-        actions = api.get(f"/api/cases/{case_id}", headers=OFFICER).json()["available_actions"]
-        assert next(a for a in actions if a["action"] == "record_deficiency")["enabled"]
-        data = record(api, case_id, before["version"])
-        current = data["rounds"][-1]
-        assert current["round_no"] == number and current["status"] == "OPEN"
-        assert len(current["items"]) == 2 and current["closed_at"] is None
-        actions = api.get(f"/api/cases/{case_id}", headers=INST).json()["available_actions"]
-        assert next(a for a in actions if a["action"] == "submit_compliance")["enabled"]
-        clocks = api.get("/api/deadlines", params={"subject_id": case_id}, headers=INST).json()
-        assert next(d for d in clocks if d["rule_id"] == "AICTE_PROCESSING")["status"] == "PAUSED"
-        data = respond(api, case_id, data)
-        assert data["rounds"][-1]["status"] == "RESPONDED"
-        clocks = api.get("/api/deadlines", params={"subject_id": case_id}, headers=INST).json()
-        assert next(d for d in clocks if d["rule_id"] == "AICTE_PROCESSING")["status"] == "RUNNING"
-        assert all(i["state"] == "RESPONDED" and i["response_ref"] == REF for i in data["rounds"][-1]["items"])
-        blocked = act(api, case_id, "advance", data["version"])
-        assert blocked.status_code == 422 and blocked.json()["detail"] == "OPEN_DEFICIENCY_ITEMS"
-        result = review(api, case_id, data, note="Fictional officer remark")
-        assert result.status_code == 200, result.text
-        data = result.json()
-        assert data["rounds"][-1]["status"] == "CLOSED" and data["rounds"][-1]["closed_at"]
-        assert all(i["decided_by"] and i["state"] == "ACCEPTED" for i in data["rounds"][-1]["items"])
-    assert len(data["rounds"]) == 2
+    data = respond(api, case_id, record(api, case_id))
+    result = review(api, case_id, data, "REJECTED", note="Fictional officer remark")
+    assert result.status_code == 200, result.text
+    data = result.json()
+    assert [r["closure_kind"] for r in data["rounds"]] == ["SUPERSEDED", None]
+    assert all(i["previous_item_id"] for i in data["rounds"][1]["items"])
+    data = respond(api, case_id, data)
+    result = review(api, case_id, data, note="Fictional officer remark")
+    assert result.status_code == 200, result.text
+    data = result.json()
+    assert [r["closure_kind"] for r in data["rounds"]] == ["SUPERSEDED", "ACCEPTED"]
+    assert all(i["state"] == "ACCEPTED" and i["response_ref"] == REF for i in data["rounds"][1]["items"])
     assert data["response_window"] == {"rule_id": "INSTITUTION_RESPONSE", "value": 15, "unit": "calendar_days",
         "source_status": "DEMO_ASSUMPTION", "assumption_code": "DEFICIENCY_RESPONSE_WINDOW_UNCONFIRMED"}
-    assert act(api, case_id, "advance", data["version"]).json()["stage"] == "EVC"
+    assert api.get(f"/api/cases/{case_id}", headers=INST).json()["stage"] == "EVC"
     timeline = api.get(f"/api/cases/{case_id}/timeline", headers=INST).json()
     names = [event["event_type"] for event in timeline]
-    assert names.count("wf.deficiency_recorded") == names.count("wf.compliance_submitted") == names.count("wf.deficiency_closed") == 2
+    assert names.count("wf.deficiency_recorded") == names.count("wf.compliance_submitted") == 2
+    assert names.count("wf.deficiency_closed") == names.count("wf.deficiency_superseded") == 1
     assert names.count("wf.deficiency_item_responded") == names.count("wf.deficiency_item_decided") == 4
     assert "Fictional officer remark" not in json.dumps(timeline)
     assert api.get("/api/ledger/verify", headers=headers("AUDITOR")).json()["ok"]
@@ -114,10 +102,11 @@ def test_deadline_fake_exact_pairing_and_order(api):
     case_id = create(api)
     fake = FakeDeadlines()
     provide(DeadlinePort, fake)
-    for _ in range(2):
-        data = record(api, case_id, read(api, case_id)["version"])
-        data = respond(api, case_id, data)
-        assert review(api, case_id, data).status_code == 200
+    data = respond(api, case_id, record(api, case_id))
+    result = review(api, case_id, data, "REJECTED")
+    assert result.status_code == 200, result.text
+    data = respond(api, case_id, result.json())
+    assert review(api, case_id, data).status_code == 200
     assert [(op, rule) for op, subject, rule in fake.calls] == [
         ("pause", "AICTE_PROCESSING"), ("open", "INSTITUTION_RESPONSE"),
         ("close", "INSTITUTION_RESPONSE"), ("resume", "AICTE_PROCESSING")] * 2
@@ -161,7 +150,7 @@ def test_open_or_rejected_items_cannot_close_and_fake_counts_cannot_bypass(api):
             deficiency.close(uow, row, {}, row.opened_at)
     data = respond(api, case_id, data)
     rejected = review(api, case_id, data, "REJECTED")
-    assert rejected.status_code == 200 and rejected.json()["rounds"][0]["status"] == "RESPONDED"
+    assert rejected.status_code == 200 and rejected.json()["rounds"][0]["closure_kind"] == "SUPERSEDED"
     assert act(api, case_id, "advance", rejected.json()["version"]).status_code == 422
     assert act(api, case_id, "record_deficiency", rejected.json()["version"], {"item_keys": KEYS}).status_code == 422
 

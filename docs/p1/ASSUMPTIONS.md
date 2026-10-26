@@ -1,5 +1,13 @@
 # P1 assumptions
 
+## Re-Scrutiny 2.2 (26 October 2026)
+
+- DEMO ASSUMPTION RS-001 supersedes DF-002/DF-003's rejection/advance policy: reviews are immutable per submitted item. After all current items have decisions, a rejected round closes as SUPERSEDED (not ACCEPTED); only rejected keys become OPEN items in the next round. New items link previous_item_id and expose chronological response_history; the previous response is never presented as a fresh submission. Acceptance excludes a key from every subsequent round for that case.
+- DEMO ASSUMPTION RS-002: partial review does not discard undecided items. The server's Re-Scrutiny query reads the sole active round and filters out ACCEPTED items, including after partial acceptance. Historical rejected items in superseded rounds never inflate the scope or open-item guard. Per-item optional remarks use NotesPort, outside event payloads.
+- DEMO ASSUMPTION RS-003: rejected-only rollover uses the existing YAML record_deficiency transition, pauses AICTE_PROCESSING and opens a fresh INSTITUTION_RESPONSE. Institution compliance closes/resumes once for that new round. start_rescrutiny is now a RESCRUTINY review-start/self transition using persisted responses; it never uploads responses or repeats timers. These are configurable engineering policies, not verified APH requirements; the existing response window remains unconfirmed.
+- DEMO ASSUMPTION RS-004: all acceptance closes the round and invokes YAML advance atomically, retaining its auth/assignment/other guards. At a last plan stage with no advance edge, closure leaves the case awaiting a separately authorized decision/letter; no letter, approval or skipped stage is invented. Any failed onward guard/timer/ledger rolls back the entire review. The current task resolves the previously recorded rejected-response resubmission follow-up.
+- Three additional controlled fictional item keys (DEMO_FACILITY_REFERENCE, DEMO_STAFF_REFERENCE, DEMO_SAFETY_REFERENCE) support the requested five-item scenario; no Annexure/APH requirement is asserted. Routes' stage lists, pinned keys and P2 deadline YAML remain unchanged. Requested r1 edits change source checksums; existing cached definitions still reject changes and verification uses a fresh disposable database, as previously authorized.
+
 ## Deficiency loop 2.1 (26 October 2026)
 
 - DEFICIENCY_RESPONSE_WINDOW_UNCONFIRMED — DEMO ASSUMPTION: the response window is the existing P2 rule selected by deficiency.response_rule_id in routes.yaml (currently INSTITUTION_RESPONSE, 15 calendar days). P1 neither duplicates its duration nor changes P2 deadline YAML. Deficiency reads expose rule/value/unit and this label; no APH confirmation is claimed.

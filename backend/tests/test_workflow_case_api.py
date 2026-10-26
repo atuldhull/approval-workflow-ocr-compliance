@@ -79,10 +79,8 @@ def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
         headers=headers("SCRUTINY_COMMITTEE"), json={"expected_version": 4,
         "decisions": [{"item_id": item["id"], "state": "ACCEPTED", "reason_code": "DEMO_RESPONSE_ACCEPTED"}]})
     assert review.status_code == 200, review.text
-    advanced = act(api, case_id, "scrutinise", 5, "SCRUTINY_COMMITTEE")
-    assert advanced.status_code == 200 and advanced.json()["stage"] == "EVC", advanced.text
     detail = api.get(f"/api/cases/{case_id}", headers=headers("INSTITUTION", SUNRISE)).json()
-    assert detail["version"] == 6 and detail["ruleset_key"] == "aph-2024-27@r1"
+    assert detail["version"] == 5 and detail["ruleset_key"] == "aph-2024-27@r1"
     assert len(detail["stage_history"]) == 4
     assert sum(v["exited_at"] is None for v in detail["stage_history"]) == 1
     assert detail["assumption_status"] == "DEMO_ASSUMPTION"

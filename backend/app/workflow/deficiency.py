@@ -41,11 +41,14 @@ def read_facts(uow, case, command: Command, facts: GuardFacts) -> GuardFacts:
         if command.action in {"record_deficiency", "submit_compliance", "start_rescrutiny"}:
             raise WorkflowValidationFailed("DEFICIENCY_CONFIG_UNAVAILABLE")
         return facts
-    outstanding = uow.session.scalar(select(func.count()).select_from(DeficiencyItem).join(Deficiency).where(
-        Deficiency.application_id == case.application_id, DeficiencyItem.state != "ACCEPTED"))
+    outstanding = uow.session.scalar(select(func.count()).select_from(DeficiencyItem)
+        .join(Deficiency, Deficiency.id == DeficiencyItem.deficiency_id).where(
+        Deficiency.application_id == case.application_id, Deficiency.status != "CLOSED", DeficiencyItem.state != "ACCEPTED"))
     current = active(uow.session, case.application_id)
+    stored_responses = frozenset(item.response_ref for item in items(uow.session, current.id)
+        if item.state != "ACCEPTED" and item.response_ref is not None) if current else frozenset()
     facts = replace(facts, open_item_count=outstanding, reason_codes=frozenset(settings["reason_codes"]),
-                    item_refs=frozenset(), response_refs=frozenset(),
+                    item_refs=frozenset(), response_refs=stored_responses,
                     deficiency_status=current.status if current else "CLOSED")
     if command.action == "record_deficiency":
         if current is not None:
@@ -57,7 +60,17 @@ def read_facts(uow, case, command: Command, facts: GuardFacts) -> GuardFacts:
             raise WorkflowValidationFailed("DEFICIENCY_ITEMS_DUPLICATED")
         if not set(keys) <= set(settings["item_keys"]):
             raise WorkflowValidationFailed("DEFICIENCY_ITEM_INVALID")
-    if command.action in {"submit_compliance", "start_rescrutiny"}:
+        accepted = set(uow.session.scalars(select(DeficiencyItem.item_key)
+            .join(Deficiency, Deficiency.id == DeficiencyItem.deficiency_id).where(
+                Deficiency.application_id == case.application_id, DeficiencyItem.state == "ACCEPTED")))
+        if set(keys) & accepted:
+            raise WorkflowValidationFailed("DEFICIENCY_ITEM_ALREADY_ACCEPTED")
+    if command.action == "start_rescrutiny":
+        if current is None or current.status != "RESPONDED":
+            raise WorkflowValidationFailed("DEFICIENCY_NOT_RESPONDED")
+        if command.payload.responses or command.payload.response_ref:
+            raise WorkflowValidationFailed("RESCRUTINY_USES_STORED_RESPONSES")
+    if command.action == "submit_compliance":
         if current is None or current.status != "OPEN":
             raise WorkflowValidationFailed("NO_OPEN_DEFICIENCY")
         expected = {item.id for item in items(uow.session, current.id) if item.state == "OPEN"}
@@ -78,15 +91,22 @@ def apply(uow, case, command: Command, now: datetime, common: dict) -> list[Even
                          status="OPEN", opened_at=now, closed_at=None)
         uow.session.add(row)
         uow.session.flush()
+        predecessor = uow.session.scalar(select(Deficiency).where(Deficiency.application_id == case.application_id,
+            Deficiency.round_no == number - 1, Deficiency.closure_kind == "SUPERSEDED"))
+        previous = {item.item_key: item for item in items(uow.session, predecessor.id)} if predecessor else {}
         values = []
         for key in sorted(command.payload.item_keys):
             item_id = uuid5(NAMESPACE_URL, f"sih26262:deficiency-item:{round_id}:{key}")
-            uow.session.add(DeficiencyItem(id=item_id, deficiency_id=round_id, item_key=key, state="OPEN"))
+            parent = previous.get(key)
+            if parent is not None and parent.state != "REJECTED":
+                raise WorkflowValidationFailed("DEFICIENCY_ITEM_ALREADY_ACCEPTED")
+            uow.session.add(DeficiencyItem(id=item_id, deficiency_id=round_id, item_key=key, state="OPEN",
+                                         previous_item_id=parent.id if parent else None))
             values.append({"item_id": item_id, "item_key": key})
         uow.session.flush()
         return [EventIn(event_type="wf.deficiency_recorded", payload={"application_id": case.application_id,
             "deficiency_id": round_id, "round_no": number, "items": values}, **common)]
-    if command.action in {"submit_compliance", "start_rescrutiny"}:
+    if command.action == "submit_compliance":
         row = active(uow.session, case.application_id)
         lookup = {item.id: item for item in items(uow.session, row.id)}
         events = []
@@ -109,7 +129,7 @@ def close(uow, row: Deficiency, common: dict, now: datetime) -> int:
         raise WorkflowValidationFailed("OPEN_DEFICIENCY_ITEMS")
     if now < row.opened_at:
         raise WorkflowConflict("CLOCK_BEFORE_DEFICIENCY_ENTRY")
-    row.status, row.closed_at = "CLOSED", now
+    row.status, row.closed_at, row.closure_kind = "CLOSED", now, "ACCEPTED"
     uow.session.flush()
     return port(LedgerPort).append(uow, EventIn(event_type="wf.deficiency_closed", payload={
         "application_id": row.application_id, "deficiency_id": row.id, "round_no": row.round_no}, **common))
@@ -126,6 +146,7 @@ class ItemOut(Output):
     response_ref: UUID | None
     decided_by: UUID | None
     decision_reason_code: str | None
+    previous_item_id: UUID | None
 
 
 class RoundOut(Output):
@@ -134,6 +155,7 @@ class RoundOut(Output):
     status: Literal["OPEN", "RESPONDED", "CLOSED"]
     opened_at: datetime
     closed_at: datetime | None
+    closure_kind: Literal["ACCEPTED", "SUPERSEDED"] | None
     items: list[ItemOut]
 
 
@@ -158,6 +180,7 @@ class ItemDecision(BaseModel):
     item_id: UUID
     state: Literal["ACCEPTED", "REJECTED"]
     reason_code: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]*$")]
+    note: str | None = None
 
 
 class ReviewIn(BaseModel):
@@ -180,7 +203,8 @@ def read(session, case_id: UUID, principal) -> DeficienciesOut:
         response_window=WindowOut(rule_id=settings["response_rule_id"], value=duration["value"], unit=duration["unit"],
             assumption_code=settings["assumption_code"]),
         rounds=[RoundOut(id=row.id, round_no=row.round_no, status=row.status, opened_at=row.opened_at,
-            closed_at=row.closed_at, items=[ItemOut.model_validate(item) for item in items(session, row.id)]) for row in rows])
+            closed_at=row.closed_at, closure_kind=row.closure_kind,
+            items=[ItemOut.model_validate(item) for item in items(session, row.id)]) for row in rows])
 
 
 def review(uow, case_id: UUID, round_id: UUID, body: ReviewIn) -> DeficienciesOut:
@@ -205,7 +229,7 @@ def review(uow, case_id: UUID, round_id: UUID, body: ReviewIn) -> DeficienciesOu
     if len(ids) != len(set(ids)):
         raise WorkflowValidationFailed("DEFICIENCY_ITEMS_DUPLICATED")
     for decision in body.decisions:
-        if decision.item_id not in lookup or lookup[decision.item_id].state == "OPEN":
+        if decision.item_id not in lookup or lookup[decision.item_id].state != "RESPONDED":
             raise WorkflowValidationFailed("DEFICIENCY_ITEM_NOT_RESPONDED")
         if decision.reason_code not in settings["reason_codes"]:
             raise WorkflowValidationFailed("REASON_CODE_INVALID")
@@ -214,13 +238,110 @@ def review(uow, case_id: UUID, round_id: UUID, body: ReviewIn) -> DeficienciesOu
                   note_ref=note_ref, note_hash=note_hash)
     for decision in sorted(body.decisions, key=lambda d: str(d.item_id)):
         item = lookup[decision.item_id]
+        item_common = dict(common)
+        if decision.note:
+            item_common["note_ref"], item_common["note_hash"] = port(NotesPort).create(uow, decision.note)
         item.state, item.decided_by, item.decision_reason_code = decision.state, uow.principal.user_id, decision.reason_code
         uow.session.flush()
         port(LedgerPort).append(uow, EventIn(event_type="wf.deficiency_item_decided", reason_code=decision.reason_code,
             payload={"application_id": case_id, "deficiency_id": round_id, "item_id": item.id,
-                     "state": item.state, "decided_by": item.decided_by}, **common))
-    case.version += 1
-    uow.session.flush()
-    if all(item.state == "ACCEPTED" for item in lookup.values()):
-        close(uow, row, common, port(ClockPort).now())
+                     "state": item.state, "decided_by": item.decided_by}, **item_common))
+    _finish_review(uow, case, row, lookup, common)
     return read(uow.session, case_id, uow.principal)
+
+
+def _finish_review(uow, case: CaseState, row: Deficiency, lookup: dict, common: dict) -> None:
+    """Complete the batch through the same YAML engine; never invent a terminal decision."""
+    if any(item.state == "RESPONDED" for item in lookup.values()):
+        case.version += 1
+        uow.session.flush()
+        return
+    now = port(ClockPort).now()
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise WorkflowValidationFailed("CLOCK_MUST_BE_AWARE")
+    if now < row.opened_at:
+        raise WorkflowConflict("CLOCK_BEFORE_DEFICIENCY_ENTRY")
+    rejected_items = sorted((item for item in lookup.values() if item.state == "REJECTED"), key=lambda item: item.item_key)
+    rejected = [item.item_key for item in rejected_items]
+    from app.workflow.case_api_models import ActionIn
+    from app.workflow.case_service import apply_action
+    if rejected:
+        next_id = uuid5(NAMESPACE_URL, f"sih26262:deficiency:{case.application_id}:{row.round_no + 1}")
+        row.status, row.closed_at, row.closure_kind = "CLOSED", now, "SUPERSEDED"
+        uow.session.flush()
+        port(LedgerPort).append(uow, EventIn(event_type="wf.deficiency_superseded", payload={
+            "application_id": case.application_id, "deficiency_id": row.id, "next_deficiency_id": next_id}, **common))
+        apply_action(uow, case.application_id, ActionIn(action="record_deficiency", expected_version=case.version,
+            reason_code=rejected_items[0].decision_reason_code, payload={"item_keys": rejected}))
+        return
+    close(uow, row, common, now)
+    # YAML $next can be absent at the last plan stage; letter decisions remain separately guarded.
+    from app.workflow.models import RouteDefinition, TransitionDefinition
+    route = uow.session.scalar(select(RouteDefinition).where(RouteDefinition.ruleset_key == case.ruleset_key,
+                                                            RouteDefinition.route_id == case.route_id))
+    has_next = uow.session.scalar(select(TransitionDefinition.id).where(TransitionDefinition.route_def_id == route.id,
+        TransitionDefinition.from_stage == case.current_stage, TransitionDefinition.action == "advance").limit(1))
+    if has_next:
+        apply_action(uow, case.application_id, ActionIn(action="advance", expected_version=case.version))
+    else:
+        case.version += 1
+        uow.session.flush()
+
+
+class ResponseHistoryOut(Output):
+    item_id: UUID
+    deficiency_id: UUID
+    round_no: int
+    response_ref: UUID | None
+    state: Literal["OPEN", "RESPONDED", "ACCEPTED", "REJECTED"]
+    decided_by: UUID | None
+    decision_reason_code: str | None
+
+
+class RescrutinyItemOut(ItemOut):
+    response_history: list[ResponseHistoryOut]
+
+
+class RescrutinyOut(BaseModel):
+    case_id: UUID
+    version: int
+    ruleset_key: str
+    deficiency_id: UUID | None
+    round_no: int | None
+    assumption_status: Literal["DEMO_ASSUMPTION"] = "DEMO_ASSUMPTION"
+    items: list[RescrutinyItemOut]
+
+
+def _history(session, case_id: UUID, item: DeficiencyItem) -> list[ResponseHistoryOut]:
+    seen, result = set(), []
+    while item is not None:
+        if item.id in seen:
+            raise WorkflowValidationFailed("DEFICIENCY_LINEAGE_INVALID")
+        seen.add(item.id)
+        row = session.get(Deficiency, item.deficiency_id)
+        if row.application_id != case_id:
+            raise WorkflowValidationFailed("DEFICIENCY_LINEAGE_INVALID")
+        result.append(ResponseHistoryOut(item_id=item.id, deficiency_id=row.id, round_no=row.round_no,
+            response_ref=item.response_ref, state=item.state, decided_by=item.decided_by,
+            decision_reason_code=item.decision_reason_code))
+        if item.previous_item_id is None:
+            break
+        parent = session.scalar(select(DeficiencyItem).join(Deficiency, Deficiency.id == DeficiencyItem.deficiency_id).where(
+            DeficiencyItem.id == item.previous_item_id, Deficiency.application_id == case_id,
+            DeficiencyItem.item_key == item.item_key, Deficiency.round_no < row.round_no))
+        if parent is None:
+            raise WorkflowValidationFailed("DEFICIENCY_LINEAGE_INVALID")
+        item = parent
+    return list(reversed(result))
+
+
+def rescrutiny(session, case_id: UUID, principal) -> RescrutinyOut:
+    from app.workflow.case_service import projection, scope, state_for
+    scope(session, case_id, principal)
+    case = state_for(session, projection(session, case_id))
+    current = active(session, case_id)
+    pending = [item for item in items(session, current.id) if item.state != "ACCEPTED"] if current else []
+    return RescrutinyOut(case_id=case_id, version=case.version, ruleset_key=case.ruleset_key,
+        deficiency_id=current.id if current else None, round_no=current.round_no if current else None,
+        items=[RescrutinyItemOut(**ItemOut.model_validate(item).model_dump(),
+               response_history=_history(session, case_id, item)) for item in pending])

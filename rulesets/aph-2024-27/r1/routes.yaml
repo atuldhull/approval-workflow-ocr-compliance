@@ -18,7 +18,7 @@ intake: {checklist_file: checklists.yaml}
 # DEMO ASSUMPTION: controlled demonstration requirements and response-window policy.
 # Duration is configurable in P2's deadlines.yaml under response_rule_id, not APH-confirmed.
 deficiency:
-  item_keys: [DEMO_CORE_REFERENCE, DEMO_ADDITIONAL_REFERENCE]
+  item_keys: [DEMO_CORE_REFERENCE, DEMO_ADDITIONAL_REFERENCE, DEMO_FACILITY_REFERENCE, DEMO_STAFF_REFERENCE, DEMO_SAFETY_REFERENCE]
   reason_codes: [DEMO_REASON, DEMO_MISSING_EVIDENCE, DEMO_ACCEPTANCE, DEMO_RESPONSE_ACCEPTED, DEMO_RESPONSE_REJECTED]
   response_rule_id: INSTITUTION_RESPONSE
   source_status: DEMO_ASSUMPTION
@@ -118,7 +118,7 @@ templates:
     - SCRUTINY
   rescrutiny:
     action: start_rescrutiny
-    from_stage: DEFICIENT
+    from_stage: RESCRUTINY
     to_stage: RESCRUTINY
     allowed_roles:
     - SCRUTINY_COMMITTEE
@@ -127,14 +127,7 @@ templates:
     - response_received
     - actor_has_assignment
     reason_codes_required: false
-    timers:
-    - op: close
-      rule_id: INSTITUTION_RESPONSE
-      anchor: null
-      outcome: MET
-    - op: resume_internal
-      rule_id: AICTE_PROCESSING
-      anchor: null
+    timers: []  # compliance already closed/resumed the clocks; review never repeats them
     emits_event: wf.transition_applied
     letter: null
     requires_stages:

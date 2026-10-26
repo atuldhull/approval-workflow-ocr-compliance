@@ -108,6 +108,8 @@ class Deficiency(Base):
         CheckConstraint("round_no >= 1", name="ck_wf_deficiency_round"),
         CheckConstraint("status IN ('OPEN', 'RESPONDED', 'CLOSED')", name="ck_wf_deficiency_status"),
         CheckConstraint("(status = 'CLOSED') = (closed_at IS NOT NULL)", name="ck_wf_deficiency_closed"),
+        CheckConstraint("(status = 'CLOSED') = (closure_kind IS NOT NULL)", name="ck_wf_deficiency_closure_kind"),
+        CheckConstraint("closure_kind IS NULL OR closure_kind IN ('ACCEPTED', 'SUPERSEDED')", name="ck_wf_deficiency_closure_value"),
         Index("ix_wf_deficiency_case", "application_id"),
         Index("uq_wf_deficiency_active", "application_id", unique=True,
               postgresql_where=text("status != 'CLOSED'")),
@@ -119,6 +121,7 @@ class Deficiency(Base):
     status: Mapped[str] = mapped_column(Text)
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closure_kind: Mapped[str | None] = mapped_column(Text)
 
 
 class DeficiencyItem(Base):
@@ -140,3 +143,5 @@ class DeficiencyItem(Base):
     response_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
     decided_by: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
     decision_reason_code: Mapped[str | None] = mapped_column(Text)
+    previous_item_id: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True),
+        ForeignKey("wf.deficiency_item.id", name="fk_wf_deficiency_item_previous"))
