@@ -5,6 +5,7 @@
 #   docker compose --profile worker up            # + notification delivery worker
 #   docker compose --env-file .env.security --profile security --profile worker up
 #                                                 # + Keycloak, Cerbos, Mailpit (local mail sink), real sign-in
+#   docker compose --profile scanning up -d clamav  # + ClamAV malware scanner for uploaded documents
 # Everything optional binds to 127.0.0.1 only. All accounts and passwords in infra/ are LOCAL DEMO ONLY.
 
 x-backend-env: &backend-env
@@ -118,6 +119,24 @@ services:
       - "127.0.0.1:8025:8025"   # web UI showing every captured message; nothing leaves the machine
       - "127.0.0.1:1025:1025"   # SMTP, for a notifier running outside Docker
 
+  # Malware scanning for uploads (clamd on 3310, INSTREAM protocol). Signatures download on first start and are
+  # refreshed by freshclam inside the container; the volume keeps them across restarts. The first start takes a
+  # few minutes before the health check passes.
+  clamav:
+    profiles: ["scanning"]
+    image: clamav/clamav:1.4.6
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - clamav_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 5
+
 volumes:
   pgdata:
   frontend_modules:
+  clamav_db:
