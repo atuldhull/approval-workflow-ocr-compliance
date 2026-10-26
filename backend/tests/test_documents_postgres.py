@@ -14,12 +14,13 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from app.platform.db import get_engine
 
 
-def _insert_application(connection, institution_id, application_id):
+def _insert_application(connection, institution_id, application_id, *, create_institution=True):
     now = datetime(2026, 10, 25, tzinfo=timezone.utc)
-    connection.execute(
-        text("INSERT INTO wf.institution (id, name, ro_region, is_demo) VALUES (:id, 'Synthetic', 'NORTH', true)"),
-        {"id": institution_id},
-    )
+    if create_institution:
+        connection.execute(
+            text("INSERT INTO wf.institution (id, name, ro_region, is_demo) VALUES (:id, 'Synthetic', 'NORTH', true)"),
+            {"id": institution_id},
+        )
     connection.execute(
         text(
             "INSERT INTO wf.application (id, institution_id, category, academic_year, status, created_at) "
@@ -229,7 +230,7 @@ def test_scoped_hash_constraint_allows_same_bytes_only_in_other_application(data
     digest = "c" * 64
     with get_engine().begin() as connection:
         _insert_application(connection, institution_id, application_a)
-        _insert_application(connection, institution_id, application_b)
+        _insert_application(connection, institution_id, application_b, create_institution=False)
         doc_a, version_a = uuid4(), uuid4()
         _insert_document(
             connection,

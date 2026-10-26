@@ -204,7 +204,11 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
     )
     migration_versions = text("SELECT version_num FROM alembic_version")
 
-    expected_heads = {"dl_0004_calendar_truncate_guards", "plat_0001", "wf_0001"}
+    expected_heads = {
+        "dl_0004_calendar_truncate_guards",
+        "doc_0003_document_history_guards",
+        "plat_0001",
+    }
     assert set(pg_session.scalars(protected_triggers).all()) == {
         "trg_dl_calendar_version_no_truncate",
         "trg_dl_holiday_no_truncate",
