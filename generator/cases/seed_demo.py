@@ -32,5 +32,27 @@ def seed() -> int:
     return len(DEMO_INSTITUTIONS)
 
 
+def seed_scale_institutions(rows: list[dict]) -> int:
+    """Bootstrap only P1 master data; applications/actions must use the API.
+
+    No public institution-create endpoint exists. Call explicitly in a disposable
+    demo environment after migration; never use this as a general import API.
+    """
+    from app.platform.settings import settings
+
+    if not settings.demo_mode:
+        raise ValueError("scale institution bootstrap requires demo mode")
+    for row in rows:
+        if row["label"] != "DEMO" or not row["name"].startswith("DEMO ") or not row["region"].startswith("DEMO_REGION_"):
+            raise ValueError("only fictional DEMO institutions are allowed")
+        UUID(row["id"])
+    load_models()
+    with new_session() as session, session.begin():
+        for row in rows:
+            session.execute(insert(Institution).values(id=UUID(row["id"]), name=row["name"],
+                ro_region=row["region"], is_demo=True).on_conflict_do_nothing(index_elements=["id"]))
+    return len(rows)
+
+
 if __name__ == "__main__":
     print(f"seeded {seed()} demo institutions")

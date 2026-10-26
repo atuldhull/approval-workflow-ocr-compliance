@@ -1,6 +1,8 @@
 # Per-seed answer key: proposal 0.1.0
 
-**PROPOSED_TEAM_REVIEW. DEMO data only. Not an agreed shared contract.** This proposal intentionally lives in `docs/p1/`, not `contracts/`. It adds no API, table, event type or functioning scale generator. The existing `seed_demo.py` is unchanged. P2/P3 must review the questions below before a generator or scorecard relies on this format.
+Update (scale-generator task, 26 October 2026): P1 now produces this proposed format with `generator/cases/scale_generator.py`; see category_mix.md for CLI/replay, DEMO assumptions and coverage limits. The generator task explicitly authorizes P1 use of the proposal; P2/P3 adoption still awaits review. Historical references below to a future generator describe the original proposal scope. Reserved extensions and the 0.1.0 schema/models are unchanged.
+
+**PROPOSED_TEAM_REVIEW. DEMO data only. Not an agreed shared contract.** This schema intentionally lives in `docs/p1/`, not `contracts/`. It adds no API, table or event type. The separately authorized P1 scale generator now produces this format; P2/P3 must review the questions below before integrating their scorecard/extensions.
 
 ## Artifacts and validation
 
@@ -69,7 +71,7 @@ P3 reservation scope: ledger tamper targets, mutation kinds, expected verificati
 
 ## Determinism and evolution
 
-Serialize identical validated input identically; fixed explicit seed/IDs/times and list ordering are required. Counts are derived from recorded arrays. Exact same-seed output across generator versions is not promised; compare generator_version/schema_version/ruleset_key too. There is no random or real-time default. Changes, especially extension contents, require P2/P3 team review and an explicit schema-version decision; this document does not approve shared contracts. Assumptions AK-001 through AK-007 are recorded in ASSUMPTIONS.md. The scale generator and scorecard integration remain future tasks.
+Serialize identical validated input identically; fixed explicit seed/IDs/times and list ordering are required. Counts are derived from recorded arrays. Exact same-seed output across generator versions is not promised; compare generator_version/schema_version/ruleset_key too. There is no random or real-time default in these models. Changes, especially extension contents, require P2/P3 team review and an explicit schema-version decision; this document does not approve shared contracts. Assumptions AK-001 through AK-007 are recorded in ASSUMPTIONS.md. The scale generator is implemented separately; P2/P3 scorecard integration remains a future task.
 
 ## TEAM REVIEW NEEDED
 

@@ -1,5 +1,12 @@
 # P1 assumptions
 
+## Scale generator 2.5 (26 October 2026)
+
+- SCALE-001 — DEMO ASSUMPTION: equal category frequencies across 21 Table 2.3 routes plus NEW_INSTITUTION; exact weights/counts/rounding are in category_mix.md. Table 2.3 provides no supplied frequency evidence. Nine DEMO_REGION/DEMO_RO codes and fictional technical institutions are synthetic, not official RO taxonomy.
+- SCALE-002 — DEMO ASSUMPTION: a fixed logical epoch, sequential application scenarios, 0–3 deficiency rounds where SCRUTINY exists, 2/17-day responses, 1–4-day EVC holds, one-second command ordering and seeded optional SHC selection. Academic year 2027-28 remains a DEMO token even when the sequential logical timeline spans years. Response due dates use the current pinned YAML calendar-day durations and P2's implemented IST end-of-day convention. Earlier rejected items are OPEN in the proposed key's unresolved snapshot vocabulary, not live-round database status.
+- SCALE-003 — DEMO ASSUMPTION: full selected route traversal followed by REJECTED/WITHDRAWN. Letter issuance is still contract-blocked; empty letter expectations are no approval/obligation coverage claim. EVC demand IDs denote planted stage holds, not real scheduler rows. P2/P3 extensions remain empty/NOT_SUPPLIED and the answer-key format remains PROPOSED_TEAM_REVIEW.
+- The real-API replay requires explicitly trusted DEMO assignment/applicability facts and a shared controlled ClockPort. P1's institution-only bootstrap is necessary because no institution-create API exists; all application, item, workflow and review writes use APIs. It never writes other owners' schemas directly. The receipt joins stable scenario IDs to runtime UUIDs. Remote logical-clock transport, complete P2 clock-operation ledger observability, letters, EVC scheduling and P2/P3 scoring remain follow-ups.
+
 ## Committee workspace 2.3 (26 October 2026)
 
 - DEMO ASSUMPTION CM-001: committee types SCRUTINY/RESCRUTINY/EVC/SHC/EC/COUNCIL and internal roles CHAIR/MEMBER/SECRETARY are operational codes, not an assertion of APH composition/quorum. An authorized officer can form a workspace on an existing case, including a draft; the caller must be in the proposed member list. This task does not implement nominations, external identity verification, membership changes, committee closure or task completion endpoints.
