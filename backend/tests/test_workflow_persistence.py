@@ -274,7 +274,7 @@ def test_workflow_models_match_migrations(database):
         inspector = inspect(connection)
         assert inspector.get_pk_constraint("case_state", schema="wf")["constrained_columns"] == ["application_id"]
         assert any(i["column_names"] == ["ruleset_key", "route_id"] for i in inspector.get_indexes("case_state", schema="wf"))
-        assert len(metadata.tables) == 8
+        assert len(metadata.tables) == 10
         for table in metadata.tables.values():
             assert all(fk.column.table.schema == "wf" for fk in table.foreign_keys)
 
@@ -285,7 +285,9 @@ def test_one_head_per_module_and_inherited_workflow_label():
     for head in scripts.get_heads():
         rev = scripts.get_revision(head)
         heads[Path(rev.path).parent.name].append(head)
-    assert dict(heads) == {"platform": ["plat_0001"], "workflow": ["wf_0003"], "deadlines": ["dl_0001"]}
+    assert dict(heads) == {"platform": ["plat_0001"], "workflow": ["wf_0004"], "deadlines": ["dl_0001"]}
+    assert scripts.get_revision("wf_0004").down_revision == "wf_0003"
+    assert scripts.get_revision("wf_0004").branch_labels == {"workflow"}
     assert scripts.get_revision("wf_0003").branch_labels == {"workflow"}
     assert scripts.get_revision("wf_0003").down_revision == "wf_0002"
     assert scripts.get_revision("wf_0002").branch_labels == {"workflow"}

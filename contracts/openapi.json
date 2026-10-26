@@ -685,6 +685,42 @@
         "title": "DeadlineOut",
         "type": "object"
       },
+      "DeficienciesOut": {
+        "properties": {
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "response_window": {
+            "$ref": "#/components/schemas/WindowOut"
+          },
+          "rounds": {
+            "items": {
+              "$ref": "#/components/schemas/RoundOut"
+            },
+            "title": "Rounds",
+            "type": "array"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "case_id",
+          "version",
+          "ruleset_key",
+          "response_window",
+          "rounds"
+        ],
+        "title": "DeficienciesOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -727,6 +763,36 @@
         "title": "InstitutionOut",
         "type": "object"
       },
+      "ItemDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "reason_code": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACCEPTED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "state",
+          "reason_code"
+        ],
+        "title": "ItemDecision",
+        "type": "object"
+      },
       "ItemIn": {
         "additionalProperties": false,
         "properties": {
@@ -763,44 +829,25 @@
         "title": "ItemIn",
         "type": "object"
       },
-      "ItemOut": {
+      "ItemResponse": {
+        "additionalProperties": false,
         "properties": {
-          "document_ref": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Document Ref"
-          },
-          "item_key": {
-            "title": "Item Key",
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
             "type": "string"
           },
-          "mandatory": {
-            "title": "Mandatory",
-            "type": "boolean"
-          },
-          "state": {
-            "enum": [
-              "PROVIDED",
-              "MISSING"
-            ],
-            "title": "State",
+          "response_ref": {
+            "format": "uuid",
+            "title": "Response Ref",
             "type": "string"
           }
         },
         "required": [
-          "item_key",
-          "mandatory",
-          "state",
-          "document_ref"
+          "item_id",
+          "response_ref"
         ],
-        "title": "ItemOut",
+        "title": "ItemResponse",
         "type": "object"
       },
       "ItemsIn": {
@@ -841,7 +888,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/ItemOut"
+              "$ref": "#/components/schemas/app__intake__shapes__ItemOut"
             },
             "title": "Items",
             "type": "array"
@@ -984,6 +1031,15 @@
             "title": "Evidence Refs",
             "type": "array"
           },
+          "item_keys": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "type": "string"
+            },
+            "title": "Item Keys",
+            "type": "array"
+          },
           "item_refs": {
             "default": [],
             "items": {
@@ -1015,6 +1071,14 @@
             ],
             "title": "Response Ref"
           },
+          "responses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ItemResponse"
+            },
+            "title": "Responses",
+            "type": "array"
+          },
           "second_approver_ref": {
             "anyOf": [
               {
@@ -1041,6 +1105,41 @@
         "title": "Payload",
         "type": "object"
       },
+      "ReviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ItemDecision"
+            },
+            "minItems": 1,
+            "title": "Decisions",
+            "type": "array"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "expected_version",
+          "decisions"
+        ],
+        "title": "ReviewIn",
+        "type": "object"
+      },
       "Role": {
         "enum": [
           "INSTITUTION",
@@ -1053,6 +1152,62 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RoundOut": {
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/app__workflow__deficiency__ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "round_no": {
+            "title": "Round No",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "RESPONDED",
+              "CLOSED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "round_no",
+          "status",
+          "opened_at",
+          "closed_at",
+          "items"
+        ],
+        "title": "RoundOut",
+        "type": "object"
       },
       "RouteOut": {
         "properties": {
@@ -1557,6 +1712,148 @@
           "note_ref"
         ],
         "title": "VisitOut",
+        "type": "object"
+      },
+      "WindowOut": {
+        "properties": {
+          "assumption_code": {
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rule_id",
+          "value",
+          "unit",
+          "assumption_code"
+        ],
+        "title": "WindowOut",
+        "type": "object"
+      },
+      "app__intake__shapes__ItemOut": {
+        "properties": {
+          "document_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Ref"
+          },
+          "item_key": {
+            "title": "Item Key",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "PROVIDED",
+              "MISSING"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_key",
+          "mandatory",
+          "state",
+          "document_ref"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "app__workflow__deficiency__ItemOut": {
+        "properties": {
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_key": {
+            "title": "Item Key",
+            "type": "string"
+          },
+          "response_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Ref"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "RESPONDED",
+              "ACCEPTED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "item_key",
+          "state",
+          "response_ref",
+          "decided_by",
+          "decision_reason_code"
+        ],
+        "title": "ItemOut",
         "type": "object"
       }
     }
@@ -2696,6 +2993,326 @@
         "summary": "Case Action",
         "tags": [
           "cases"
+        ]
+      }
+    },
+    "/api/cases/{application_id}/deficiencies": {
+      "get": {
+        "operationId": "get_deficiencies_api_cases__application_id__deficiencies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficienciesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Get Deficiencies Api Cases  Application Id  Deficiencies Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Deficiencies",
+        "tags": [
+          "deficiencies"
+        ]
+      }
+    },
+    "/api/cases/{application_id}/deficiencies/{deficiency_id}/review": {
+      "post": {
+        "operationId": "review_deficiency_api_cases__application_id__deficiencies__deficiency_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deficiency_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Deficiency Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficienciesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Review Deficiency Api Cases  Application Id  Deficiencies  Deficiency Id  Review Post"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Review Deficiency",
+        "tags": [
+          "deficiencies"
         ]
       }
     },

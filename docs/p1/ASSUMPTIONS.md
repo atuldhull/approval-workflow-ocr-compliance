@@ -1,5 +1,14 @@
 # P1 assumptions
 
+## Deficiency loop 2.1 (26 October 2026)
+
+- DEFICIENCY_RESPONSE_WINDOW_UNCONFIRMED — DEMO ASSUMPTION: the response window is the existing P2 rule selected by deficiency.response_rule_id in routes.yaml (currently INSTITUTION_RESPONSE, 15 calendar days). P1 neither duplicates its duration nor changes P2 deadline YAML. Deficiency reads expose rule/value/unit and this label; no APH confirmation is claimed.
+- DEMO ASSUMPTION DF-001: controlled item/review/recording codes in routes.yaml are fictional DEMO requirements/reasons. A response_ref is an opaque caller-supplied identifier, not proof that P2 has stored or validated evidence. Every OPEN item must receive exactly one mapping per compliance submission; shared response references across different items are permitted and retain each mapping.
+- DEMO ASSUMPTION DF-002: a round is RESPONDED until every item is ACCEPTED; REJECTED remains unresolved and blocks closing, new rounds and onward advancement. Officer re-review of a non-closed round is explicitly audited; there is no unaudited overwrite or automatic acceptance. A rejected response needing replacement evidence requires a future reviewed resubmission policy/API; this task does not silently reuse the already-closed response clock. Two rounds can run sequentially after all items in the first are accepted, while still in RESCRUTINY.
+- DEMO ASSUMPTION DF-003: officer review uses existing case.record_deficiency authorization (SCRUTINY_COMMITTEE) and requires RESCRUTINY plus the current expected case version. It increments that version without changing stage/visits; notes are protected through NotesPort. Committee assignment remains the existing independent trusted-fact integration for later advance commands.
+- The requested r1 vocabulary/second-round template changes preserve all route stage lists and P2 timer IDs/order, but change the immutable source checksum. As previously authorized, verification uses a fresh disposable demo database; no existing key/checksum/case pin is rewritten. Deployments with cached earlier r1 must publish an agreed new revision rather than reset shared data.
+- Legacy flat item_refs/response_ref fields remain in the local typed payload for other callers/pure-core tests, but persisted deficiency actions require item_keys and explicit per-item responses. No wildcard or injected guard facts can bypass persisted unresolved items. Shared ports/types/enums/fakes are unchanged; the four requested schemas plus the explicitly approved review schema and generated OpenAPI are the only contracts edits.
+
 ## Answer-key proposal (24 October 2026)
 
 - DEMO ASSUMPTION AK-001: proposal version `0.1.0` uses canonical UTC `YYYY-MM-DDTHH:MM:SSZ` logical instants supplied explicitly by a scenario/ClockPort. No wall-clock default is allowed. These are fictional scenario times, not APH dates.

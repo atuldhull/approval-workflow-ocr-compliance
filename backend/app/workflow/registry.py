@@ -7,6 +7,7 @@ import yaml
 from app.platform.registry import port
 from app.workflow.grammar import validate_workflow
 from app.workflow.checklists import Citation, validate_checklists
+from app.workflow.deficiency_config import validate_config
 from pydantic import ValidationError
 from contracts.enums import Stage
 from contracts.errors import Forbidden, NotFound, ValidationFailed
@@ -147,6 +148,7 @@ class RulesetRegistry:
             if not submits or any(not {"checklist_complete", "dsc_required"} <= set(t.get("guards", [])) for t in submits):
                 raise ValidationFailed("intake submit requires checklist_complete and dsc_required guards")
         validate_workflow(routes_raw, routes, rules)
+        validate_config(routes_raw, rules)
         return RuleSet(
             key=key, ruleset=ruleset, revision=revision, status=routes_raw.get("status", "unknown"),
             routes=routes, deadline_rules=rules,

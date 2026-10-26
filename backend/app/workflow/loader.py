@@ -16,6 +16,7 @@ from app.platform.registry import port
 from app.platform.settings import settings
 from app.workflow.grammar import WorkflowDefinition, validate_workflow
 from app.workflow.models import RouteDefinition, Ruleset, TransitionDefinition
+from app.workflow.deficiency_config import validate_config
 from app.workflow.registry import RulesetRegistry, _read, split_key
 from contracts.errors import Conflict, ValidationFailed
 from contracts.ports import ClockPort
@@ -138,7 +139,8 @@ def sync_rulesets(session: Session, registry: RulesetRegistry, *, created_by_ref
             id=_id(f"ruleset:{key}"), key=key, version=rules.revision, status="DRAFT", checksum=checksum,
             demo_only=demo_only, source_status=rules.status, source_files=manifest,
             source_metadata={"source": raw.get("source"), "workflow_source": raw.get("workflow_source"),
-                             "roles": rules.roles, "banner": rules.banner, "intake": intake},
+                             "roles": rules.roles, "banner": rules.banner, "intake": intake,
+                             "deficiency": validate_config(raw, rules.deadline_rules)},
             created_at=now, created_by_ref=created_by_ref, approved_at=None, approved_by_ref=None,
         )
         session.add(row)

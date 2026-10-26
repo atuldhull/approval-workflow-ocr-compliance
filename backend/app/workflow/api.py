@@ -9,6 +9,7 @@ from app.platform.db import new_session, unit_of_work
 from app.platform.registry import port
 from app.workflow.loader import sync_at_startup
 from app.workflow import case_service
+from app.workflow import deficiency
 from app.workflow.commands import WorkflowValidationFailed
 from app.workflow.case_api_models import ActionIn, CaseActionOut, CaseOut, CasePageOut, ERROR_RESPONSES
 from contracts.enums import ApplicationStatus, Stage
@@ -17,6 +18,21 @@ from contracts.types import Principal, ResourceRef
 
 router = APIRouter()
 router.add_event_handler("startup", sync_at_startup)
+
+
+@router.get("/cases/{application_id}/deficiencies", response_model=deficiency.DeficienciesOut,
+            tags=["deficiencies"], responses=ERROR_RESPONSES)
+def get_deficiencies(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return deficiency.read(session, application_id, principal)
+
+
+@router.post("/cases/{application_id}/deficiencies/{deficiency_id}/review", response_model=deficiency.DeficienciesOut,
+             tags=["deficiencies"], responses=ERROR_RESPONSES)
+def review_deficiency(application_id: UUID, deficiency_id: UUID, body: deficiency.ReviewIn,
+                      principal: Principal = Depends(current_principal)):
+    with unit_of_work(principal) as uow:
+        return deficiency.review(uow, application_id, deficiency_id, body)
 
 
 class StageOut(BaseModel):

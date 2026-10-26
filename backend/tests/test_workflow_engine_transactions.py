@@ -163,7 +163,10 @@ def seed(lab, *, category="NEW_INSTITUTION", stage="SCRUTINY", status="IN_PROCES
 def command(application_id, action="advance", role=Role.SCRUTINY_COMMITTEE, *, version=1, note=None, payload=None):
     actor = Principal(uuid5(NAMESPACE_URL, "engine-db:actor"), role, institution_id=SUNRISE)
     return Command(application_id=application_id, action=action, expected_version=version, reason_code="DEMO_REASON",
-                   note_body=note, payload=payload or Payload(item_refs=(ITEM,), response_ref=RESPONSE, decision_ref=DECISION), actor=actor)
+                   note_body=note, payload=payload or Payload(item_refs=(ITEM,), response_ref=RESPONSE, decision_ref=DECISION,
+                       item_keys=("DEMO_CORE_REFERENCE",) if action == "record_deficiency" else (),
+                       responses=({"item_id": uuid5(NAMESPACE_URL, f"sih26262:deficiency-item:{uuid5(NAMESPACE_URL, f'sih26262:deficiency:{application_id}:1')}:DEMO_CORE_REFERENCE"),
+                                   "response_ref": RESPONSE},) if action == "submit_compliance" else ()), actor=actor)
 
 
 def snapshot(application_id):
@@ -226,9 +229,16 @@ def test_deficiency_compliance_rescrutiny_sequence_calls_all_timer_operations(la
     second = engine.execute(command(application_id, "submit_compliance", Role.INSTITUTION, version=2))
     assert (second.current_stage, second.version) == ("RESCRUTINY", 3)
     assert [c[0] for c in lab.deadlines.calls] == ["pause", "open", "close", "resume"]
-    third = engine.execute(command(application_id, version=3))
-    assert (third.current_stage, third.version) == ("EVC", 4)
-    assert len(lab.ledger.events) == 9
+    from app.workflow.deficiency import ReviewIn, review
+    from app.workflow.models import DeficiencyItem
+    cmd = command(application_id, version=3)
+    with unit_of_work(cmd.actor) as uow:
+        item = uow.session.scalar(select(DeficiencyItem))
+        review(uow, application_id, item.deficiency_id, ReviewIn(expected_version=3,
+            decisions=[{"item_id": item.id, "state": "ACCEPTED", "reason_code": "DEMO_REASON"}]))
+    third = engine.execute(command(application_id, version=4))
+    assert (third.current_stage, third.version) == ("EVC", 5)
+    assert len(lab.ledger.events) == 14
 
 
 def test_draft_submit_uses_v2_schema_and_opens_logical_clock(lab):

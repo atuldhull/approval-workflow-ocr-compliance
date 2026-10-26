@@ -15,6 +15,14 @@ clocks:
 # Table 2.3: SHC is "as applicable" exactly where an EVC is required.
 grammar_version: 1
 intake: {checklist_file: checklists.yaml}
+# DEMO ASSUMPTION: controlled demonstration requirements and response-window policy.
+# Duration is configurable in P2's deadlines.yaml under response_rule_id, not APH-confirmed.
+deficiency:
+  item_keys: [DEMO_CORE_REFERENCE, DEMO_ADDITIONAL_REFERENCE]
+  reason_codes: [DEMO_REASON, DEMO_MISSING_EVIDENCE, DEMO_ACCEPTANCE, DEMO_RESPONSE_ACCEPTED, DEMO_RESPONSE_REJECTED]
+  response_rule_id: INSTITUTION_RESPONSE
+  source_status: DEMO_ASSUMPTION
+  assumption_code: DEFICIENCY_RESPONSE_WINDOW_UNCONFIRMED
 workflow_source:
   status: demo_assumption
   label: DEMO ASSUMPTION
@@ -68,7 +76,7 @@ templates:
     - complete
   deficiency:
     action: record_deficiency
-    from_stage: SCRUTINY
+    from_stage: [SCRUTINY, RESCRUTINY]
     to_stage: DEFICIENT
     allowed_roles:
     - SCRUTINY_COMMITTEE

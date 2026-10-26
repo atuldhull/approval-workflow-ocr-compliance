@@ -64,18 +64,25 @@ def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
     assert [x["rule_id"] for x in submitted.json()["opened_deadlines"]] == ["AICTE_PROCESSING"]
     deficiency = act(api, case_id, "record_deficiency", 2, "SCRUTINY_COMMITTEE",
                      reason_code="DEMO_MISSING_EVIDENCE", note="Fictional DEMO private note",
-                     payload={"item_refs": [str(ITEM)]})
+                     payload={"item_keys": ["DEMO_CORE_REFERENCE"]})
     assert deficiency.status_code == 200, deficiency.text
     assert deficiency.json()["stage"] == "DEFICIENT"
     assert [x["rule_id"] for x in deficiency.json()["opened_deadlines"]] == ["INSTITUTION_RESPONSE"]
-    compliance = act(api, case_id, "submit_compliance", 3, payload={"response_ref": str(RESPONSE)})
+    rounds = api.get(f"/api/cases/{case_id}/deficiencies", headers=headers("INSTITUTION", SUNRISE)).json()
+    item = rounds["rounds"][0]["items"][0]
+    compliance = act(api, case_id, "submit_compliance", 3,
+        payload={"responses": [{"item_id": item["id"], "response_ref": str(RESPONSE)}]})
     assert compliance.status_code == 200, compliance.text
     assert compliance.json()["stage"] == "RESCRUTINY"
     assert compliance.json()["closed_deadlines"] == [{"subject_id": case_id, "rule_id": "INSTITUTION_RESPONSE", "outcome": "MET"}]
-    advanced = act(api, case_id, "scrutinise", 4, "SCRUTINY_COMMITTEE")
+    review = api.post(f"/api/cases/{case_id}/deficiencies/{rounds['rounds'][0]['id']}/review",
+        headers=headers("SCRUTINY_COMMITTEE"), json={"expected_version": 4,
+        "decisions": [{"item_id": item["id"], "state": "ACCEPTED", "reason_code": "DEMO_RESPONSE_ACCEPTED"}]})
+    assert review.status_code == 200, review.text
+    advanced = act(api, case_id, "scrutinise", 5, "SCRUTINY_COMMITTEE")
     assert advanced.status_code == 200 and advanced.json()["stage"] == "EVC", advanced.text
     detail = api.get(f"/api/cases/{case_id}", headers=headers("INSTITUTION", SUNRISE)).json()
-    assert detail["version"] == 5 and detail["ruleset_key"] == "aph-2024-27@r1"
+    assert detail["version"] == 6 and detail["ruleset_key"] == "aph-2024-27@r1"
     assert len(detail["stage_history"]) == 4
     assert sum(v["exited_at"] is None for v in detail["stage_history"]) == 1
     assert detail["assumption_status"] == "DEMO_ASSUMPTION"
@@ -87,14 +94,16 @@ def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
     assert [r["seq"] for r in rows] == sorted(r["seq"] for r in rows)
     wf = [r["event_type"] for r in rows if r["event_type"].startswith("wf.")]
     assert wf == ["wf.application_created", "wf.application_submitted", "wf.stage_entered",
-                  "wf.transition_applied", "wf.stage_exited", "wf.stage_entered",
-                  "wf.transition_applied", "wf.stage_exited", "wf.stage_entered",
+                  "wf.transition_applied", "wf.deficiency_recorded", "wf.stage_exited", "wf.stage_entered",
+                  "wf.transition_applied", "wf.deficiency_item_responded", "wf.compliance_submitted", "wf.stage_exited", "wf.stage_entered",
+                  "wf.deficiency_item_decided", "wf.deficiency_closed",
                   "wf.transition_applied", "wf.stage_exited", "wf.stage_entered"]
     assert [r["event_type"] for r in rows if r["event_type"].startswith("dl.")] == ["dl.deadline_opened", "dl.deadline_opened"]
     assert [r["event_type"] for r in rows] == [
         "wf.application_created", "dl.deadline_opened", "wf.application_submitted", "wf.stage_entered",
-        "dl.deadline_opened", "wf.transition_applied", "wf.stage_exited", "wf.stage_entered",
-        "wf.transition_applied", "wf.stage_exited", "wf.stage_entered",
+        "dl.deadline_opened", "wf.transition_applied", "wf.deficiency_recorded", "wf.stage_exited", "wf.stage_entered",
+        "wf.transition_applied", "wf.deficiency_item_responded", "wf.compliance_submitted", "wf.stage_exited", "wf.stage_entered",
+        "wf.deficiency_item_decided", "wf.deficiency_closed",
         "wf.transition_applied", "wf.stage_exited", "wf.stage_entered"]
     assert "Fictional DEMO private note" not in json.dumps(rows)
     deadlines = api.get("/api/deadlines", params={"subject_id": case_id}, headers=headers("INSTITUTION", SUNRISE)).json()
@@ -108,7 +117,7 @@ def test_requested_scrutinise_then_deficiency_order_is_invalid_in_pinned_yaml(ap
     assert act(api, case_id, "submit", 1).status_code == 200
     assert act(api, case_id, "scrutinise", 2, "SCRUTINY_COMMITTEE").json()["stage"] == "EVC"
     response = act(api, case_id, "record_deficiency", 3, "SCRUTINY_COMMITTEE",
-                   reason_code="DEMO_MISSING_EVIDENCE", payload={"item_refs": [str(ITEM)]})
+                   reason_code="DEMO_MISSING_EVIDENCE", payload={"item_keys": ["DEMO_CORE_REFERENCE"]})
     assert response.status_code == 422 and response.json()["detail"] == "INVALID_TRANSITION"
     assert api.get(f"/api/cases/{case_id}", headers=headers("INSTITUTION", SUNRISE)).json()["version"] == 3
 

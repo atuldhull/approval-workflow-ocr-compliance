@@ -57,7 +57,8 @@ def read_facts(uow: UnitOfWork, case, command: Command) -> GuardFacts:
         facts = replace(facts, checklist_complete=not any(key != "DSC" for key in missing),
                         missing_item_keys=tuple(sorted(missing)), provided_item_keys=provided,
                         dsc_required=config["dsc_required"], dsc_present=bool(present))
-    return facts
+    from app.workflow.deficiency import read_facts as deficiency_facts
+    return deficiency_facts(uow, case, command, facts)
 
 
 def require(value, reason: str) -> None:
@@ -177,6 +178,10 @@ def reason_code_present(c: Context) -> None:
 
 @register("deficiency_items_present")
 def deficiency_items_present(c: Context) -> None:
+    require(c.case.facts.deficiency_status not in {"OPEN", "RESPONDED"}, "DEFICIENCY_ROUND_UNRESOLVED")
+    if c.command.payload.item_keys:
+        require(len(c.command.payload.item_keys) == len(set(c.command.payload.item_keys)), "DEFICIENCY_ITEMS_DUPLICATED")
+        return  # vocabulary is validated against the pinned definition by read_facts
     require(c.case.facts.item_refs is not None, "ITEM_CONTEXT_UNAVAILABLE")
     if c.preview and not c.command.payload.item_refs:
         return
@@ -187,6 +192,12 @@ def deficiency_items_present(c: Context) -> None:
 
 @register("response_received")
 def response_received(c: Context) -> None:
+    if c.case.facts.deficiency_status is not None:
+        require(c.case.facts.deficiency_status == "OPEN", "NO_OPEN_DEFICIENCY")
+    if c.command.payload.responses:
+        require(c.case.facts.response_refs is not None, "RESPONSE_CONTEXT_UNAVAILABLE")
+        require(all(r.response_ref in c.case.facts.response_refs for r in c.command.payload.responses), "RESPONSE_REQUIRED")
+        return
     require(c.case.facts.response_refs is not None, "RESPONSE_CONTEXT_UNAVAILABLE")
     if c.preview and c.command.payload.response_ref is None:
         return

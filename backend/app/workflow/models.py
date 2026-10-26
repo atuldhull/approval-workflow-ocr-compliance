@@ -99,3 +99,44 @@ class CaseState(Base):
     version: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
 
     __mapper_args__ = {"version_id_col": version}
+
+
+class Deficiency(Base):
+    __tablename__ = "deficiency"
+    __table_args__ = (
+        UniqueConstraint("application_id", "round_no", name="uq_wf_deficiency_round"),
+        CheckConstraint("round_no >= 1", name="ck_wf_deficiency_round"),
+        CheckConstraint("status IN ('OPEN', 'RESPONDED', 'CLOSED')", name="ck_wf_deficiency_status"),
+        CheckConstraint("(status = 'CLOSED') = (closed_at IS NOT NULL)", name="ck_wf_deficiency_closed"),
+        Index("ix_wf_deficiency_case", "application_id"),
+        Index("uq_wf_deficiency_active", "application_id", unique=True,
+              postgresql_where=text("status != 'CLOSED'")),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    application_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.case_state.application_id"))
+    round_no: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(Text)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DeficiencyItem(Base):
+    __tablename__ = "deficiency_item"
+    __table_args__ = (
+        UniqueConstraint("deficiency_id", "item_key", name="uq_wf_deficiency_item_key"),
+        CheckConstraint("item_key ~ '^[A-Z][A-Z0-9_]*$'", name="ck_wf_deficiency_item_key"),
+        CheckConstraint("state IN ('OPEN', 'RESPONDED', 'ACCEPTED', 'REJECTED')", name="ck_wf_deficiency_item_state"),
+        CheckConstraint("(state = 'OPEN') = (response_ref IS NULL)", name="ck_wf_deficiency_item_response"),
+        CheckConstraint("(state IN ('ACCEPTED', 'REJECTED')) = (decided_by IS NOT NULL AND decision_reason_code IS NOT NULL)",
+                        name="ck_wf_deficiency_item_decision"),
+        Index("ix_wf_deficiency_item_round", "deficiency_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    deficiency_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.deficiency.id"))
+    item_key: Mapped[str] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(Text)
+    response_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    decided_by: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    decision_reason_code: Mapped[str | None] = mapped_column(Text)

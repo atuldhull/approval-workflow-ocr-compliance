@@ -38,10 +38,17 @@ class LetterPayload(Record):
     document_version_id: UUID | None = None
 
 
+class ItemResponse(Record):
+    item_id: UUID
+    response_ref: UUID
+
+
 class Payload(Record):
     dsc_present: Annotated[bool, Field(strict=True)] | None = None
     target_stage: Stage | None = None
     item_refs: tuple[UUID, ...] = ()
+    item_keys: tuple[Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]*$")], ...] = ()
+    responses: tuple[ItemResponse, ...] = ()
     response_ref: UUID | None = None
     evidence_refs: tuple[UUID, ...] = ()
     decision_ref: UUID | None = None
@@ -61,6 +68,7 @@ class Command(Record):
 
 @dataclass(frozen=True)
 class GuardFacts:
+    deficiency_status: str | None = None
     missing_item_keys: tuple[str, ...] | None = None
     provided_item_keys: tuple[str, ...] = ()
     dsc_required: bool | None = None

@@ -14,7 +14,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.platform.db import unit_of_work
 from app.platform.registry import port
 from app.platform.settings import settings
-from app.workflow import guards
+from app.workflow import guards, deficiency
 from app.workflow.commands import (
     ActionAvailability, CaseContext, ClosedDeadline, Command, Decision, OpenedDeadline, Options, Payload, Result,
     Spec, State, WorkflowConflict, WorkflowValidationFailed,
@@ -283,6 +283,9 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
         uow.session.execute(update(applications).where(applications.c.id == row.application_id)
                             .values(dsc_present=context.facts.dsc_present))
     uow.session.flush()
+    deficiency_common = dict(aggregate_type="application", aggregate_id=row.application_id, reason_code=command.reason_code,
+                             ruleset_rev=row.ruleset_key, note_ref=note_ref, note_hash=note_hash)
+    deficiency_events = deficiency.apply(uow, row, command, now, deficiency_common)
     opened, closed = _timers(uow, context, decision, command, now)
     letter_ref = None
     if decision.transition.letter is not None:
@@ -310,6 +313,7 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
                        dsc_present=context.facts.dsc_present, provided_item_keys=list(context.facts.provided_item_keys))
     event_version = 2 if decision.transition.action == "submit" else 1
     seqs = [ledger.append(uow, EventIn(event_type=event_type, event_version=event_version, payload=payload, **common))]
+    seqs.extend(ledger.append(uow, event) for event in deficiency_events)
     if current:
         seqs.append(ledger.append(uow, EventIn(event_type="wf.stage_exited", payload=dict(
             application_id=row.application_id, stage_visit_id=current[0]["id"], stage=current[0]["stage"],
