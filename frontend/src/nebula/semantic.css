@@ -26,3 +26,7 @@ html:not(.motion) .semantic-register,html:not(.motion) .semantic-record{transfor
 /* Provenance: where a fact comes from (src/provenance.js). Quiet, never a success colour. */
 .case .status-note,.case .clock-source,.case .calendar-note{margin:4px 0 0;color:var(--faint)}
 .case .official-refs{font-size:12px;margin-top:8px}.case .official-refs dd{color:var(--muted)}
+/* The route scene is a fixed backdrop; the case header gets the same readable backing as the world headings,
+   fading out to the right so the gates stay visible. */
+.case .case-head{position:relative;z-index:1;margin:-14px -14px 10px;padding:14px;border-radius:4px;background:linear-gradient(90deg,#211810f2 0,#211810e6 48%,#21181000 82%)}
+@media(max-width:700px){.case .case-head{background:linear-gradient(180deg,#211810f2,#211810d9)}}

@@ -74,8 +74,34 @@ the frontend.
 Every `/api/` response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
 no-referrer`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: no-store` and
 `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, plus HSTS when `APP_ENV=production`
-(`platform/http_security.py`). The built UI's own CSP must be set by whatever serves it, for example
-`default-src 'self'; connect-src 'self' <issuer origin>; frame-ancestors 'none'`. The Vite dev server is not
-hardened and is for local use only.
+(`platform/http_security.py`). The Vite dev server is not hardened and is for local use only.
+
+The built UI is served by the production image in `frontend/Dockerfile` (unprivileged nginx, config in
+`frontend/nginx/default.conf.template`):
+
+- CSP `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self';
+  connect-src 'self' <OIDC_ORIGIN>; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+  with no `unsafe-inline` or `unsafe-eval`. This is the main defence for the refresh token in `sessionStorage`.
+- `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a `Permissions-Policy`.
+- The page itself is `no-store`; hashed assets are cached for a year; `/api/` is proxied and never cached.
+- Settings: `API_UPSTREAM` (where `/api` goes) and `OIDC_ORIGIN` (the identity provider the browser may call).
+- It serves plain HTTP on 8080. TLS, HSTS for the UI, and the real host names and Keycloak redirect URIs belong
+  to the deployment in front of it and have not been set up.
+
+## Frontend dependency advisories (25 Oct 2026)
+
+`npm audit --omit=dev` reports nothing. `npm audit` reports six advisories, all in development and test tooling
+that is not in the built bundle or the production image:
+
+| Package | Severity | Where it runs | Reachable here? |
+|---|---|---|---|
+| vite 5.4 (direct) | high | Vite dev server | Only on the developer's machine; the server is published on 127.0.0.1 only |
+| esbuild (via vite) | moderate | Vite dev server | Same |
+| vitest 2.1 (direct), @vitest/mocker, vite-node | critical / moderate | Test runner | Only when tests run; the Vitest UI server is not used |
+| tinypool (via vitest) | critical | Test runner workers | Needs attacker-controlled worker options; tests run our own code only |
+
+Every fix needs a major upgrade (Vite 5 → 6.4.4 or later, Vitest 2 → 4.1.11 or later, with `@vitejs/plugin-react`).
+Planned as one change after team integration, with the full test and browser suites. Do not use
+`npm audit fix --force`.
 
 With `DEMO_AUTH` on, the API logs a warning at startup.

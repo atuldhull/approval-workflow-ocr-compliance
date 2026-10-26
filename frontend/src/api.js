@@ -62,11 +62,28 @@ async function identityHeaders(who) {
   return headers;
 }
 
-export async function api(who, path, { method = "GET", body, headers: extra = {} } = {}) {
+// A request that has not answered by then is abandoned, so no screen waits forever.
+export const REQUEST_TIMEOUT_MS = 20_000;
+
+export async function api(who, path, { method = "GET", body, headers: extra = {}, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const headers = { ...(await identityHeaders(who)), ...extra };
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: abort.signal });
+  } catch {
+    // A change that timed out may still have been applied; say so rather than invite a blind retry.
+    const write = method !== "GET";
+    throw new ApiError(0, abort.signal.aborted
+      ? (write ? "The server did not answer in time. The change may or may not have been saved; refresh before trying again."
+        : "The server did not answer in time. Try again shortly.")
+      : "The server cannot be reached. Check your connection and try again.");
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     let detail = typeof data?.detail === "string" ? data.detail : JSON.stringify(data?.detail ?? res.statusText);
@@ -76,6 +93,7 @@ export async function api(who, path, { method = "GET", body, headers: extra = {}
     }
     if (res.status === 403) detail = `Not permitted: ${detail}`;
     if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
+    if (res.status === 502 || res.status === 504) detail = "The server is unavailable right now. Try again shortly.";
     throw new ApiError(res.status, detail);
   }
   return data;

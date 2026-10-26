@@ -1,6 +1,9 @@
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from '../motion.js';
 import { datePositions } from './semanticData.js';
+import { when } from '../components/ui.jsx';
+// Due dates arrive as plain dates; recorded moments (submission) as full timestamps, shown in IST like everywhere else.
+const showDate = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)) || Number.isNaN(Date.parse(d)) ? String(d ?? '') : when(d);
 const Scene=lazy(()=>import('./WorldScene.jsx'));
 class SceneBoundary extends Component {state={failed:false};static getDerivedStateFromError(){return{failed:true}}render(){return this.state.failed?<p className="world-fallback">The spatial renderer is unavailable. All evidence remains in the register.</p>:this.props.children}}
 export const WORLDS={
@@ -59,5 +62,5 @@ export default function World({kind,records=[],preview=false,onSelect,actionLabe
 export function DeadlineTimeline({deadlines=[],submittedAt}){
  const records=[...(submittedAt?[{id:'submitted',date:submittedAt,label:'Submitted',status:'Recorded timestamp'}]:[]),...deadlines.map(d=>({id:d.id,date:d.due_date,label:d.rule_id,status:d.status}))];const positions=datePositions(records);
  if(!records.length)return null;
- return <figure className="responsibility-timeline"><figcaption>Recorded dates · spacing reflects available dates only</figcaption><div className="date-axis" aria-hidden="true">{records.map((r,i)=>positions[i]!==null&&<i key={r.id} style={{left:`${positions[i]}%`}} />)}</div><ol>{records.map((r,i)=><li key={r.id}><strong>{r.date}</strong><span>{r.label} · {r.status}</span>{positions[i]===null&&<em>Date could not be placed on the axis</em>}</li>)}</ol><p>No start date or statutory duration is inferred. Source explanations remain below.</p></figure>
+ return <figure className="responsibility-timeline"><figcaption>Recorded dates · spacing reflects available dates only</figcaption><div className="date-axis" aria-hidden="true">{records.map((r,i)=>positions[i]!==null&&<i key={r.id} style={{left:`${positions[i]}%`}} />)}</div><ol>{records.map((r,i)=><li key={r.id}><strong>{showDate(r.date)}</strong><span>{r.label} · {r.status}</span>{positions[i]===null&&<em>Date could not be placed on the axis</em>}</li>)}</ol><p>No start date or statutory duration is inferred. Source explanations remain below.</p></figure>
 }
