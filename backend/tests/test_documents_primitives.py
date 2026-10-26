@@ -240,6 +240,61 @@ def test_image_pixel_limit_is_checked_before_decode(tmp_path, monkeypatch):
         validate_document_structure(path, media_type="image/png", max_pdf_pages=5, max_image_pixels=100)
 
 
+@pytest.mark.parametrize("size", [(11, 10), (16, 16)], ids=("bomb-warning", "bomb-error"))
+def test_pillow_bomb_threshold_uses_configured_limit_before_open_and_is_restored(
+    tmp_path, monkeypatch, size
+):
+    path = tmp_path / "bomb.png"
+    path.write_bytes(make_image(size=size))
+
+    initial_limit = 1_000_000
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", initial_limit)
+    real_open = Image.open
+    limits_seen_by_pillow = []
+
+    def inspect_limit_before_open(*args, **kwargs):
+        limits_seen_by_pillow.append(Image.MAX_IMAGE_PIXELS)
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", inspect_limit_before_open)
+
+    with pytest.raises(UploadValidationError, match="pixel limit"):
+        validate_document_structure(path, media_type="image/png", max_pdf_pages=5, max_image_pixels=100)
+
+    assert limits_seen_by_pillow == [100]
+    assert Image.MAX_IMAGE_PIXELS == initial_limit
+
+
+def test_pillow_bomb_threshold_is_active_during_decode_and_then_restored(tmp_path, monkeypatch):
+    path = tmp_path / "small.png"
+    path.write_bytes(PNG)
+
+    initial_limit = 1_000_000
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", initial_limit)
+    real_open = Image.open
+    real_load = Image.Image.load
+    limits_seen_by_open = []
+    limits_seen_by_load = []
+
+    def inspect_limit_before_open(*args, **kwargs):
+        limits_seen_by_open.append(Image.MAX_IMAGE_PIXELS)
+        return real_open(*args, **kwargs)
+
+    def inspect_limit_during_load(image, *args, **kwargs):
+        limits_seen_by_load.append(Image.MAX_IMAGE_PIXELS)
+        return real_load(image, *args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", inspect_limit_before_open)
+    monkeypatch.setattr(Image.Image, "load", inspect_limit_during_load)
+
+    validate_document_structure(path, media_type="image/png", max_pdf_pages=5, max_image_pixels=100)
+
+    assert limits_seen_by_open == [100, 100]
+    assert limits_seen_by_load
+    assert set(limits_seen_by_load) == {100}
+    assert Image.MAX_IMAGE_PIXELS == initial_limit
+
+
 @pytest.mark.parametrize(("data", "media_type"), [(PDF, "application/pdf"), (PNG, "image/png"), (JPEG, "image/jpeg")])
 def test_valid_structure_is_parsed(data, media_type, tmp_path):
     path = tmp_path / "document.bin"

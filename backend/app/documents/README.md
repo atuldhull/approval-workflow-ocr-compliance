@@ -31,8 +31,10 @@ processing job, API, PDF text extraction, or deadline integration is enabled.
 - `DOCUMENT_MAX_PDF_PAGES` and `DOCUMENT_MAX_IMAGE_PIXELS` must be configured
   as positive integers before uploads can be enabled. There are no approved
   page or pixel defaults. `pypdf` validates strict PDF structure and page count;
-  Pillow validates allowlisted PNG/JPEG structure and decodes only after the
-  configured pixel limit is checked.
+  Pillow applies the configured pixel limit as `Image.MAX_IMAGE_PIXELS` before
+  opening or decoding images, and also checks dimensions explicitly. Its
+  decompression-bomb warnings and errors are rejected. The pixel limit has no
+  repository default and must be explicitly configured.
 - Dependency choice: `pypdf==6.19.0` is used for strict PDF parsing and page
   counts; `Pillow==13.0.0` is used for PNG/JPEG verification and bounded
   decoding. Neither package performs malware scanning or makes a file safe.

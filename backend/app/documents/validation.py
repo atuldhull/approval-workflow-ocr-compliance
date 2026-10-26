@@ -12,10 +12,12 @@ import unicodedata
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+from threading import RLock
 from typing import BinaryIO
 
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_READ_CHUNK_BYTES = 64 * 1024
+_IMAGE_VALIDATION_LOCK = RLock()
 
 
 class UploadValidationError(ValueError):
@@ -165,30 +167,43 @@ def _validate_pdf(path: Path, *, max_pdf_pages: int) -> None:
 def _validate_image(path: Path, *, media_type: str, max_image_pixels: int) -> None:
     try:
         from PIL import Image, ImageFile
+    except Exception as exc:
+        raise UploadValidationError("image validation is unavailable") from exc
 
-        if ImageFile.LOAD_TRUNCATED_IMAGES:
-            raise UploadValidationError("truncated image decoding is enabled in this process")
+    if ImageFile.LOAD_TRUNCATED_IMAGES:
+        raise UploadValidationError("truncated image decoding is enabled in this process")
 
-        expected_format = {"image/png": "PNG", "image/jpeg": "JPEG"}[media_type]
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path, formats=("PNG", "JPEG")) as image:
-                if image.format != expected_format:
-                    raise UploadValidationError("image bytes do not match the detected format")
-                width, height = image.size
-                if width <= 0 or height <= 0:
-                    raise UploadValidationError("image dimensions are invalid")
-                if width * height > max_image_pixels:
-                    raise UploadValidationError("image exceeds the configured pixel limit")
-                image.verify()
+    expected_format = {"image/png": "PNG", "image/jpeg": "JPEG"}[media_type]
+    try:
+        # Pillow's bomb threshold is process-global. Serialize this bounded
+        # section and restore the prior value after this configured check.
+        with _IMAGE_VALIDATION_LOCK:
+            previous_pixel_limit = Image.MAX_IMAGE_PIXELS
+            Image.MAX_IMAGE_PIXELS = max_image_pixels
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", Image.DecompressionBombWarning)
+                    with Image.open(path, formats=("PNG", "JPEG")) as image:
+                        if image.format != expected_format:
+                            raise UploadValidationError("image bytes do not match the detected format")
+                        width, height = image.size
+                        if width <= 0 or height <= 0:
+                            raise UploadValidationError("image dimensions are invalid")
+                        if width * height > max_image_pixels:
+                            raise UploadValidationError("image exceeds the configured pixel limit")
+                        image.verify()
 
-            # verify() checks container integrity without decoding. Reopen and
-            # decode only after the explicit application pixel limit passed.
-            with Image.open(path, formats=("PNG", "JPEG")) as image:
-                if image.format != expected_format or image.size[0] * image.size[1] > max_image_pixels:
-                    raise UploadValidationError("image structure changed during validation")
-                image.load()
+                    # verify() checks container integrity without decoding.
+                    # Reopen and decode only after the configured pixel limit.
+                    with Image.open(path, formats=("PNG", "JPEG")) as image:
+                        if image.format != expected_format or image.size[0] * image.size[1] > max_image_pixels:
+                            raise UploadValidationError("image structure changed during validation")
+                        image.load()
+            finally:
+                Image.MAX_IMAGE_PIXELS = previous_pixel_limit
     except UploadValidationError:
         raise
+    except (Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
+        raise UploadValidationError("image exceeds the configured pixel limit") from exc
     except Exception as exc:
         raise UploadValidationError("malformed, truncated, or corrupt image") from exc
