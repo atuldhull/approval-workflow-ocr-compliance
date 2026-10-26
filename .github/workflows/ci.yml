@@ -22,6 +22,8 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgresql+psycopg://awoc:awoc@localhost:5432/awoc_test
+      # The postgres service above exists only for this job and is discarded with it, so the tests may reset it.
+      AWOC_TEST_DATABASE_DISPOSABLE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
