@@ -220,7 +220,11 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
         command.downgrade(config, "deadlines@dl_0003_immutable_calendars")
         pg_session.expire_all()
         downgraded_versions = set(pg_session.scalars(migration_versions).all())
-        assert downgraded_versions == {"dl_0003_immutable_calendars", "plat_0001", "wf_0001"}
+        assert downgraded_versions == {
+            "dl_0003_immutable_calendars",
+            "doc_0003_document_history_guards",
+            "plat_0001",
+        }
         assert set(pg_session.scalars(protected_triggers).all()) == set()
         pg_session.commit()
 
