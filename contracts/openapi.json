@@ -598,6 +598,106 @@
         "title": "ClosedDeadlineOut",
         "type": "object"
       },
+      "CommitteeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberIn"
+            },
+            "minItems": 1,
+            "title": "Members",
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "SCRUTINY",
+              "RESCRUTINY",
+              "EVC",
+              "SHC",
+              "EC",
+              "COUNCIL"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "members"
+        ],
+        "title": "CommitteeIn",
+        "type": "object"
+      },
+      "CommitteeOut": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assumption_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Assumption Status",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberIn"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "report_count": {
+            "title": "Report Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "CLOSED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "SCRUTINY",
+              "RESCRUTINY",
+              "EVC",
+              "SHC",
+              "EC",
+              "COUNCIL"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "type",
+          "status",
+          "members",
+          "tasks",
+          "report_count"
+        ],
+        "title": "CommitteeOut",
+        "type": "object"
+      },
       "DeadlineOut": {
         "properties": {
           "clause": {
@@ -988,6 +1088,84 @@
         "title": "LetterType",
         "type": "string"
       },
+      "MemberIn": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "CHAIR",
+              "MEMBER",
+              "SECRETARY"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "user_ref": {
+            "format": "uuid",
+            "title": "User Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_ref",
+          "role"
+        ],
+        "title": "MemberIn",
+        "type": "object"
+      },
+      "ObservationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "ObservationIn",
+        "type": "object"
+      },
+      "ObservationOut": {
+        "properties": {
+          "author_user_ref": {
+            "format": "uuid",
+            "title": "Author User Ref",
+            "type": "string"
+          },
+          "body_note_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Body Note Hash",
+            "type": "string"
+          },
+          "body_note_ref": {
+            "format": "uuid",
+            "title": "Body Note Ref",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "author_user_ref",
+          "body_note_ref",
+          "body_note_hash"
+        ],
+        "title": "ObservationOut",
+        "type": "object"
+      },
       "OpenedDeadlineOut": {
         "properties": {
           "deadline_id": {
@@ -1114,6 +1292,151 @@
           }
         },
         "title": "Payload",
+        "type": "object"
+      },
+      "ReportDiff": {
+        "properties": {
+          "author_changed": {
+            "title": "Author Changed",
+            "type": "boolean"
+          },
+          "comparison": {
+            "enum": [
+              "INITIAL",
+              "HASH_ONLY"
+            ],
+            "title": "Comparison",
+            "type": "string"
+          },
+          "content_changed": {
+            "title": "Content Changed",
+            "type": "boolean"
+          },
+          "parent_version_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Version No"
+          },
+          "previous_content_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Content Hash"
+          }
+        },
+        "required": [
+          "comparison",
+          "parent_version_no",
+          "previous_content_hash",
+          "content_changed",
+          "author_changed"
+        ],
+        "title": "ReportDiff",
+        "type": "object"
+      },
+      "ReportIn": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "parent_version": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Version"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "ReportIn",
+        "type": "object"
+      },
+      "ReportOut": {
+        "properties": {
+          "author_user_ref": {
+            "format": "uuid",
+            "title": "Author User Ref",
+            "type": "string"
+          },
+          "committee_id": {
+            "format": "uuid",
+            "title": "Committee Id",
+            "type": "string"
+          },
+          "content_note_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Note Hash",
+            "type": "string"
+          },
+          "content_note_ref": {
+            "format": "uuid",
+            "title": "Content Note Ref",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "diff": {
+            "$ref": "#/components/schemas/ReportDiff"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_version": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Version"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "committee_id",
+          "version_no",
+          "content_note_ref",
+          "content_note_hash",
+          "author_user_ref",
+          "created_at",
+          "parent_version",
+          "diff"
+        ],
+        "title": "ReportOut",
         "type": "object"
       },
       "RescrutinyItemOut": {
@@ -1771,6 +2094,78 @@
           "assumptions"
         ],
         "title": "SubmissionOut",
+        "type": "object"
+      },
+      "TaskIn": {
+        "additionalProperties": false,
+        "properties": {
+          "assignee_user_ref": {
+            "format": "uuid",
+            "title": "Assignee User Ref",
+            "type": "string"
+          },
+          "title_key": {
+            "enum": [
+              "REVIEW_DOCUMENTS",
+              "REVIEW_RESPONSES",
+              "PREPARE_REPORT"
+            ],
+            "title": "Title Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title_key",
+          "assignee_user_ref"
+        ],
+        "title": "TaskIn",
+        "type": "object"
+      },
+      "TaskOut": {
+        "properties": {
+          "assignee_user_ref": {
+            "format": "uuid",
+            "title": "Assignee User Ref",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationOut"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ASSIGNED",
+              "DONE"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title_key": {
+            "enum": [
+              "REVIEW_DOCUMENTS",
+              "REVIEW_RESPONSES",
+              "PREPARE_REPORT"
+            ],
+            "title": "Title Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title_key",
+          "assignee_user_ref",
+          "status",
+          "observations"
+        ],
+        "title": "TaskOut",
         "type": "object"
       },
       "TimelineEvent": {
@@ -3262,6 +3657,163 @@
         ]
       }
     },
+    "/api/cases/{application_id}/committees": {
+      "post": {
+        "operationId": "create_committee_api_cases__application_id__committees_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitteeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitteeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Committee Api Cases  Application Id  Committees Post"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Committee",
+        "tags": [
+          "committees"
+        ]
+      }
+    },
     "/api/cases/{application_id}/deficiencies": {
       "get": {
         "operationId": "get_deficiencies_api_cases__application_id__deficiencies_get",
@@ -3842,6 +4394,616 @@
         "summary": "Timeline",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/api/committees/{committee_id}": {
+      "get": {
+        "operationId": "get_committee_api_committees__committee_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "committee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Committee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitteeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Get Committee Api Committees  Committee Id  Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Committee",
+        "tags": [
+          "committees"
+        ]
+      }
+    },
+    "/api/committees/{committee_id}/reports": {
+      "get": {
+        "operationId": "get_reports_api_committees__committee_id__reports_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "committee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Committee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportOut"
+                  },
+                  "title": "Response Get Reports Api Committees  Committee Id  Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Get Reports Api Committees  Committee Id  Reports Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Reports",
+        "tags": [
+          "committees"
+        ]
+      },
+      "post": {
+        "operationId": "create_report_api_committees__committee_id__reports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "committee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Committee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Report Api Committees  Committee Id  Reports Post"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Report",
+        "tags": [
+          "committees"
+        ]
+      }
+    },
+    "/api/committees/{committee_id}/tasks": {
+      "post": {
+        "operationId": "create_task_api_committees__committee_id__tasks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "committee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Committee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Task Api Committees  Committee Id  Tasks Post"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Task",
+        "tags": [
+          "committees"
         ]
       }
     },
@@ -4747,6 +5909,163 @@
         "summary": "Advance Clock",
         "tags": [
           "deadlines"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/observations": {
+      "post": {
+        "operationId": "create_observation_api_tasks__task_id__observations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Observation Api Tasks  Task Id  Observations Post"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Observation",
+        "tags": [
+          "committees"
         ]
       }
     }

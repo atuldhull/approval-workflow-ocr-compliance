@@ -10,6 +10,7 @@ from app.platform.registry import port
 from app.workflow.loader import sync_at_startup
 from app.workflow import case_service
 from app.workflow import deficiency
+from app.workflow import committee
 from app.workflow.commands import WorkflowValidationFailed
 from app.workflow.case_api_models import ActionIn, CaseActionOut, CaseOut, CasePageOut, ERROR_RESPONSES
 from contracts.enums import ApplicationStatus, Stage
@@ -17,6 +18,7 @@ from contracts.ports import AuthzPort, RulesetPort
 from contracts.types import Principal, ResourceRef
 
 router = APIRouter()
+router.include_router(committee.router)
 router.add_event_handler("startup", sync_at_startup)
 
 

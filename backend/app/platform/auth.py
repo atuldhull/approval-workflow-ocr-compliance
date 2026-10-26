@@ -26,6 +26,11 @@ POLICY: dict[str, set[Role]] = {
     "case.timeline": EVERYONE,
     "ledger.verify": {Role.AUDITOR, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
     "sim.clock": EVERYONE,
+    "committee.create": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "committee.task.assign": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "committee.observation.add": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "committee.report.add": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
+    "committee.read": EVERYONE,
     # Case actions are further constrained by the pinned YAML stage/guards.
     "case.submit": {Role.INSTITUTION},
     "case.advance": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},

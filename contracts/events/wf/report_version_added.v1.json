@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "committee_id",
+    "report_version_id",
+    "version_no",
+    "parent_version",
+    "author_user_ref",
+    "content_note_ref",
+    "content_note_hash"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "committee_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "report_version_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version_no": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parent_version": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "author_user_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "content_note_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "content_note_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

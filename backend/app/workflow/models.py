@@ -145,3 +145,87 @@ class DeficiencyItem(Base):
     decision_reason_code: Mapped[str | None] = mapped_column(Text)
     previous_item_id: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True),
         ForeignKey("wf.deficiency_item.id", name="fk_wf_deficiency_item_previous"))
+
+
+class Committee(Base):
+    __tablename__ = "committee"
+    __table_args__ = (
+        CheckConstraint("type IN ('SCRUTINY', 'RESCRUTINY', 'EVC', 'SHC', 'EC', 'COUNCIL')", name="ck_wf_committee_type"),
+        CheckConstraint("status IN ('ACTIVE', 'CLOSED')", name="ck_wf_committee_status"),
+        Index("ix_wf_committee_case", "application_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    application_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.application.id"))
+    type: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+
+
+class CommitteeMember(Base):
+    __tablename__ = "committee_member"
+    __table_args__ = (
+        CheckConstraint("role IN ('CHAIR', 'MEMBER', 'SECRETARY')", name="ck_wf_committee_member_role"),
+        {"schema": SCHEMA},
+    )
+    committee_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.committee.id"), primary_key=True)
+    user_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    role: Mapped[str] = mapped_column(Text)
+
+
+class CommitteeTask(Base):
+    __tablename__ = "task"
+    __table_args__ = (
+        UniqueConstraint("id", "committee_id", name="uq_wf_task_id_committee"),
+        ForeignKeyConstraint(["committee_id", "assignee_user_ref"],
+            ["wf.committee_member.committee_id", "wf.committee_member.user_ref"], name="fk_wf_task_member"),
+        CheckConstraint("title_key IN ('REVIEW_DOCUMENTS', 'REVIEW_RESPONSES', 'PREPARE_REPORT')", name="ck_wf_task_title"),
+        CheckConstraint("status IN ('ASSIGNED', 'DONE')", name="ck_wf_task_status"),
+        Index("ix_wf_task_committee", "committee_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    committee_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.committee.id"))
+    title_key: Mapped[str] = mapped_column(Text)
+    assignee_user_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    status: Mapped[str] = mapped_column(Text)
+
+
+class Observation(Base):
+    __tablename__ = "observation"
+    __table_args__ = (
+        ForeignKeyConstraint(["task_id", "committee_id"], ["wf.task.id", "wf.task.committee_id"], name="fk_wf_observation_task"),
+        ForeignKeyConstraint(["committee_id", "author_user_ref"],
+            ["wf.committee_member.committee_id", "wf.committee_member.user_ref"], name="fk_wf_observation_member"),
+        CheckConstraint("body_note_hash ~ '^[0-9a-f]{64}$'", name="ck_wf_observation_hash"),
+        Index("ix_wf_observation_task", "task_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    committee_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    task_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    author_user_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    body_note_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    body_note_hash: Mapped[str] = mapped_column(Text)
+
+
+class ReportVersion(Base):
+    __tablename__ = "report_version"
+    __table_args__ = (
+        UniqueConstraint("committee_id", "version_no", name="uq_wf_report_committee_version"),
+        UniqueConstraint("id", "committee_id", name="uq_wf_report_id_committee"),
+        ForeignKeyConstraint(["committee_id", "author_user_ref"],
+            ["wf.committee_member.committee_id", "wf.committee_member.user_ref"], name="fk_wf_report_member"),
+        ForeignKeyConstraint(["parent_version", "committee_id"],
+            ["wf.report_version.id", "wf.report_version.committee_id"], name="fk_wf_report_parent"),
+        CheckConstraint("version_no >= 1", name="ck_wf_report_version"),
+        CheckConstraint("content_note_hash ~ '^[0-9a-f]{64}$'", name="ck_wf_report_hash"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    committee_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.committee.id"))
+    version_no: Mapped[int] = mapped_column(Integer)
+    content_note_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    content_note_hash: Mapped[str] = mapped_column(Text)
+    author_user_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    parent_version: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
