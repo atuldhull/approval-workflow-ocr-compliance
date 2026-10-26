@@ -12,7 +12,9 @@ document-review adapter is also absent.
 
 Do not upload real documents. Malware scanning is not configured. The documents
 migration defines only `QUARANTINED` and `REJECTED`; no code path can mark a
-file available. Database enforcement remains pending PostgreSQL validation.
+file available. Focused PostgreSQL tests and document migration
+downgrade/re-upgrade were verified against the disposable test database; rerun
+that verification after document migration changes.
 Any eventual download must wait for scanner and authorization integration. OCR
 and fact-processing interfaces, state helpers, persistence, and a backend
 type-then-reveal transition are present, but no OCR model adapter, document

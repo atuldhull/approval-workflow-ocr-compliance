@@ -130,6 +130,7 @@ def test_review_requires_same_reviewer_and_rejects_empty_initial_entry():
     reviewer = uuid4()
     enter_value_before_reveal(fact, reviewer_id=reviewer, value="first", at=NOW)
     reveal_suggestion(fact, at=NOW + timedelta(seconds=1))
+    decision_before_rejected_attempt = (fact.state, fact.reviewed_value, fact.reviewed_at)
     with pytest.raises(ValueError, match="must complete this review"):
         finalize_review(
             fact,
@@ -138,6 +139,7 @@ def test_review_requires_same_reviewer_and_rejects_empty_initial_entry():
             at=NOW + timedelta(seconds=2),
             reviewed_value="corrected",
         )
+    assert (fact.state, fact.reviewed_value, fact.reviewed_at) == decision_before_rejected_attempt
 
 
 @pytest.mark.parametrize("reviewer_id", [None, "not-a-uuid"], ids=["none", "invalid-string"])
