@@ -13,9 +13,10 @@ document-review adapter is also absent.
 Do not upload real documents. Malware scanning is not configured. The documents
 migration defines only `QUARANTINED` and `REJECTED`; no code path can mark a
 file available. Database enforcement remains pending PostgreSQL validation.
-Any eventual download must wait for scanner and authorization integration. No
-OCR, PDF text extraction, fact extraction, review workflow, or deadline
-integration is implemented.
+Any eventual download must wait for scanner and authorization integration. OCR
+and fact-processing interfaces, state helpers, persistence, and a backend
+type-then-reveal transition are present, but no OCR model adapter, document
+processing job, API, PDF text extraction, or deadline integration is enabled.
 
 ## Prototype configuration
 
@@ -57,12 +58,52 @@ The byte-signature check is only an initial filter. Structural validation does
 not prove a file is malware-free. Objects remain private in quarantine; no
 content-reading API exists. Staging reconciliation removes only unowned
 temporary `.part` files and never deletes persisted document objects.
-Retention and persisted-document deletion remain unimplemented.
+
+## Prototype history protection
+
+Ordinary `DELETE` and `TRUNCATE` are rejected for `doc.document`,
+`doc.document_version`, `doc.ocr_run`, and `doc.fact`. OCR runs and facts are
+audit history; incorrect results should be rejected or superseded rather than
+deleted. This is a prototype safeguard, not a permanent-retention declaration
+or an erasure mechanism. Any future erasure process must be designed and
+approved separately.
+
+`TRUNCATE` is permitted only inside a transaction where the test harness has
+set the transaction-local PostgreSQL setting `awoc.test_reset` to exactly
+`on`. The shared test fixture must set this only around its controlled test
+reset; the application does not set it. Coordinating that fixture change is
+still required before client-fixture tests can reset document tables. Database
+owners and superusers can disable or alter triggers, so these guards prevent
+ordinary application mistakes and are not a substitute for appropriate
+database permissions.
 
 ## Later OCR and fact work
 
-- `fact` and `ocr_run` tables and processing remain future work.
-- Candidate facts must retain immutable document-version and page/span provenance.
-- Facts must remain proposed until the approved human-review workflow confirms
-  or corrects them. OCR output must never automatically open a deadline.
-- The Indic model's ownership and licence must be confirmed before submission.
+- The replaceable `OcrAdapter` interface has no configured production adapter.
+  Adapters must declare script support; routing uses explicit hints or a
+  homogeneous detected script and fails closed for mixed or unsupported text.
+- OCR runs have queued/running/succeeded/failed states. A retry is a new linked
+  attempt and is allowed only after failure. Retry creation is idempotent per
+  failed attempt, with a database uniqueness guard. Failures use stable codes
+  and do not store raw exception text. The database rejects a transition to RUNNING
+  unless the document version has an `AVAILABLE` status; the current schema
+  permits only QUARANTINED/REJECTED, so real processing stays blocked pending
+  an approved scanner integration.
+- Facts retain the document-version ID, OCR-run ID, page, source-text span,
+  original text, normalized candidate, confidence, script, and normalization
+  outcome. Database triggers require a successful run and protect source
+  provenance and review ordering.
+- All OCR facts begin as `PROPOSED`; confidence is recorded but no threshold is
+  invented. Ambiguous dates have no normalized value. Conflicting candidates
+  are marked but remain proposed. Only a human review can confirm, correct, or
+  reject a fact.
+- The backend review helper records the reviewer's own value before it returns
+  the OCR suggestion. It does not provide authorization or an HTTP endpoint.
+- Date normalization accepts calendar-unambiguous numeric forms, retains the
+  original string, and leaves multiple valid interpretations ambiguous. It
+  creates candidate values only; legal deadlines and date conventions remain
+  outside this module.
+- Real OCR remains blocked until model ownership/licensing, malware scanning,
+  authorized access to approved content, resource/runtime limits, and the
+  Person 3 review interface are resolved. The supplied Indic model is not
+  bundled or invoked. External translation is not integrated.
