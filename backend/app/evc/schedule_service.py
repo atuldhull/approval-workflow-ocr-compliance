@@ -48,7 +48,7 @@ def propose(uow: UnitOfWork, command: ScheduleCommand) -> dict:
     run = session.get(ScheduleRun, result.run_id)
     solver = {key.removeprefix("cpsat_"): value for key, value in run.parameters.items() if key.startswith("cpsat_")}
     return dict(run_id=result.run_id, algorithm=plan.algorithm, status=result.status,
-                region_scope=command.region.upper() if command.region else None,
+                region_scope=run.region_scope,
                 horizon_start=date.fromordinal(run.parameters["horizon_start_ordinal"]), horizon_end=command.horizon_end,
                 input_fingerprint=plan.input_fingerprint, metrics=plan.metrics.numeric_json(), proposals=proposals,
                 unscheduled=[dict(request_id=request_id, reason_code=plan.unscheduled_reason, explanation_code=code)

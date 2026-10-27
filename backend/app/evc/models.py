@@ -105,6 +105,7 @@ class ScheduleRun(Base):
         CheckConstraint("status ~ '^[A-Z][A-Z0-9_]*$'", name="ck_evc_run_status"),
         CheckConstraint("jsonb_typeof(parameters) = 'object' AND evc.numeric_json(parameters)", name="ck_evc_run_parameters"),
         CheckConstraint("jsonb_typeof(metrics) = 'object' AND evc.numeric_json(metrics)", name="ck_evc_run_metrics"),
+        CheckConstraint("region_scope IS NULL OR (region_scope <> '' AND region_scope = upper(region_scope))", name="ck_evc_run_region_scope"),
         {"schema": SCHEMA},
     )
     run_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -113,6 +114,28 @@ class ScheduleRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(Text)
     metrics: Mapped[dict] = mapped_column(JSONB)
+    # Upper-case region the run was planned for; NULL means every region (and every run made before evc_0004).
+    region_scope: Mapped[str | None] = mapped_column(Text)
+
+
+class ScheduleRunRequest(Base):
+    """Every queued request a run considered, in plan order: PROPOSED, or UNSCHEDULED with its explanation code."""
+
+    __tablename__ = "schedule_run_request"
+    __table_args__ = (
+        CheckConstraint("ordinal >= 0", name="ck_evc_run_request_ordinal"),
+        CheckConstraint("(outcome = 'PROPOSED' AND explanation_code IS NULL) OR (outcome = 'UNSCHEDULED' AND explanation_code "
+                        "IN ('NO_AVAILABILITY', 'PANEL_INCOMPLETE', 'COI_ONLY', 'CAPACITY_EXHAUSTED', 'EXPERT_DAILY_CAP', "
+                        "'NO_FEASIBLE_SLOT'))", name="ck_evc_run_request_outcome"),
+        UniqueConstraint("run_id", "ordinal", name="uq_evc_run_request_ordinal"),
+        Index("ix_evc_run_request_request", "request_id"),
+        {"schema": SCHEMA},
+    )
+    run_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("evc.schedule_run.run_id"), primary_key=True)
+    request_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("evc.evc_request.id"), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(Text)
+    explanation_code: Mapped[str | None] = mapped_column(Text)
 
 
 class Assignment(Base):

@@ -32,7 +32,7 @@ def env(acceptance_env):
     yield acceptance_env
     with new_session() as session, session.begin():
         session.execute(text("TRUNCATE evc.assignment_expert, evc.assignment, evc.availability, evc.coi, "
-                             "evc.slot, evc.schedule_run, evc.evc_request, evc.expert"))
+                             "evc.slot, evc.schedule_run_request, evc.schedule_run, evc.evc_request, evc.expert"))
 
 
 def experts(env, region="SOUTHERN", count=3, days=range(8), token="s", active=True):

@@ -3,13 +3,15 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from app.evc.pool_api import SlotPart
+from app.evc.reads import list_runs, read_run
 from app.evc.schedule_service import discard, propose, publish
 from app.evc.scheduler_edf import MAX_SLOT_DAYS, ScheduleCommand
 from app.platform.auth import current_principal
+from app.platform.db import new_session
 from app.platform.idempotency import idempotency_key, idempotent_response
 from contracts.types import Principal
 
@@ -197,3 +199,85 @@ def schedule_discard(body: DiscardBody, principal: Principal = Depends(current_p
                      key: str | None = Depends(idempotency_key)):
     return idempotent_response(principal, key, "POST", "/evc/schedule:discard", {}, body.model_dump(mode="json"),
         lambda uow: discard(uow, body.run_id), lambda result: DiscardOut(**result).model_dump(mode="json"))
+
+
+RunStatus = Literal["PROPOSED", "PUBLISHED", "DISCARDED"]
+
+
+class RunSummary(Labelled):
+    run_id: UUID
+    algorithm: Algorithm
+    status: RunStatus
+    region_scope: str | None = Field(description="Upper-case region the run was planned for; null means every region.")
+    horizon_start: date
+    horizon_end: date
+    created_at: datetime
+    input_fingerprint: str
+    metrics: Metrics
+    expert_daily_cap: int | None = Field(description="Visits per expert per date used by the run (DEMO ASSUMPTION).")
+    slot_capacity: int | None = Field(description="slot_capacity given on propose (DEMO ASSUMPTION), if any.")
+    candidate_slots: int | None = Field(description="CP-SAT candidate window (DEMO ASSUMPTION); null for EDF runs.")
+    outcomes_recorded: bool = Field(description="False for runs proposed before per-request outcomes were stored; their "
+                                    "unscheduled and withdrawn lists are then empty rather than known.")
+
+
+class RunPage(BaseModel):
+    items: list[RunSummary]
+    total: int
+    offset: int
+    limit: int
+
+
+class RunSolver(BaseModel):
+    solver_status: int
+    objective_value: int
+    best_bound: int
+    repair_rounds: int
+    candidate_count: int
+    edf_scheduled: int
+    fallback_to_edf: bool
+    candidate_slots: int | None = None
+
+
+class RunAssignment(ProposedAssignment):
+    published: bool
+
+
+class RunUnscheduled(Unscheduled):
+    application_id: UUID
+
+
+class RunWithdrawn(BaseModel):
+    request_id: UUID
+    application_id: UUID
+
+
+class RunDetail(RunSummary):
+    solver: RunSolver | None
+    proposals: list[RunAssignment] = Field(description="Assignments the run still holds (none once discarded).")
+    unscheduled: list[RunUnscheduled]
+    withdrawn: list[RunWithdrawn] = Field(description="Requests whose drafts were withdrawn when the run was discarded.")
+
+
+RUN_READERS = ("Readers of the expert pool (evc.expert.read): RO_OFFICER (runs planned for their own region only), "
+               "BUREAU_OFFICER, BUREAU_HEAD, SCRUTINY_COMMITTEE, AUDITOR.")
+
+
+@router.get("/evc/schedule/runs", response_model=RunPage,
+            description="Stored EVC schedule runs, newest first, filtered by status, algorithm and region (upper-cased "
+            "region_scope). " + RUN_READERS + " A regional officer naming another region is 403.")
+def schedule_runs(status: RunStatus | None = None, algorithm: Algorithm | None = None,
+                  region: str | None = Query(default=None, min_length=1, max_length=100),
+                  offset: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=100),
+                  principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return list_runs(session, principal, status=status, algorithm=algorithm, region=region, offset=offset, limit=limit)
+
+
+@router.get("/evc/schedule/runs/{run_id}", response_model=RunDetail,
+            description="One stored run with its parameters, metrics, solver facts, held assignments, unscheduled requests "
+            "with their explanation codes and, for a discarded run, the withdrawn requests. " + RUN_READERS +
+            " Unknown run 404 EVC_RUN_NOT_FOUND; a run outside a regional officer's region 403.")
+def schedule_run(run_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return read_run(session, principal, run_id)

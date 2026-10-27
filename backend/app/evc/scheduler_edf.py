@@ -13,7 +13,7 @@ from sqlalchemy import exists, func, or_, select, text
 
 from app.evc.explanations import explain_unscheduled
 from app.evc.metrics import evaluate_schedule
-from app.evc.models import Assignment, EvcRequest, Expert, ScheduleRun, Slot
+from app.evc.models import Assignment, EvcRequest, Expert, ScheduleRun, ScheduleRunRequest, Slot
 from app.evc.pool import policy
 from app.evc.scheduling import (PART_ORDER, Allocation, SchedulingPlan, SchedulingProblem, SchedulingRequest,
                                 SchedulingSlot, earliest_date, logical_date, selector_at)
@@ -214,12 +214,12 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
         plan = plan_edf(problem)
     parameters = dict(horizon_start_ordinal=start.toordinal(), horizon_end_ordinal=command.horizon_end.toordinal(),
         simulated_selector=True, capacity_counts_panels=True, demo_assumptions=True,
-        expert_daily_cap=run_policy.expert_daily_cap,
+        expert_daily_cap=run_policy.expert_daily_cap, outcomes_recorded=True,
         input_fingerprint_bytes=list(bytes.fromhex(plan.input_fingerprint)), **solver)
     if command.slot_capacity is not None:
         parameters["default_slot_capacity"] = command.slot_capacity
     session.add(ScheduleRun(run_id=command.run_id, algorithm=plan.algorithm, status="PROPOSED", parameters=parameters,
-                            created_at=now, metrics=plan.metrics.numeric_json()))
+                            created_at=now, metrics=plan.metrics.numeric_json(), region_scope=scope.upper() if scope else None))
     session.flush()
     port(LedgerPort).append(uow, EventIn(aggregate_type="evc_schedule_run", aggregate_id=command.run_id,
         event_type="evc.schedule_proposed", payload=dict(run_id=command.run_id, algorithm=plan.algorithm, horizon_start=start.isoformat(),
@@ -242,7 +242,14 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
                 expert_ids=list(allocation.expert_ids), ruleset_key=row.ruleset_key, request_status="PROPOSED",
                 simulation_status="SIMULATED", selector_policy_version="DEMO_SELECTOR_V1", source_status="DEMO_ASSUMPTION")))
         assignment_ids.append(assignment_id)
-    return ProposedSchedule(command.run_id, plan, tuple(assignment_ids), unscheduled_reasons=explain_unscheduled(problem, plan),
+    reasons = explain_unscheduled(problem, plan)
+    # The run's outcome per request is kept so the run can be read back later (explanations are not in any event).
+    outcomes = [(allocation.request_id, "PROPOSED", None) for allocation in plan.allocations]
+    outcomes += [(request_id, "UNSCHEDULED", code) for request_id, code in reasons]
+    session.add_all(ScheduleRunRequest(run_id=command.run_id, request_id=request_id, ordinal=ordinal, outcome=outcome,
+                                       explanation_code=code) for ordinal, (request_id, outcome, code) in enumerate(outcomes))
+    session.flush()
+    return ProposedSchedule(command.run_id, plan, tuple(assignment_ids), unscheduled_reasons=reasons,
                             expert_daily_cap=run_policy.expert_daily_cap)
 
 

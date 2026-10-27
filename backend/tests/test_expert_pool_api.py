@@ -35,7 +35,7 @@ def pool_client(client):
             # Keep pool master-data tests independent of later migration-only tests.
             with new_session() as session, session.begin():
                 session.execute(text("TRUNCATE evc.assignment_expert, evc.assignment, evc.availability, evc.coi, "
-                                     "evc.slot, evc.schedule_run, evc.evc_request, evc.expert"))
+                                     "evc.slot, evc.schedule_run_request, evc.schedule_run, evc.evc_request, evc.expert"))
 
 
 def create(client, key="one", region="Southern", **extra):

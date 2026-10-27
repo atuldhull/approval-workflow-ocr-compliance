@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.evc.models import EvcRequest
+from app.evc.reads import case_evc
 from app.evc.pool_api import router as pool_router
 from app.evc.schedule_api import router as schedule_router
 from app.evc.selector_api import router as selector_router
@@ -56,9 +57,10 @@ class QueuePage(BaseModel):
 
 
 @router.get("/evc/queue", response_model=QueuePage, description="Role-scoped queue/history. from/to inclusively filter due_by dates. "
-            "days_waiting counts whole elapsed 24-hour periods, stopped at completion/cancellation. EVC duration is a DEMO ASSUMPTION.")
+            "application_id limits it to one case. days_waiting counts whole elapsed 24-hour periods, stopped at completion/cancellation. EVC duration is a DEMO ASSUMPTION.")
 def queue(region: str | None = Query(default=None, min_length=1, max_length=100), status: RequestStatus | None = None,
           from_date: date | None = Query(default=None, alias="from"), to_date: date | None = Query(default=None, alias="to"),
+          application_id: UUID | None = None,
           offset: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=100),
           principal: Principal = Depends(current_principal)):
     if principal.role == Role.RO_OFFICER and (not principal.region or region not in (None, principal.region)):
@@ -75,6 +77,8 @@ def queue(region: str | None = Query(default=None, min_length=1, max_length=100)
         query = select(EvcRequest).order_by(EvcRequest.due_by, EvcRequest.priority_key, EvcRequest.requested_at, EvcRequest.id)
         if status:
             query = query.where(EvcRequest.status == status)
+        if application_id:
+            query = query.where(EvcRequest.application_id == application_id)
         if from_date:
             query = query.where(EvcRequest.due_by >= from_date)
         if to_date:
@@ -103,3 +107,49 @@ def queue(region: str | None = Query(default=None, min_length=1, max_length=100)
                 "priority_key", "ruleset_key", "rule_id", "deadline_ref", "closed_at")}, region=case.region,
                 days_waiting=int((stop - row.requested_at).total_seconds() // 86400), duration_days=duration(row.ruleset_key, row.rule_id)))
         return QueuePage(items=items, total=len(visible), offset=offset, limit=limit)
+
+
+class CaseVisit(BaseModel):
+    assignment_id: UUID
+    run_id: UUID
+    algorithm: Literal["EDF", "CPSAT"]
+    date: date
+    slot_part: str
+    panel_role: str
+    expert_ids: list[UUID]
+    simulation_status: Literal["SIMULATED"]
+    selector_label: Literal["SIMULATED authorised selector (stand-in)"]
+
+
+class CaseRequest(BaseModel):
+    id: UUID
+    status: RequestStatus
+    category: str
+    requested_at: datetime
+    earliest_date: date
+    due_by: date
+    closed_at: datetime | None
+    ruleset_key: str | None
+    rule_id: str | None
+    days_waiting: int
+    duration_days: int | None
+    source_status: Literal["DEMO_ASSUMPTION"] = "DEMO_ASSUMPTION"
+    assumption_code: Literal["EVC_DURATION_UNCONFIRMED"] = "EVC_DURATION_UNCONFIRMED"
+    visit: CaseVisit | None
+
+
+class CaseEvcOut(BaseModel):
+    application_id: UUID
+    region: str
+    current: CaseRequest | None
+    requests: list[CaseRequest]
+
+
+@router.get("/applications/{application_id}/evc", response_model=CaseEvcOut, tags=["evc"],
+            description="Expert-visit requests of one case, newest first (current is the newest), each with its published "
+            "visit: date, AM/PM part and panel as expert references only (SIMULATED authorised selector (stand-in)). "
+            "Proposed, unpublished drafts are not shown. Scoped like the case: institutions their own, regional officers "
+            "their region. Unknown case 404; a case without requests has current null.")
+def application_evc(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return case_evc(session, principal, application_id)

@@ -76,7 +76,7 @@ def test_evc_models_match_migration_and_no_seed_rows(database):
             "include_object": lambda obj, name, kind, reflected, other: getattr(obj, "schema", "evc") == "evc" if kind == "table" else True})
         assert compare_metadata(ctx, Base.metadata) == []
         assert set(inspect(connection).get_table_names(schema="evc")) == {
-            "evc_request", "expert", "availability", "coi", "slot", "assignment", "schedule_run", "assignment_expert"}
+            "evc_request", "expert", "availability", "coi", "slot", "assignment", "schedule_run", "assignment_expert", "schedule_run_request"}
         assert connection.scalar(select(func.count()).select_from(Expert)) == 0
         assert connection.scalar(select(func.count()).select_from(Availability)) == 0
         for table in inspect(connection).get_table_names(schema="evc"):

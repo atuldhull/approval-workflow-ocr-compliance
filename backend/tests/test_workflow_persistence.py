@@ -287,7 +287,8 @@ def test_one_head_per_module_and_inherited_workflow_label():
         heads[Path(rev.path).parent.name].append(head)
     # one head per module; only this module's own chains are pinned, the others move on their own
     assert all(len(module_heads) == 1 for module_heads in heads.values()), dict(heads)
-    assert heads["workflow"] == ["wf_0006"] and heads["evc"] == ["evc_0003"]
+    assert heads["workflow"] == ["wf_0006"] and heads["evc"] == ["evc_0004"]
+    assert scripts.get_revision("evc_0004").down_revision == "evc_0003"
     assert scripts.get_revision("evc_0003").down_revision == "evc_0002"
     assert scripts.get_revision("evc_0002").down_revision == "evc_0001"
     assert scripts.get_revision("evc_0001").down_revision is None
