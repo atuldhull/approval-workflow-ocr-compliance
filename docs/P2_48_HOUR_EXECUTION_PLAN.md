@@ -94,7 +94,7 @@ Time is measured from the team’s agreed start (`T+0`). If a dependency is unav
 - **Verification:** `python -m pytest -q backend/tests/test_deadline_rules.py backend/tests/test_deadline_calendars.py backend/tests/test_deadline_service.py backend/tests/test_rulesets.py` — **40 passed**. `python scripts/check_migration_heads.py` — **3 migration chains checked**. `git diff --check` — clean.
 - **Shared-contract check:** `python scripts/check_contracts.py` reports that `contracts/openapi.json` is stale. That file is jointly owned and is unchanged in this worktree, so it was left untouched pending the required all-three approval.
 - **Still blocked:** PostgreSQL-backed migration/model/API/transaction tests. Docker Desktop is not running and `localhost:5432` is not reachable. The shared test fixture drops and recreates the database named by `DATABASE_URL`; rerun only with a dedicated disposable test database.
-- **Interface review:** created `docs/proposals/person-2-week-2-event-schemas/CODEX_COMPATIBILITY_AUDIT.md` and clarified the draft interface mapping in `INTERFACE_RESOLUTION.md`. Resolver outage, vacancy, authorization, delivery retry, `document_version_id` requiredness, and three-person approval remain blockers; no active shared contract or event schema was changed.
+- **Interface review:** reviewed the draft event-schema interface mapping for compatibility (the review notes were working files and are not in the repository). Resolver outage, vacancy, authorization, delivery retry, `document_version_id` requiredness, and three-person approval remain blockers; no active shared contract or event schema was changed.
 
 ### 2026-10-27 — timer worker, alerts and lease stop year
 
