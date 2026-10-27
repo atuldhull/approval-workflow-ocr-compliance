@@ -6,7 +6,8 @@ import { Badge, Card, Empty, ErrorBox, Loading, dateIST, useApi, useSingleFlight
 import { ROLE_LABELS, sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, deadlineSource, internalRef } from "../provenance.js";
 import {
-  LETTER_TYPES, ORIGIN, REASON_CODES, checklistLabel, evidenceStatusOf, letterLabel, obligationStatusOf, reasonLabel,
+  LETTER_TYPES, ORIGIN, REASON_CODES, checklistLabel, evidenceStatusOf, explain, isAvailable, letterLabel,
+  obligationStatusOf, reasonLabel,
 } from "../recordText.js";
 
 // Letters, the obligations they create, and the evidence that meets them (backend/app/compliance).
@@ -14,10 +15,14 @@ import {
 const OFFICERS = new Set(["SCRUTINY_COMMITTEE", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]);
 const REGISTRARS = new Set(["BUREAU_OFFICER", "BUREAU_HEAD"]);
 const FILTERS = [["", "All"], ["OPEN", "Open"], ["EVIDENCE_SUBMITTED", "Awaiting verification"], ["MET", "Met"]];
+// GET /compliance/evidence/{id}/note: officers who may verify and the owning institution. The server narrows this
+// further (region, assignment); auditors only learn that a note exists.
+const NOTE_READERS = new Set(["INSTITUTION", ...OFFICERS]);
+const NOTE_CODES = { NoteIntegrityError: "The stored note does not match the decision's record, so it is not shown. Tell the bureau." };
 
-export default function ComplianceView({ who, me }) {
+export default function ComplianceView({ who, me, focusObligation }) {
   const [status, setStatus] = useState("");
-  const [openId, setOpenId] = useState(null);
+  const [openId, setOpenId] = useState(focusObligation ?? null);
   const letters = useApi(who, "/compliance/letters");
   const obligations = useApi(who, `/compliance/obligations${status ? `?status=${status}` : ""}`);
   const refresh = () => { letters.reload(); obligations.reload(); };
@@ -164,8 +169,9 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
                     Submitted {when(e.submitted_at)}
                     {e.verified_at && <> · decided {when(e.verified_at)} by the {(ROLE_LABELS[e.verified_role] ?? sentence(e.verified_role)).toLowerCase()}</>}
                     {e.reason_code && <> · reason: {reasonLabel(e.reason_code)}</>}
-                    {e.has_note && <> · a note is on file</>}
+                    {e.has_note && !NOTE_READERS.has(me.role) && <> · a note is on file (only the verifying officers and the institution can read it)</>}
                   </p>
+                  {e.has_note && NOTE_READERS.has(me.role) && <EvidenceNote who={who} evidenceId={e.id} />}
                   {OFFICERS.has(me.role) && e.status === "SUBMITTED" && <VerifyEvidence who={who} evidence={e} onVerified={changed} />}
                 </li>
               ))}
@@ -184,13 +190,13 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
   );
 }
 
-// Only versions the scanner passed (status AVAILABLE, shown as scan_status "clean") can be evidence.
+// Only versions whose status is AVAILABLE (scanned clean) can be evidence.
 export function availableVersions(docs, alreadySubmitted = []) {
   const used = new Set(alreadySubmitted);
   const out = [];
   for (const d of docs ?? []) {
     for (const v of d.versions) {
-      if (v.scan_status === "clean" && !used.has(v.version_id)) {
+      if (isAvailable(v) && !used.has(v.version_id)) {
         out.push({ id: v.version_id, label: `${checklistLabel(d.doc_type)} · v${v.version_no} · ${v.original_filename}` });
       }
     }
@@ -253,6 +259,27 @@ function EvidencePicker({ who, obligation, docs, onSubmitted }) {
         </>
       )}
     </form>
+  );
+}
+
+// The verifier's note, fetched only when asked for. A redacted note says so instead of showing nothing.
+export function EvidenceNote({ who, evidenceId }) {
+  const [open, setOpen] = useState(false);
+  const note = useApi(who, open ? `/compliance/evidence/${evidenceId}/note` : null);
+  const d = note.data;
+  return (
+    <div className="evidence-note">
+      <button type="button" className="ghost small" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? "Hide the officer's note" : "Read the officer's note"}
+      </button>
+      {open && note.loading && !d && <Loading what="Loading the note" rows={1} />}
+      {open && <ErrorBox error={explain(note.error, {}, NOTE_CODES)} onRetry={note.reload} />}
+      {open && d && (
+        d.redacted ? <p className="muted small" role="note">This note has been redacted; its text is no longer kept.</p>
+          : d.has_note && d.note != null ? <blockquote className="note-text">{d.note}</blockquote>
+            : <p className="muted small">No note was left with this decision.</p>
+      )}
+    </div>
   );
 }
 

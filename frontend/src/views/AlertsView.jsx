@@ -2,10 +2,10 @@ import World from "../nebula/World.jsx";
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
-import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
-import { ROLE_LABELS } from "../nav.js";
+import { Badge, Card, Empty, ErrorBox, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import { ROLE_LABELS, sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
-import { ALERT_REASON, alertMeaning, alertStatusOf } from "../recordText.js";
+import { ALERT_REASON, alertMeaning, alertStatusOf, ruleLabel } from "../recordText.js";
 import { TIMERS_RAN } from "../components/TimeTravel.jsx";
 
 // Deadline alerts (backend/app/deadlines). Each level of a deadline's ladder is addressed to one role; only that
@@ -20,7 +20,7 @@ const ACK_ROLES = new Set(["INSTITUTION", "SCRUTINY_COMMITTEE", "RO_OFFICER", "B
 export const canAcknowledge = (alert, role) => ACK_ROLES.has(role) && alert.role === role && ACKABLE.has(alert.status);
 const levelText = (level) => (level === 0 ? "Level 0 · first notice" : `Level ${level} · escalation`);
 
-export default function AlertsView({ who, me }) {
+export default function AlertsView({ who, me, onNavigate }) {
   const [status, setStatus] = useState("");
   const { data, error, loading, reload } = useApi(who, `/alerts${status ? `?status=${status}` : ""}`);
   const [busy, setBusy] = useState(null);
@@ -58,8 +58,9 @@ export default function AlertsView({ who, me }) {
     id: a.id, label: alertMeaning(a.template), category: levelText(a.level),
     state: a.status === "ACKNOWLEDGED" ? "checked" : a.status === "ESCALATED" ? "broken" : a.status === "OPEN" ? "unread" : "unknown",
     detail: `${alertStatusOf(a.status).label} · to ${ROLE_LABELS[a.role] ?? a.role}`,
-    facts: [["Raised", when(a.raised_at)], ["Addressed to", ROLE_LABELS[a.role] ?? a.role], ["Case", internalRef(a.subject_id)],
-      ["Region", a.region ?? "Not supplied"]],
+    facts: [["Rule", ruleLabel(a.rule_id)], ["Due", a.due_date ? dateIST(a.due_date) : "Not supplied"],
+      ["Raised", when(a.raised_at)], ["Addressed to", ROLE_LABELS[a.role] ?? a.role],
+      ["Case", a.application_id ? internalRef(a.application_id) : "Not supplied"], ["Region", a.region ?? "Not supplied"]],
   }));
 
   return (
@@ -88,9 +89,15 @@ export default function AlertsView({ who, me }) {
                     <p className="alert-title">
                       <strong>{alertMeaning(a.template)}</strong> <Badge tone={s.tone}>{s.label}</Badge>
                     </p>
+                    <p className="small alert-rule">
+                      {ruleLabel(a.rule_id)}
+                      {a.due_date && <> · due <strong>{dateIST(a.due_date)}</strong></>}
+                      {a.deadline_status && <span className="muted"> · deadline {sentence(a.deadline_status).toLowerCase()}</span>}
+                    </p>
                     <p className="muted small">
                       {levelText(a.level)} · to {ROLE_LABELS[a.role] ?? a.role}
-                      {a.region && <> · {a.region} region</>} · case <code title={INTERNAL_REF_TITLE}>{internalRef(a.subject_id)}</code>
+                      {a.region && <> · {a.region} region</>}
+                      {a.application_id && <> · case <code title={INTERNAL_REF_TITLE}>{internalRef(a.application_id)}</code></>}
                     </p>
                     <p className="muted small">
                       Raised {when(a.raised_at)}
@@ -100,6 +107,17 @@ export default function AlertsView({ who, me }) {
                     {a.reason && <p className="small">{ALERT_REASON[a.reason] ?? "Raised after the previous level."}</p>}
                   </div>
                   <div className="actions">
+                    {onNavigate && a.application_id && (
+                      <button className="ghost small" onClick={() => onNavigate("applications", { caseId: a.application_id })}
+                        aria-label={`Open case ${internalRef(a.application_id)}`}>
+                        Open case
+                      </button>
+                    )}
+                    {onNavigate && a.subject_type === "obligation" && (
+                      <button className="ghost small" onClick={() => onNavigate("compliance", { obligationId: a.subject_id })}>
+                        Open obligation
+                      </button>
+                    )}
                     {canAcknowledge(a, me.role) ? (
                       <button className="small" disabled={busy !== null} onClick={() => ack(a)}
                         aria-label={`Acknowledge: ${alertMeaning(a.template)} raised ${when(a.raised_at)}`}>

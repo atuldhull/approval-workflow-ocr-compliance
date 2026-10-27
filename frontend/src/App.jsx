@@ -76,6 +76,7 @@ export function Workspace({ who, me, config, identityControl }) {
   const [shown, setShown] = useState(initialRoute);
   const [phase, setPhase] = useState("in");
   const [focusCase, setFocusCase] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('case'));
+  const [focusObligation, setFocusObligation] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('obligation'));
   const [collapsed, setCollapsed] = useState(() => remembered.get("awoc.sidebar") === "rail");
   const contentRef = useRef(null);
   const timer = useRef(null);
@@ -108,7 +109,9 @@ export function Workspace({ who, me, config, identityControl }) {
       const key = window.location.hash.slice(1).split('?')[0];
       const allowed = items.some(i => i.key === key) ? key : items[0]?.key;
       setView(allowed); setShown(allowed); setPhase('in');
-      setFocusCase(new URLSearchParams(window.location.hash.split('?')[1]).get('case'));
+      const params = new URLSearchParams(window.location.hash.split('?')[1]);
+      setFocusCase(params.get('case'));
+      setFocusObligation(params.get('obligation'));
       requestAnimationFrame(() => contentRef.current?.focus({ preventScroll: true }));
       const top = event.state?.nebulaScroll || 0;
       const started = performance.now();
@@ -127,8 +130,11 @@ export function Workspace({ who, me, config, identityControl }) {
   const navigate = (key, opts = {}) => {
     if (!items.some(i => i.key === key)) return;
     setFocusCase(opts.caseId || null);
+    setFocusObligation(opts.obligationId || null);
+    const query = opts.caseId ? '?case=' + encodeURIComponent(opts.caseId)
+      : opts.obligationId ? '?obligation=' + encodeURIComponent(opts.obligationId) : '';
     history.replaceState({ ...history.state, nebulaScroll: window.scrollY }, '');
-    history.pushState({ nebulaScroll: 0 }, '', `#${key}${opts.caseId ? '?case=' + encodeURIComponent(opts.caseId) : ''}`);
+    history.pushState({ nebulaScroll: 0 }, '', `#${key}${query}`);
     setView(key);
     clearTimeout(timer.current);
     if (key === shown) { setPhase('in'); return; }
@@ -170,7 +176,8 @@ export function Workspace({ who, me, config, identityControl }) {
           </header>
           {View && (
             <View key={`${shown}-${me.user_id}`} who={who} me={me} onNavigate={navigate}
-              focusCase={shown === "applications" ? focusCase : undefined} />
+              focusCase={shown === "applications" ? focusCase : undefined}
+              focusObligation={shown === "compliance" ? focusObligation : undefined} />
           )}
         </main>
       </div>
