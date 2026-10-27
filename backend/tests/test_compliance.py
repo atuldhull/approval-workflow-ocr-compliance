@@ -292,6 +292,8 @@ def test_reject_then_accept_meets_the_obligation_and_closes_its_clock(client, lo
     assert r.status_code == 200, r.text
     o = client.get(f"/api/compliance/obligations/{oid}", headers=SUNRISE_INST).json()
     assert o["status"] == "MET" and [e["status"] for e in o["evidence"]] == ["REJECTED", "ACCEPTED"]
+    listed = client.get(f"/api/compliance/obligations?application_id={app_id}", headers=SUNRISE_INST).json()
+    assert {x["id"]: [e["status"] for e in x["evidence"]] for x in listed}[oid] == ["REJECTED", "ACCEPTED"]
     with new_session() as s:
         assert s.get(Deadline, UUID(o["deadline_id"])).status == "MET"
         assert s.scalar(select(CaseNote.body).where(CaseNote.body_hash == sha256(note.encode()).hexdigest())) == note

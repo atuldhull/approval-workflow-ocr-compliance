@@ -188,7 +188,14 @@ def list_obligations(application_id: UUID | None = None, region: str | None = No
         q = select(Obligation).filter_by(**filters).order_by(Obligation.due_date.nulls_last(), Obligation.id)
         if status:
             q = q.where(Obligation.status == status)
-        return [_obligation_out(o) for o in session.scalars(q).all()]
+        obligations = session.scalars(q).all()
+        # each row carries its evidence, as the single read does, so a list never shows "none submitted" for a met one
+        evidence: dict[UUID, list[Evidence]] = {o.id: [] for o in obligations}
+        if obligations:
+            for e in session.scalars(select(Evidence).where(Evidence.obligation_id.in_(list(evidence)))
+                                     .order_by(Evidence.submitted_at, Evidence.id)):
+                evidence[e.obligation_id].append(e)
+        return [_obligation_out(o, evidence[o.id]) for o in obligations]
 
 
 @router.get("/compliance/obligations/{obligation_id}", response_model=ObligationOut)
