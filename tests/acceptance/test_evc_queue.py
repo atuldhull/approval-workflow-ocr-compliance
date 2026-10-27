@@ -46,7 +46,9 @@ def schedule(env, app):
             assert env.client.post(f"/api/evc/experts/{created.json()['id']}/availability", headers=bureau,
                                    json=dict(items=items)).status_code == 200
             env.panel.append(created.json()["id"])
-    proposed = env.client.post("/api/evc/schedule:propose", headers=bureau, json=dict(algorithm="EDF"))
+    proposed = env.client.post("/api/evc/schedule:propose", headers=bureau, json=dict(
+        run_id=str(uuid5(NAMESPACE_URL, "DEMO:queue-run")), algorithm="EDF", horizon_start=date(2026, 7, 1).isoformat(),
+        horizon_end=(date(2026, 7, 1) + timedelta(days=7)).isoformat(), slot_capacity=4))
     assert proposed.status_code == 201 and proposed.json()["proposals"], proposed.text
     published = env.client.post("/api/evc/schedule:publish", headers=bureau, json=dict(run_id=proposed.json()["run_id"]))
     assert published.status_code == 200, published.text

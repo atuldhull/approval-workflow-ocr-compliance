@@ -52,6 +52,7 @@ class EligibilityRequest:
     availability: tuple[AvailabilityFact, ...]
     conflicts: frozenset[tuple[UUID, UUID]]
     reservations: frozenset[tuple[UUID, DateValue, str]]
+    planning_until: DateValue | None = None  # Explicit soft-deadline planning; due_by itself stays pinned.
 
 
 def eligible_experts(request: EligibilityRequest, date: DateValue, slot_part: str) -> list[ExpertCandidate]:
@@ -60,7 +61,7 @@ def eligible_experts(request: EligibilityRequest, date: DateValue, slot_part: st
         raise ValidationFailed("EXPERT_POOL_REGION_RULE_INVALID")
     if slot_part not in request.policy.slot_parts:
         raise ValidationFailed("EXPERT_SLOT_PART_INVALID")
-    if not request.earliest_date <= date <= request.due_by:
+    if not request.earliest_date <= date <= (request.planning_until or request.due_by):
         return []
     declared = {row.expert_id for row in request.availability if row.date == date and row.slot_part == slot_part and row.available}
     unavailable = {row.expert_id for row in request.availability if row.date == date and row.slot_part == slot_part and not row.available}

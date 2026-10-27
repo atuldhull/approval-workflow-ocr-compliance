@@ -1,6 +1,7 @@
 """Expert management commands and eligibility snapshot adapter (EVC tables only)."""
 from __future__ import annotations
 
+from datetime import date as DateValue
 from typing import TYPE_CHECKING
 from uuid import UUID, NAMESPACE_URL, uuid5
 
@@ -114,7 +115,7 @@ def record_coi(uow: UnitOfWork, body: CoiCreate) -> dict:
                 source_status="DEMO_ASSUMPTION", assumption_code="EXPERT_POLICY_UNCONFIRMED")
 
 
-def eligibility_snapshot(session: Session, request_id: UUID) -> EligibilityRequest:
+def eligibility_snapshot(session: Session, request_id: UUID, *, planning_until: DateValue | None = None) -> EligibilityRequest:
     """Caller owns auth and reservation rechecks; materialize immutable inputs for the core."""
     request = session.get(EvcRequest, request_id)
     if request is None:
@@ -124,10 +125,11 @@ def eligibility_snapshot(session: Session, request_id: UUID) -> EligibilityReque
     _, selected = policy(request.ruleset_key)
     experts = tuple(ExpertCandidate(row.id, row.user_ref, row.region, tuple(sorted(row.expertise_tags)), row.active)
                     for row in session.scalars(select(Expert).order_by(Expert.id)))
+    end = planning_until or request.due_by
     availability = tuple(AvailabilityFact(row.expert_id, row.date, row.slot_part, row.available)
-                         for row in session.scalars(select(Availability).where(Availability.date.between(request.earliest_date, request.due_by))))
+                         for row in session.scalars(select(Availability).where(Availability.date.between(request.earliest_date, end))))
     conflicts = frozenset((row.expert_id, row.institution_ref) for row in session.scalars(select(Coi).where(Coi.institution_ref == request.institution_ref)))
     reservations = frozenset((row.expert_id, row.date, row.slot_part) for row in session.scalars(select(AssignmentExpert)
-                             .where(AssignmentExpert.date.between(request.earliest_date, request.due_by))))
+                             .where(AssignmentExpert.date.between(request.earliest_date, end))))
     return EligibilityRequest(request.id, request.institution_ref, request.region, request.ruleset_key,
-                              request.earliest_date, request.due_by, selected, experts, availability, conflicts, reservations)
+                              request.earliest_date, request.due_by, selected, experts, availability, conflicts, reservations, planning_until)

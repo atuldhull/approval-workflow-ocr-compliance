@@ -92,7 +92,9 @@ def schedule(api, case_id):
         items = [{"date": (start + timedelta(days=d)).isoformat(), "slot_part": part, "available": True}
                  for d in range(8) for part in ("AM", "PM")]
         ok(api.post(f"/api/evc/experts/{expert}/availability", headers=BUREAU, json={"items": items}))
-    run = ok(api.post("/api/evc/schedule:propose", headers=BUREAU, json={"algorithm": "EDF"}))
+    run = ok(api.post("/api/evc/schedule:propose", headers=BUREAU, json={
+        "run_id": str(uuid5(NAMESPACE_URL, f"DEMO:runtime-run:{case_id}")), "algorithm": "EDF",
+        "horizon_start": start.isoformat(), "horizon_end": (start + timedelta(days=7)).isoformat(), "slot_capacity": 4}))
     assert len(run["proposals"]) == 1, run
     assert ok(api.post("/api/evc/schedule:publish", headers=BUREAU, json={"run_id": run["run_id"]}))["published_count"] == 1
     with new_session() as session:

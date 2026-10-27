@@ -25,6 +25,12 @@ expert_pool:
   coi_reasons: {INSTITUTION_LINK: INSTITUTION_LINK, PRIOR_ENGAGEMENT: PRIOR_ENGAGEMENT, RECUSAL: RECUSAL}
   source_status: DEMO_ASSUMPTION
   assumption_code: EXPERT_POLICY_UNCONFIRMED
+  # DEMO ASSUMPTION: capacity counts panels; original due_by stays unchanged for lateness/escalation.
+  scheduler:
+    capacity_unit: PANELS
+    allow_late: true
+    source_status: DEMO_ASSUMPTION
+    assumption_code: EDF_PLANNING_UNCONFIRMED
   # SIMULATED authorised selector (stand-in); DEMO ASSUMPTION, not an official panel policy.
   selector:
     version: DEMO_SELECTOR_V1
