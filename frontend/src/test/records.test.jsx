@@ -1,12 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { dateIST } from "../components/ui.jsx";
 import { DEMO_USERS } from "../api.js";
 import TimeTravel from "../components/TimeTravel.jsx";
 import AlertsView from "../views/AlertsView.jsx";
 import ComplianceView, { availableVersions } from "../views/ComplianceView.jsx";
 import DocumentsView from "../views/DocumentsView.jsx";
-import FactReviewView, { FOUR_EYES_MESSAGE } from "../views/FactReviewView.jsx";
+import FactReviewView, { FOUR_EYES_AHEAD, FOUR_EYES_MESSAGE } from "../views/FactReviewView.jsx";
+import { NOT_VIEWABLE_MESSAGE, REVOKE_AFTER_MS } from "../components/ViewDocument.jsx";
 import { fakeServer } from "./fakeServer.js";
 
 const user = (key) => DEMO_USERS.find((u) => u.key === key);
@@ -20,11 +22,14 @@ const ME = (u) => ({ user_id: u.user, role: u.role, region: u.region ?? null, in
 const APP = "aaaaaaaa-0000-4000-8000-000000000001";
 const VERSION = "bbbbbbbb-0000-4000-8000-000000000001";
 const FACT = "cccccccc-0000-4000-8000-000000000001";
-const OTHER_OFFICER = "00000000-0000-4000-9000-000000000099";
+// how the server names who acted: a role and whether it was the caller, never a user id
+const YOU = (role) => ({ role, is_you: true, who: "you" });
+const OTHER = (role) => ({ role, is_you: false, who: "another officer" });
 
-const version = (id, no, scan) => ({
+const STATUS_OF_SCAN = { scan_pending: "QUARANTINED", clean: "AVAILABLE", infected: "REJECTED" };
+const version = (id, no, scan, status = STATUS_OF_SCAN[scan]) => ({
   version_id: id, document_id: "d1", version_no: no, original_filename: `deed-v${no}.pdf`, media_type: "application/pdf",
-  size_bytes: 2048, sha256: "ab".repeat(32), scan_status: scan, uploaded_at: "2026-10-20T10:00:00Z", scanned_at: null,
+  size_bytes: 2048, sha256: "ab".repeat(32), status, scan_status: scan, uploaded_at: "2026-10-20T10:00:00Z", scanned_at: null,
 });
 const DOCS = [{
   document_id: "d1", application_id: APP, doc_type: "LAND_DEED", current_version_id: VERSION,
@@ -35,12 +40,13 @@ const APPS = [{ id: APP, institution_id: SUNRISE.institution, category: "NEW_INS
 const proposed = (extra = {}) => ({
   fact_id: FACT, field_key: "lease_end_date", status: "proposed", review_decision: null, page_number: 1,
   suggestion_visible: false, candidate_text: null, normalized_value: null, confidence: null,
-  reviewed_value: null, reviewed_by: null, reviewed_at: null, confirmed_by: null, confirmed_at: null, ...extra,
+  my_entry: null, entered_by: null, reviewed_value: null, reviewed_by: null, reviewed_at: null, confirmed_by: null,
+  confirmed_at: null, ...extra,
 });
 const reviewed = (by) => proposed({ status: "reviewed", review_decision: "CORRECTED", reviewed_value: "2031-03-31",
   reviewed_by: by, reviewed_at: "2026-10-21T10:00:00Z", suggestion_visible: true, candidate_text: "31-03-2031",
   normalized_value: "2031-03-30", confidence: 0.91 });
-const factsOf = (...facts) => ({ document_version_id: VERSION, document_id: "d1",
+const factsOf = (...facts) => ({ document_version_id: VERSION, document_id: "d1", version_status: "AVAILABLE", scan_status: "clean",
   review_status: { proposed: 0, in_review: 0, reviewed: 0, rejected: 0, confirmed: 0 }, facts });
 
 describe("documents: role-based screens", () => {
@@ -61,7 +67,8 @@ describe("documents: role-based screens", () => {
     render(<DocumentsView who={RO} me={ME(RO)} />);
     expect(await screen.findByText("Scanned clean")).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Upload a document" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Run the malware scan again/ })).toBeNull();
+    // a regional officer may retry a stuck scan in its region (document.rescan); the server decides the region
+    expect(screen.getByRole("button", { name: /Run the malware scan again for version 3/ })).toBeInTheDocument();
     expect(calls[0].url).toBe("/api/documents");
   });
 
@@ -144,7 +151,7 @@ describe("fact review: blind entry, then reveal, then review", () => {
         fact = proposed({ status: "in_review", suggestion_visible: true, candidate_text: "31-03-2031", normalized_value: "2031-03-31", confidence: 0.82, normalization_status: "NORMALIZED" });
         return [200, { fact_id: FACT, candidate_text: "31-03-2031", normalized_value: "2031-03-31", confidence: 0.82, normalization_status: "NORMALIZED" }];
       },
-      [`POST /api/document-facts/${FACT}/review`]: () => [200, reviewed(SCRUTINY.user)],
+      [`POST /api/document-facts/${FACT}/review`]: () => [200, reviewed(YOU("SCRUTINY_COMMITTEE"))],
     });
     const { container } = render(<FactReviewView who={SCRUTINY} me={ME(SCRUTINY)} />);
     const card = await screen.findByRole("group", { name: "Lease end date" });
@@ -196,7 +203,7 @@ describe("fact review: four eyes", () => {
   it("shows the server's four-eyes refusal clearly", async () => {
     const u = userEvent.setup();
     fakeServer({
-      "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(reviewed(OTHER_OFFICER)),
+      "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(reviewed(OTHER("SCRUTINY_COMMITTEE"))),
       [`POST /api/document-facts/${FACT}/confirm`]: () => [409, { error: "FourEyesViolation", detail: "the officer who reviewed this fact cannot also confirm it; another officer must confirm" }],
     });
     render(<FactReviewView who={RO} me={ME(RO)} />);
@@ -208,18 +215,19 @@ describe("fact review: four eyes", () => {
   });
 
   it("tells the reviewer up front that someone else must confirm", async () => {
-    fakeServer({ "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(reviewed(RO.user)) });
+    fakeServer({ "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(reviewed(YOU("RO_OFFICER"))) });
     render(<FactReviewView who={RO} me={ME(RO)} />);
     expect(await screen.findByText(FOUR_EYES_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Confirm/ })).toBeNull();
+    expect(screen.getByText(/by you$/)).toBeInTheDocument();
   });
 
   it("lets a different officer confirm, sending an Idempotency-Key", async () => {
     const u = userEvent.setup();
-    let fact = reviewed(RO.user);
+    let fact = reviewed(OTHER("RO_OFFICER"));
     const calls = fakeServer({
       "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: () => [200, factsOf(fact)],
-      [`POST /api/document-facts/${FACT}/confirm`]: () => { fact = { ...fact, status: "confirmed", confirmed_by: BUREAU.user, confirmed_at: "2026-10-22T10:00:00Z" }; return [200, fact]; },
+      [`POST /api/document-facts/${FACT}/confirm`]: () => { fact = { ...fact, status: "confirmed", confirmed_by: YOU("BUREAU_OFFICER"), confirmed_at: "2026-10-22T10:00:00Z" }; return [200, fact]; },
     });
     render(<FactReviewView who={BUREAU} me={ME(BUREAU)} />);
     expect(await screen.findByText(/confirms values another officer reviewed/)).toBeInTheDocument();
@@ -227,6 +235,8 @@ describe("fact review: four eyes", () => {
     await u.click(screen.getByRole("button", { name: "Confirm lease end date" }));
     const card = screen.getByRole("group", { name: "Lease end date" });
     expect(await within(card).findByText("Confirmed by a second officer")).toBeInTheDocument();
+    expect(within(card).getByText(/by another officer \(regional officer\)$/)).toBeInTheDocument();
+    expect(within(card).getByText(/by you$/)).toBeInTheDocument();
     expect(calls.find((c) => c.method === "POST").headers["Idempotency-Key"]).toBeTruthy();
   });
 
@@ -378,5 +388,229 @@ describe("alerts", () => {
     await u.click(screen.getByRole("button", { name: "Run timers now" }));
     expect(await screen.findByText("Timers ran: 1 processed")).toBeInTheDocument();
     await waitFor(() => expect(calls.filter((c) => c.url === "/api/alerts").length).toBe(before + 1));
+  });
+});
+
+// ---- reviewer identity as {role, is_you}, the reviewer's own entry, document viewing, notes, alert links ----
+
+describe("fact review: who acted, and the reviewer's own entry", () => {
+  it("names another officer's entry by role and offers no reveal", async () => {
+    fakeServer({ "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(
+      proposed({ status: "in_review", entered_by: OTHER("SCRUTINY_COMMITTEE") })) });
+    render(<FactReviewView who={RO} me={ME(RO)} />);
+    const card = await screen.findByRole("group", { name: "Lease end date" });
+    expect(within(card).getByRole("note")).toHaveTextContent(/^Another officer \(scrutiny committee\) entered a reading\./);
+    expect(within(card).queryByRole("button", { name: /machine reading/ })).toBeNull();
+    expect(within(card).queryByLabelText("Your reading")).toBeNull();
+  });
+
+  it("tells the reviewer before the review that a different officer must confirm", async () => {
+    fakeServer({ "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(proposed({
+      status: "in_review", suggestion_visible: true, candidate_text: "31-03-2031", normalized_value: "2031-03-31",
+      confidence: 0.8, normalization_status: "NORMALIZED", entered_by: YOU("RO_OFFICER"),
+      my_entry: { value: "2031-03-31", entered_at: "2026-10-21T09:00:00Z", suggestion_revealed: true, revealed_at: "2026-10-21T09:00:01Z" } })) });
+    render(<FactReviewView who={RO} me={ME(RO)} />);
+    const card = await screen.findByRole("group", { name: "Lease end date" });
+    expect(within(card).getByText(FOUR_EYES_AHEAD)).toBeInTheDocument();
+  });
+
+  it("restores a revealed entry after the screen is opened again", async () => {
+    const fact = proposed({ status: "in_review", suggestion_visible: true, candidate_text: "31-03-2031",
+      normalized_value: "2031-03-31", confidence: 0.82, normalization_status: "NORMALIZED", entered_by: YOU("SCRUTINY_COMMITTEE"),
+      my_entry: { value: "2031-03-30", entered_at: "2026-10-21T09:00:00Z", suggestion_revealed: true, revealed_at: "2026-10-21T09:00:01Z" } });
+    const calls = fakeServer({ "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(fact) });
+    const first = render(<FactReviewView who={SCRUTINY} me={ME(SCRUTINY)} />);
+    await screen.findByRole("group", { name: "Lease end date" });
+    first.unmount();
+
+    render(<FactReviewView who={SCRUTINY} me={ME(SCRUTINY)} />);
+    const card = await screen.findByRole("group", { name: "Lease end date" });
+    expect(within(card).getByText("Differs from your reading - check the document")).toBeInTheDocument();
+    expect(within(card).getByText("Your reading:").textContent).toBe("Your reading: 2031-03-30");
+    expect(within(card).getByRole("radio", { name: /Correct it/ })).toBeChecked();
+    expect(within(card).getByLabelText("Correct value")).toHaveValue("2031-03-30");
+    expect(within(card).queryByLabelText("Your reading")).toBeNull();
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
+  it("restores an entry whose reveal was lost, and reveals it again on request", async () => {
+    const u = userEvent.setup();
+    const fact = proposed({ status: "in_review", entered_by: YOU("SCRUTINY_COMMITTEE"),
+      my_entry: { value: "2031-03-31", entered_at: "2026-10-21T09:00:00Z", suggestion_revealed: false, revealed_at: null } });
+    const calls = fakeServer({
+      "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(fact),
+      [`POST /api/document-facts/${FACT}/reveal`]: () => [200, { fact_id: FACT, candidate_text: "31-03-2031", normalized_value: "2031-03-31", confidence: 0.9, normalization_status: "NORMALIZED" }],
+    });
+    const first = render(<FactReviewView who={SCRUTINY} me={ME(SCRUTINY)} />);
+    await screen.findByRole("group", { name: "Lease end date" });
+    first.unmount();
+    const { container } = render(<FactReviewView who={SCRUTINY} me={ME(SCRUTINY)} />);
+    const card = await screen.findByRole("group", { name: "Lease end date" });
+    expect(within(card).getByText(/is recorded/).textContent).toMatch(/^Your reading 2031-03-31 is recorded/);
+    expect(container.textContent).not.toMatch(/Machine reading|31-03-2031/);
+    await u.click(within(card).getByRole("button", { name: "Show the machine reading" }));
+    expect(await within(card).findByText("Agrees with your reading")).toBeInTheDocument();
+    expect(calls.filter((c) => c.method === "POST").map((c) => c.url)).toEqual([`/api/document-facts/${FACT}/reveal`]);
+  });
+});
+
+describe("viewing a document", () => {
+  const CONTENT = `GET /api/document-versions/${VERSION}/content`;
+  let created;
+  let revoked;
+  const stubUrls = () => {
+    created = [];
+    revoked = [];
+    let n = 0;
+    // jsdom has no object URLs; give it inert ones to spy on
+    URL.createObjectURL ??= () => "";
+    URL.revokeObjectURL ??= () => {};
+    vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => { created.push(blob); return `blob:test/${++n}`; });
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation((url) => { revoked.push(url); });
+  };
+
+  it("fetches the clean version with the caller's headers and opens it as a blob in a new tab", async () => {
+    const u = userEvent.setup();
+    stubUrls();
+    const tab = { opener: window };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab);
+    const calls = fakeServer({ "GET /api/documents": DOCS, [CONTENT]: () => [200, new Blob(["%PDF-1.7 synthetic"], { type: "application/pdf" })] });
+    const view = render(<DocumentsView who={RO} me={ME(RO)} />);
+    // only the clean version can be opened
+    const buttons = await screen.findAllByRole("button", { name: /^View document/ });
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName("View document: deed-v1.pdf");
+    await u.click(buttons[0]);
+    await waitFor(() => expect(open).toHaveBeenCalledWith("blob:test/1", "_blank"));
+    const get = calls.find((c) => c.url.endsWith("/content"));
+    expect(get.headers["X-Demo-User"]).toBe(RO.user);
+    expect(get.headers["X-Demo-Region"]).toBe("Southern");
+    expect(created[0].type).toBe("application/pdf");
+    expect(tab.opener).toBeNull();
+    view.unmount();
+    expect(revoked).toEqual(["blob:test/1"]);
+  });
+
+  it("offers a download link when the browser blocks the tab", async () => {
+    const u = userEvent.setup();
+    stubUrls();
+    vi.spyOn(window, "open").mockReturnValue(null);
+    fakeServer({ "GET /api/documents": DOCS, [CONTENT]: () => [200, new Blob(["%PDF-1.7 synthetic"], { type: "application/pdf" })] });
+    render(<DocumentsView who={AUDITOR} me={ME(AUDITOR)} />);
+    await u.click(await screen.findByRole("button", { name: /^View document/ }));
+    const link = await screen.findByRole("link", { name: /Download deed-v1\.pdf instead/ });
+    expect(link).toHaveAttribute("href", "blob:test/1");
+    expect(link).toHaveAttribute("download", "deed-v1.pdf");
+    expect(REVOKE_AFTER_MS).toBeGreaterThan(0);
+  });
+
+  it("explains a version that cannot be viewed, and never opens a tab", async () => {
+    const u = userEvent.setup();
+    stubUrls();
+    const open = vi.spyOn(window, "open");
+    fakeServer({ "GET /api/documents": DOCS, [`GET /api/document-versions/${VERSION}/facts`]: factsOf(),
+      [CONTENT]: () => [409, { error: "DocumentNotViewable", detail: "this version is waiting for its malware scan; only versions scanned clean can be viewed" }] });
+    render(<FactReviewView who={RO} me={ME(RO)} />);
+    await u.click(await screen.findByRole("button", { name: /^View document/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(NOT_VIEWABLE_MESSAGE);
+    expect(open).not.toHaveBeenCalled();
+    expect(created).toEqual([]);
+  });
+
+  it("refuses a file type it does not open", async () => {
+    const u = userEvent.setup();
+    stubUrls();
+    const open = vi.spyOn(window, "open");
+    fakeServer({ "GET /api/documents": DOCS, [CONTENT]: () => [200, new Blob(["<p>synthetic</p>"], { type: "text/html" })] });
+    render(<DocumentsView who={RO} me={ME(RO)} />);
+    await u.click(await screen.findByRole("button", { name: /^View document/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("does not open");
+    expect(open).not.toHaveBeenCalled();
+    expect(created).toEqual([]);
+  });
+});
+
+describe("version status decides what a version may be used for", () => {
+  it("the evidence picker follows status, not the scan field", () => {
+    const docs = [{ ...DOCS[0], versions: [version("odd", 4, "clean", "REJECTED"), version("ok", 5, "clean", "AVAILABLE")] }];
+    expect(availableVersions(docs).map((v) => v.id)).toEqual(["ok"]);
+  });
+
+  it("shows the badge for the version's status and offers no viewing for it", async () => {
+    fakeServer({ "GET /api/documents": [{ ...DOCS[0], versions: [version("odd", 4, "clean", "REJECTED")] }] });
+    render(<DocumentsView who={AUDITOR} me={ME(AUDITOR)} />);
+    expect(await screen.findByText("Blocked by malware scan")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^View document/ })).toBeNull();
+  });
+});
+
+describe("evidence notes", () => {
+  const NOTE = "GET /api/compliance/evidence/e1/note";
+  const decided = obligation({ status: "OPEN", evidence: [{ id: "e1", obligation_id: OB, document_version_id: VERSION,
+    status: "REJECTED", submitted_at: "2026-10-23T10:00:00Z", verified_role: "RO_OFFICER", verified_at: "2026-10-24T10:00:00Z",
+    reason_code: "OTHER_SEE_NOTE", has_note: true }] });
+  const routes = (note) => ({ "GET /api/compliance/letters": [], "GET /api/compliance/obligations": [decided],
+    [`GET /api/compliance/obligations/${OB}`]: decided, [`GET /api/applications/${APP}/documents`]: DOCS, [NOTE]: note });
+
+  for (const [name, who] of [["a verifying officer", RO], ["the owning institution", SUNRISE]]) {
+    it(`lets ${name} read the note on request`, async () => {
+      const u = userEvent.setup();
+      const calls = fakeServer(routes({ evidence_id: "e1", has_note: true, note: "Synthetic: the seal is missing on page 2.", redacted: false }));
+      render(<ComplianceView who={who} me={ME(who)} />);
+      await u.click(await screen.findByRole("button", { name: /Open affidavit/ }));
+      const show = await screen.findByRole("button", { name: "Read the officer's note" });
+      expect(calls.some((c) => c.url.endsWith("/note"))).toBe(false);
+      await u.click(show);
+      expect(await screen.findByText("Synthetic: the seal is missing on page 2.")).toBeInTheDocument();
+    });
+  }
+
+  it("says when a note was redacted", async () => {
+    const u = userEvent.setup();
+    fakeServer(routes({ evidence_id: "e1", has_note: true, note: null, redacted: true }));
+    render(<ComplianceView who={SUNRISE} me={ME(SUNRISE)} />);
+    await u.click(await screen.findByRole("button", { name: /Open affidavit/ }));
+    await u.click(await screen.findByRole("button", { name: "Read the officer's note" }));
+    expect(await screen.findByText(/This note has been redacted/)).toBeInTheDocument();
+  });
+
+  it("shows an auditor only that a note exists", async () => {
+    const u = userEvent.setup();
+    const calls = fakeServer(routes(() => [403, { detail: "no" }]));
+    render(<ComplianceView who={AUDITOR} me={ME(AUDITOR)} />);
+    await u.click(await screen.findByRole("button", { name: /Open affidavit/ }));
+    expect(await screen.findByText(/a note is on file \(only the verifying officers and the institution can read it\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Read the officer's note" })).toBeNull();
+    expect(calls.some((c) => c.url.endsWith("/note"))).toBe(false);
+  });
+
+  it("opens the obligation an alert links to", async () => {
+    fakeServer(routes({}));
+    render(<ComplianceView who={RO} me={ME(RO)} focusObligation={OB} />);
+    expect(await screen.findByRole("complementary", { name: "Obligation detail" })).toBeInTheDocument();
+  });
+});
+
+describe("alerts: rule, due date and links", () => {
+  it("shows the rule in plain words with its due date, and links to the case and the obligation", async () => {
+    const u = userEvent.setup();
+    const onNavigate = vi.fn();
+    fakeServer({ "GET /api/alerts": [
+      alert({ rule_id: "AICTE_PROCESSING", due_date: "2026-11-20", deadline_status: "ALERTED", application_id: APP }),
+      alert({ id: "al-2", subject_type: "obligation", subject_id: OB, template: "obligation.due", rule_id: "LOA_DEPOSIT_AFFIDAVIT_15D",
+        due_date: "2026-12-01", deadline_status: "RUNNING", application_id: APP }),
+    ] });
+    const { container } = render(<AlertsView who={RO} me={ME(RO)} onNavigate={onNavigate} />);
+    await screen.findAllByText(/AICTE's processing time for a submitted application/);
+    const list = within(container.querySelector(".alert-list"));
+    expect(list.getByText(/AICTE's processing time for a submitted application/)).toBeInTheDocument();
+    expect(list.getByText(/Fifteen days after an LoA for the deposit proof and affidavit/)).toBeInTheDocument();
+    const due = [...container.querySelectorAll(".alert-rule strong")].map((n) => n.textContent);
+    expect(due).toEqual([dateIST("2026-11-20"), dateIST("2026-12-01")]);
+    expect(list.getByText(/deadline alerted/)).toBeInTheDocument();
+    await u.click(screen.getAllByRole("button", { name: /^Open case/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("applications", { caseId: APP });
+    await u.click(screen.getByRole("button", { name: "Open obligation" }));
+    expect(onNavigate).toHaveBeenCalledWith("compliance", { obligationId: OB });
   });
 });
