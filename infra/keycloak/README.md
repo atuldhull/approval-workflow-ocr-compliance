@@ -4,7 +4,7 @@
 
 - Every account is synthetic and shares the password `demo-only-password`. Never import this realm anywhere real.
 - `awoc-ui` is the browser client: public (no secret), Authorization Code + PKCE (S256), redirects to
-  http://localhost:5173 only.
+  http://localhost:5173 (Vite dev server) and http://localhost:8088 (the nginx `web` image) only.
 - `awoc-smoke` allows the password grant so local smoke tests can fetch a token from a script. It must never
   exist in a real deployment.
 - `institution_id` and `region` are user attributes that only an administrator can set; they reach the API
