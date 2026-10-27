@@ -43,7 +43,8 @@ ghost. Touch targets are at least 36px on phones (44px for navigation).
 
 Loading keeps the shape of what is coming (skeleton bars with a fixed minimum height, so content does not jump).
 Empty states are a quiet dashed box with an explanation. A 403 reads as a rule ("Not available to your role") with
-no retry; other failures offer "Try again". A refused regional case list explains the missing backend capability.
+no retry; other failures offer "Try again". A coded refusal (guard, intake or EVC code) is shown in plain words from
+`workflowText.js`; an unknown code reads as words, never as a guess about why.
 
 ## Layout patterns
 
@@ -56,6 +57,16 @@ no retry; other failures offer "Try again". A refused regional case list explain
 - **Lifecycle strip** (`Lifecycle`): deadline → alert → delivery → inbox → acknowledgement, with the current screen's
   step marked. It explains the pipeline; it never shows progress.
 - **Assurance console** (Audit): three independent layer panels, then history and an inspector with the figure.
+- **Action list** (`CaseActions`): exactly the `available_actions` the server returns for the signed-in role at the
+  case's stage. Enabled actions open an inline form; blocked ones fold under "Not available now (n)", each with its
+  guard reason in words. Nothing is offered that the server did not list.
+- **Checklist** (`Checklist`): one row per server checklist item with Mandatory/Optional and Provided/Not provided
+  badges, a picker of the case's scanned-clean document versions, the DSC confirmation, and a per-item message when
+  the server refuses with `MANDATORY_ITEMS_MISSING`. The DEMO ASSUMPTION label from the server is always shown.
+- **Workspace blocks** (`.round`, `.committee`): bordered blocks inside the case inspector for deficiency rounds and
+  committees; forms inside them use `.action-form` (stacked) or `.inline-form` (one row, wraps on phones).
+- **Simulated note** (`.alert.simulated`): amber note on the EVC screen naming the SIMULATED authorised selector
+  (stand-in); the APH 1.8(a) selection happens on AICTE's portal.
 
 ## Responsive
 
@@ -74,9 +85,16 @@ inside their panel. No page scrolls horizontally at any of those widths.
    same-machine witness is labelled DEMO ONLY.
 5. Fact review keeps type-before-reveal and four-eyes exactly as the server enforces them; the reading surface
    never shows a machine value.
-6. EVC scheduling is a labelled preview with sample data; its actions are disabled.
+6. EVC scheduling runs on the API (queue, pool, EDF/CP-SAT proposal, publication). Panels are labelled as the
+   SIMULATED authorised selector (stand-in); visit length, AM/PM slots and the expert policy are labelled demo
+   assumptions. Proposals made in a tab are kept in sessionStorage only because no run listing exists.
 7. Next steps on the overview are derived only from recorded facts (draft status, open obligations).
 8. Every write the server makes idempotent sends one Idempotency-Key per user action and reuses it on retry; a
-   confirmation appears only after the server answers.
+   confirmation appears only after the server answers. A server-decided refusal (4xx with a code) starts a fresh key;
+   a lost answer, 5xx or "still being processed" keeps it (`actionKey.js`). Case actions also send the case's
+   `expected_version`; a version conflict reloads the case and says so.
+9. The checklist, its items and the DSC requirement come from the server (`/applications/{id}/checklist`,
+   `/rulesets/{key}/checklists/{category}`); the client keeps no checklist of its own. The deficiency item and reason
+   vocabulary is mirrored from the pinned ruleset because no endpoint publishes it yet.
 
 See `MOTION.md` for motion and rendering and `SEMANTIC_MOTION_MAP.md` for what each figure encodes.
