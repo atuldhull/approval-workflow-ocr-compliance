@@ -6,6 +6,8 @@ resourcePolicy:
   rules:
   - name: institution
     actions:
+    - alert.ack
+    - alert.read
     - application.create
     - application.read
     - application.submit
@@ -26,6 +28,8 @@ resourcePolicy:
         expr: 'has(P.attr.institution_id) && (has(R.attr.owner_institution_id) ? R.attr.owner_institution_id == P.attr.institution_id : R.attr.is_collection == true)'
   - name: scrutiny_committee
     actions:
+    - alert.ack
+    - alert.read
     - analytics.dashboard
     - analytics.report
     - application.read
@@ -44,6 +48,8 @@ resourcePolicy:
     - SCRUTINY_COMMITTEE
   - name: ro_officer
     actions:
+    - alert.ack
+    - alert.read
     - analytics.dashboard
     - analytics.report
     - application.read
@@ -65,6 +71,8 @@ resourcePolicy:
         expr: has(P.attr.region) && (!has(R.attr.region) || R.attr.region == P.attr.region)
   - name: bureau_officer
     actions:
+    - alert.ack
+    - alert.read
     - analytics.dashboard
     - analytics.export
     - analytics.report
@@ -87,6 +95,8 @@ resourcePolicy:
     - BUREAU_OFFICER
   - name: bureau_head
     actions:
+    - alert.ack
+    - alert.read
     - analytics.dashboard
     - analytics.export
     - analytics.report
@@ -112,6 +122,7 @@ resourcePolicy:
     - BUREAU_HEAD
   - name: auditor
     actions:
+    - alert.read
     - analytics.dashboard
     - analytics.export
     - analytics.report
