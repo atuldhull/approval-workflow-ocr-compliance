@@ -7,7 +7,7 @@ import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } 
 import { sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
 import {
-  CHECKLIST, checklistLabel, explain, factStatusOf, fieldLabel, fileSize, isAvailable, versionStateOf,
+  SUPPORTING_DOCUMENTS, checklistLabel, explain, factStatusOf, fieldLabel, fileSize, isAvailable, versionStateOf,
 } from "../recordText.js";
 
 // The server's cap (backend/app/documents/config.py). Checked here only to save a pointless upload.
@@ -96,7 +96,11 @@ function InstitutionDocuments({ who }) {
 }
 
 export function UploadForm({ who, appId, onUploaded }) {
-  const [docType, setDocType] = useState(CHECKLIST[0][0]);
+  // The application's own checklist (server) first, then supporting documents that are not checklist items.
+  const checklist = useApi(who, appId ? `/applications/${appId}/checklist` : null);
+  const items = checklist.data?.items ?? [];
+  const [chosenType, setDocType] = useState(null);
+  const docType = chosenType ?? items[0]?.item_key ?? SUPPORTING_DOCUMENTS[0][0];
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -142,7 +146,14 @@ export function UploadForm({ who, appId, onUploaded }) {
       <label>
         Checklist item
         <select value={docType} onChange={edited((e) => setDocType(e.target.value))}>
-          {CHECKLIST.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          {items.length > 0 && (
+            <optgroup label={`Checklist for this application (${checklist.data.label})`}>
+              {items.map((i) => <option key={i.item_key} value={i.item_key}>{checklistLabel(i.item_key)}{i.mandatory ? " (mandatory)" : ""}</option>)}
+            </optgroup>
+          )}
+          <optgroup label="Supporting documents (not checklist items)">
+            {SUPPORTING_DOCUMENTS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </optgroup>
         </select>
       </label>
       <label>
@@ -150,6 +161,7 @@ export function UploadForm({ who, appId, onUploaded }) {
         <input type="file" accept={ACCEPT} onChange={edited((e) => setFile(e.target.files?.[0] ?? null))} />
       </label>
       <p className="muted small">
+        Uploading a file does not tick a checklist item: link it to the item in the case's checklist under My applications.
         Use synthetic files only. Each upload of a changed file adds a new version; older versions are kept.
         A new version stays in quarantine until the malware scan is clean.
       </p>
@@ -293,8 +305,10 @@ export function ConfirmedFacts({ who, versionId }) {
 
 function ScopeDocuments({ who, canScan }) {
   const [docType, setDocType] = useState("");
-  const path = docType ? `/documents?doc_type=${encodeURIComponent(docType)}` : "/documents";
-  const docs = useApi(who, path);
+  const all = useApi(who, "/documents");
+  // The item filter lists the item codes present in the documents returned, filtered here, so no list is assumed.
+  const types = [...new Set((all.data ?? []).map((d) => d.doc_type).filter(Boolean))].sort();
+  const docs = { ...all, data: all.data && docType ? all.data.filter((d) => d.doc_type === docType) : all.data };
   const [previewId, setPreviewId] = useState(null);
   const shown = previewVersion(docs.data, previewId);
   return (
@@ -304,7 +318,7 @@ function ScopeDocuments({ who, canScan }) {
           Checklist item
           <select value={docType} onChange={(e) => { setDocType(e.target.value); setPreviewId(null); }}>
             <option value="">All items</option>
-            {CHECKLIST.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {types.map((code) => <option key={code} value={code}>{checklistLabel(code)}</option>)}
           </select>
         </label>
         <button className="ghost small" onClick={docs.reload}><Icon name="refresh" /> Refresh</button>

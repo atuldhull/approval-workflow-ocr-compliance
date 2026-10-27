@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { useSingleFlight } from "./ui.jsx";
 import { stageLabel } from "./RouteJourney.jsx";
+import { itemLabel } from "../workflowText.js";
+
+const RULESET = "aph-2024-27@r1";
 
 export default function NewApplication({ who, institution, onChanged }) {
   const [routes, setRoutes] = useState([]);
@@ -9,14 +12,23 @@ export default function NewApplication({ who, institution, onChanged }) {
   const [year, setYear] = useState("2027-28");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [checklist, setChecklist] = useState(null);
   const pendingKey = useRef(null); // reused if this same submission is retried after a failure
   const once = useSingleFlight();
 
   useEffect(() => {
-    api(who, "/rulesets/aph-2024-27@r1")
+    api(who, `/rulesets/${RULESET}`)
       .then((rs) => setRoutes(rs.routes))
       .catch((e) => setError(e.message));
   }, [who]);
+
+  // What the chosen category will ask for (GET /rulesets/{key}/checklists/{category}), before a draft exists.
+  useEffect(() => {
+    let live = true;
+    setChecklist(null);
+    api(who, `/rulesets/${RULESET}/checklists/${category}`).then((c) => live && setChecklist(c)).catch(() => live && setChecklist(null));
+    return () => { live = false; };
+  }, [who, category]);
 
   const route = routes.find((r) => r.category === category);
   const edited = (setter) => (e) => {
@@ -72,6 +84,12 @@ export default function NewApplication({ who, institution, onChanged }) {
       {route && (
         <p className="muted small">
           Prescribed route: {route.stages.map((s) => (s.when === "as_applicable" ? `${stageLabel(s.stage)} (if applicable)` : stageLabel(s.stage))).join(" → ")}
+        </p>
+      )}
+      {checklist && (
+        <p className="muted small checklist-preview">
+          Checklist ({checklist.label}): {checklist.items.map((i) => `${itemLabel(i.item_key)}${i.mandatory ? "" : " (optional)"}`).join(", ")}
+          {checklist.dsc_required ? ", and a DSC confirmation" : ""}. You link your uploaded documents to it before submitting.
         </p>
       )}
       {error && <p className="error" role="alert">{error}</p>}
