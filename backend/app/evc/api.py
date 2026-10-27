@@ -1,4 +1,4 @@
-"""Role-scoped EVC queue. Scheduling/publishing remain separate commands."""
+"""Role-scoped EVC queue; scheduling/publishing commands live in schedule_api."""
 from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.evc.models import EvcRequest
 from app.evc.pool_api import router as pool_router
+from app.evc.schedule_api import router as schedule_router
 from app.evc.selector_api import router as selector_router
 from app.evc.service import duration
 from app.platform.auth import current_principal
@@ -22,6 +23,7 @@ from contracts.types import Principal, ResourceRef
 router = APIRouter(tags=["evc"])
 router.include_router(pool_router)
 router.include_router(selector_router)
+router.include_router(schedule_router)
 RequestStatus = Literal["QUEUED", "PROPOSED", "PUBLISHED", "DONE", "CANCELLED"]
 
 
