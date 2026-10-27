@@ -71,18 +71,23 @@ def first_fire_at(rules, rule, due_at: datetime) -> datetime | None:
 
 
 def subject_scope(session: Session, d: Deadline) -> Scope:
-    if d.subject_type in ("obligation", "approval_letter"):
+    return scope_of(session, d.subject_type, d.subject_id)
+
+
+def scope_of(session: Session, subject_type: str, subject_id) -> Scope:
+    """Institution and region a deadline subject belongs to; ScopeUnresolved rather than a guess."""
+    if subject_type in ("obligation", "approval_letter"):
         # compliance rows record the institution and region of the case they were created for
         from app.compliance.models import ApprovalLetter, Obligation
 
-        row = session.get(Obligation if d.subject_type == "obligation" else ApprovalLetter, d.subject_id)
+        row = session.get(Obligation if subject_type == "obligation" else ApprovalLetter, subject_id)
         if row is None:
             raise ScopeUnresolved("deadline subject not found")
         return Scope(row.institution_id, row.region)
-    if d.subject_type != "application":
-        raise ScopeUnresolved(f"no scope lookup for {d.subject_type} deadlines")
+    if subject_type != "application":
+        raise ScopeUnresolved(f"no scope lookup for {subject_type} deadlines")
     try:
-        case = port(CasePort).lookup(session, d.subject_id)
+        case = port(CasePort).lookup(session, subject_id)
     except NotFound:
         raise ScopeUnresolved("deadline subject not found") from None
     return Scope(case.institution_id, case.region)

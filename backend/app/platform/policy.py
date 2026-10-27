@@ -37,6 +37,8 @@ POLICY: dict[str, frozenset[Role]] = {
     # application documents (Person 2's endpoints). Facts are extracted by OCR and only proposals until an
     # officer reviews and confirms them; institutions upload and see their own documents' facts.
     "document.upload": frozenset({R.INSTITUTION}),
+    # retrying a scan that never got an answer changes no content, so the officers handling the case may ask too
+    "document.rescan": frozenset({R.INSTITUTION, R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD}),
     "document.facts.read": OFFICERS | {R.INSTITUTION, R.AUDITOR},
     "document.fact.review": frozenset({R.SCRUTINY_COMMITTEE, R.RO_OFFICER}),
     "document.fact.confirm": OFFICERS,

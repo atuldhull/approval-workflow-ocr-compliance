@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.compliance.models import ApprovalLetter, Obligation
+from app.deadlines.alerts import ScopeUnresolved, scope_of
 from app.deadlines.alerts import engine as alerts
 from app.deadlines.models import Alert, Deadline
 from app.deadlines.wiring import clock
@@ -15,7 +16,7 @@ from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from contracts.enums import Role
 from contracts.errors import Forbidden, NotFound, ValidationFailed
-from contracts.ports import AuthzPort, CasePort
+from contracts.ports import AuthzPort
 from contracts.types import Principal, ResourceRef
 
 router = APIRouter(tags=["deadlines"])
@@ -57,10 +58,21 @@ def _out(d: Deadline) -> DeadlineOut:
 
 
 def _check_subject(session, principal: Principal, subject_type: str, subject_id: UUID) -> None:
-    owner = None
-    if subject_type == "application":
-        owner = port(CasePort).lookup(session, subject_id).institution_id
-    port(AuthzPort).check(principal, "deadline.read", ResourceRef(subject_type, subject_id, owner))
+    # deadlines are region-scoped records of the case (or compliance row) they belong to; an unresolvable subject
+    # states no owner or region, so only roles without an institution or region scope get past it
+    try:
+        scope = scope_of(session, subject_type, subject_id)
+        ref = ResourceRef("deadline", subject_id, scope.institution_id, scope.region)
+    except ScopeUnresolved:
+        ref = ResourceRef("deadline", subject_id)
+    port(AuthzPort).check(principal, "deadline.read", ref)
+
+
+def _region_of(session, d: Deadline) -> str | None:
+    try:
+        return scope_of(session, d.subject_type, d.subject_id).region
+    except ScopeUnresolved:
+        return None
 
 
 @router.get("/deadlines", response_model=list[DeadlineOut])
@@ -72,7 +84,9 @@ def list_deadlines(subject_id: UUID | None = None, status: str | None = None, ow
         elif principal.role == Role.INSTITUTION:
             raise Forbidden("institution users must ask for one application's deadlines")
         else:
-            port(AuthzPort).check(principal, "deadline.read", ResourceRef("deadline"))
+            # a regional officer's list is its own region's deadlines only
+            region = principal.region if principal.role == Role.RO_OFFICER else None
+            port(AuthzPort).check(principal, "deadline.read", ResourceRef("deadline", region=region))
         q = select(Deadline).order_by(Deadline.due_at)
         if subject_id is not None:
             q = q.where(Deadline.subject_id == subject_id)
@@ -80,7 +94,10 @@ def list_deadlines(subject_id: UUID | None = None, status: str | None = None, ow
             q = q.where(Deadline.status == status)
         if owner:
             q = q.where(Deadline.clock_owner == owner)
-        return [_out(d) for d in session.scalars(q).all()]
+        found = session.scalars(q).all()
+        if principal.role == Role.RO_OFFICER and subject_id is None:
+            found = [d for d in found if _region_of(session, d) == principal.region]
+        return [_out(d) for d in found]
 
 
 @router.get("/deadlines/{deadline_id}/explain", response_model=DeadlineOut)
@@ -177,6 +194,8 @@ def list_alerts(status: str | None = None, deadline_id: UUID | None = None, regi
     a committee member those addressed to the committee, bureau and audit roles all (optionally by region)."""
     if status is not None and status not in ALERT_STATUSES:
         raise ValidationFailed(f"status must be one of {sorted(ALERT_STATUSES)}")
+    if principal.role == Role.RO_OFFICER and region is not None and region != principal.region:
+        raise Forbidden("regional officers may only list their own region's alerts")
     scope_region = principal.region if principal.role == Role.RO_OFFICER else region
     port(AuthzPort).check(principal, "alert.read", ResourceRef(
         "alert", owner_institution_id=principal.institution_id, region=scope_region))

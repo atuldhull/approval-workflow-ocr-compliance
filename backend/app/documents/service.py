@@ -231,7 +231,7 @@ def scan_version(principal: Principal, version_id: UUID) -> DocumentVersion:
         if version is None:
             raise NotFound("document version not found")
         if principal.role != Role.SYSTEM:
-            authorize(session, principal, "document.upload", version.application_id, version.document_id)
+            authorize(session, principal, "document.rescan", version.application_id, version.document_id)
         if version.scan_status != "scan_pending":
             return version
         storage_ref = version.storage_ref

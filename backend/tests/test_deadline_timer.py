@@ -459,7 +459,8 @@ def test_alert_list_is_scoped_by_role_region_and_institution(env):
     assert all(region == "Southern" for _, region, _ in listed(SOUTH_RO)) and listed(SOUTH_RO)
     north_ro = listed(NORTH_RO)
     assert ("RO_OFFICER", "Northern", 0) in north_ro and all(region == "Northern" for _, region, _ in north_ro)
-    assert listed(NORTH_RO, region="Southern") == north_ro   # always its own region
+    # another region is refused, not silently replaced by its own
+    assert env.get("/api/alerts", headers=NORTH_RO, params={"region": "Southern"}).status_code == 403
     assert all(region == "Northern" for _, region, _ in listed(BUREAU_HEAD, region="Northern"))
     assert listed(COMMITTEE) == []
     assert env.get("/api/alerts", headers=AUDITOR, params={"status": "BOGUS"}).status_code == 422
