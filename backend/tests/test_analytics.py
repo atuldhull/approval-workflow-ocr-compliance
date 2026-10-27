@@ -74,8 +74,10 @@ def test_scorecard_without_answer_keys_shows_no_accuracy(client, tmp_path, monke
     items = {i["key"]: i for i in client.get("/api/analytics/scorecard", headers=BUREAU).json()["items"]}
     assert items["ledger_integrity"]["kind"] == "VERIFIED_NOW" and items["ledger_integrity"]["result"]["ok"]
     assert items["replay_consistency"]["result"]["ok"] is True
-    for key in ("routing", "ocr", "alerts"):
-        assert items[key]["kind"] == "NOT_EVALUATED" and "result" not in items[key]
+    for key in ("routing", "ocr", "alerts", "document_scanning", "four_eyes"):
+        assert items[key]["kind"] == "NOT_EVALUATED" and items[key]["result"] is None, key
+        assert items[key]["note"] and items[key]["method"] and items[key]["outcome"] is None, key
+    assert "answer key" in items["routing"]["note"]
 
 
 def test_scorecard_evaluates_answer_keys_when_present(client, tmp_path, monkeypatch):
