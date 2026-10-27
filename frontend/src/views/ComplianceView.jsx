@@ -1,8 +1,8 @@
-import World from "../operations/World.jsx";
+import { datePositions } from "../operations/semanticData.js";
 import { useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
-import { Badge, Card, Empty, ErrorBox, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import { Badge, Card, Empty, ErrorBox, Inspector, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import { ROLE_LABELS, sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, deadlineSource, internalRef } from "../provenance.js";
 import {
@@ -27,23 +27,13 @@ export default function ComplianceView({ who, me, focusObligation }) {
   const obligations = useApi(who, `/compliance/obligations${status ? `?status=${status}` : ""}`);
   const refresh = () => { letters.reload(); obligations.reload(); };
 
-  const records = (obligations.data ?? []).map((o) => ({
-    id: o.id, label: sentence(o.kind), state: o.status === "MET" ? "checked" : o.status === "OPEN" ? "active" : "unknown",
-    date: o.due_date, evidence: o.status === "OPEN" ? null : obligationStatusOf(o.status).label,
-    detail: `${o.due_date ? `Due ${dateIST(o.due_date)}` : "No due date"} · ${obligationStatusOf(o.status).label}`,
-    facts: [["Case", internalRef(o.application_id)], ["Due", o.due_date ? dateIST(o.due_date) : "Not supplied"],
-      ["Status", obligationStatusOf(o.status).label], ["Origin", ORIGIN[o.state_origin] ?? sentence(o.state_origin)]],
-  }));
 
   return (
-    <div>
-      <World kind="compliance" records={records} onSelect={setOpenId} actionLabel="Open obligation" />
-      <Card title="Approval letters" actions={<button className="secondary small" onClick={refresh}><Icon name="refresh" /> Refresh</button>}>
-        <LetterTable state={letters} />
-        {REGISTRARS.has(me.role) && <RegisterLetter who={who} onRegistered={refresh} />}
-      </Card>
-      <div className={`grid compliance-layout${openId ? " has-detail" : ""}`}>
-        <Card title="Obligations">
+    <div className="compliance">
+      <ObligationTimeline state={obligations} openId={openId} onOpen={setOpenId} />
+      <div className="split compliance-layout">
+        <Card title="Obligations" className="split-list"
+          actions={<button className="ghost small" onClick={refresh}><Icon name="refresh" /> Refresh</button>}>
           <div className="chips" role="group" aria-label="Show obligations">
             {FILTERS.map(([key, label]) => (
               <button key={key || "all"} className={`chip${status === key ? " on" : ""}`} aria-pressed={status === key} onClick={() => setStatus(key)}>
@@ -53,11 +43,74 @@ export default function ComplianceView({ who, me, focusObligation }) {
           </div>
           <ObligationTable state={obligations} openId={openId} onOpen={setOpenId} />
         </Card>
-        {openId && (
-          <ObligationDetail key={openId} who={who} me={me} id={openId} onClose={() => setOpenId(null)} onChanged={obligations.reload} />
-        )}
+        <div className="split-detail">
+          {openId ? (
+            <ObligationDetail key={openId} who={who} me={me} id={openId} onClose={() => setOpenId(null)} onChanged={obligations.reload} />
+          ) : (
+            <div className="card placeholder-case">
+              <Empty>Open an obligation to see what it requires, its source, the evidence submitted and what is still unverified.</Empty>
+            </div>
+          )}
+        </div>
       </div>
+      <Card title="Approval letters" className="letters">
+        <p className="muted small">Each registered letter creates the obligations its rules attach. Registering a letter never meets an obligation.</p>
+        <LetterTable state={letters} />
+        {REGISTRARS.has(me.role) && <RegisterLetter who={who} onRegistered={refresh} />}
+      </Card>
     </div>
+  );
+}
+
+const TIMELINE_TONE = { MET: "ok", OPEN: "attention", EVIDENCE_SUBMITTED: "info" };
+
+// Due dates of the listed obligations on one axis, so clustering and order are visible at a glance. Spacing follows
+// the dates; an obligation without a due date is counted but not placed. Selecting a marker opens the obligation.
+function ObligationTimeline({ state, openId, onOpen }) {
+  const rows = (state.data ?? []).filter((o) => o.due_date);
+  if (!rows.length) return null;
+  const sorted = [...rows].sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const dates = [...new Set(sorted.map((o) => o.due_date))];
+  const positions = datePositions(dates.map((date) => ({ date })));
+  // One marker per date; several obligations due the same day stack above it instead of overlapping.
+  const groups = dates.map((date, i) => {
+    const items = sorted.filter((o) => o.due_date === date);
+    const tone = items.some((o) => o.status === "OPEN") ? "attention" : items.some((o) => o.status === "EVIDENCE_SUBMITTED") ? "info" : "ok";
+    return { date, items, position: positions[i], tone };
+  });
+  const undated = (state.data ?? []).length - rows.length;
+  return (
+    <section className="card obligation-axis" aria-labelledby="axis-title">
+      <header className="card-head">
+        <h2 id="axis-title">Due dates</h2>
+        <span className="muted small">
+          {dateIST(sorted[0].due_date)} to {dateIST(sorted.at(-1).due_date)}
+          {undated > 0 && ` · ${undated} without a due date`}
+        </span>
+      </header>
+      <div className="axis-track" style={{ "--stack": Math.max(...groups.map((g) => g.items.length)) }}>
+        {groups.map((g) => g.position !== null && (
+          <div key={g.date} className="axis-group" style={{ left: `${g.position}%` }}>
+            <span className={`axis-dot tone-${g.tone}`} aria-hidden="true">{g.items.length > 1 ? g.items.length : ""}</span>
+            <span className="axis-date" aria-hidden="true">{dateIST(g.date)}</span>
+            <span className="axis-items">
+              {g.items.map((o) => (
+                <button key={o.id} className={`axis-mark tone-${TIMELINE_TONE[o.status] ?? "neutral"}${openId === o.id ? " is-selected" : ""}`}
+                  aria-pressed={openId === o.id} onClick={() => onOpen(o.id)}
+                  aria-label={`${sentence(o.kind)}, case ${internalRef(o.application_id)}, due ${dateIST(o.due_date)}, ${obligationStatusOf(o.status).label}`}>
+                  {sentence(o.kind)} <code>{internalRef(o.application_id)}</code>
+                </button>
+              ))}
+            </span>
+          </div>
+        ))}
+      </div>
+      <ul className="axis-legend" aria-hidden="true">
+        <li className="tone-attention">Open: evidence needed</li>
+        <li className="tone-info">Evidence submitted, unverified</li>
+        <li className="tone-ok">Met</li>
+      </ul>
+    </section>
   );
 }
 
@@ -67,7 +120,7 @@ function LetterTable({ state }) {
   if (!state.data) return null;
   if (state.data.length === 0) return <Empty>No approval letters are registered in your scope.</Empty>;
   return (
-    <table className="table" tabIndex={0} aria-label="Approval letters">
+    <div className="table-wrap"><table className="table" tabIndex={0} aria-label="Approval letters">
       <thead>
         <tr>
           <th scope="col">Letter</th><th scope="col">Case</th><th scope="col">Year</th><th scope="col">Issued</th>
@@ -87,7 +140,7 @@ function LetterTable({ state }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -97,9 +150,9 @@ function ObligationTable({ state, openId, onOpen }) {
   if (!state.data) return null;
   if (state.data.length === 0) return <Empty>No obligations match.</Empty>;
   return (
-    <table className="table" tabIndex={0} aria-label="Obligations">
+    <div className="table-wrap"><table className="table" tabIndex={0} aria-label="Obligations">
       <thead>
-        <tr><th scope="col">Obligation</th><th scope="col">Case</th><th scope="col">Due</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Open</span></th></tr>
+        <tr><th scope="col">Obligation</th><th scope="col">Case</th><th scope="col">Due</th><th scope="col">Status</th><th scope="col">Evidence</th><th scope="col"><span className="sr-only">Open</span></th></tr>
       </thead>
       <tbody>
         {state.data.map((o) => {
@@ -110,6 +163,7 @@ function ObligationTable({ state, openId, onOpen }) {
               <td><code title={INTERNAL_REF_TITLE}>{internalRef(o.application_id)}</code></td>
               <td className="nowrap">{o.due_date ? dateIST(o.due_date) : "No due date"}</td>
               <td><Badge tone={s.tone}>{s.label}</Badge></td>
+              <td className="small">{evidenceSummary(o.evidence)}</td>
               <td>
                 <button className="secondary small" aria-expanded={openId === o.id} onClick={() => onOpen(openId === o.id ? null : o.id)}
                   aria-label={`${openId === o.id ? "Close" : "Open"} ${sentence(o.kind).toLowerCase()} for case ${internalRef(o.application_id)}`}>
@@ -120,8 +174,18 @@ function ObligationTable({ state, openId, onOpen }) {
           );
         })}
       </tbody>
-    </table>
+    </table></div>
   );
+}
+
+// What the evidence on an obligation amounts to, in a few words: nothing yet, waiting for an officer, or decided.
+function evidenceSummary(evidence) {
+  if (!evidence?.length) return <span className="muted">None submitted</span>;
+  const waiting = evidence.filter((e) => e.status === "SUBMITTED").length;
+  const accepted = evidence.filter((e) => e.status === "ACCEPTED").length;
+  if (waiting) return <span className="unverified">{waiting} unverified</span>;
+  if (accepted) return <span className="ok">{accepted} accepted</span>;
+  return <span className="muted">{evidence.length} rejected</span>;
 }
 
 function versionNames(docs) {
@@ -139,7 +203,7 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
   const source = o && deadlineSource({ source_status: o.source_status, clause: o.source_clause });
 
   return (
-    <aside className="card obligation-detail" aria-label="Obligation detail">
+    <aside className="card inspector obligation-detail" aria-label="Obligation detail">
       <header className="card-head">
         <h2>{o ? sentence(o.kind) : "Obligation"}</h2>
         <button className="ghost icon-only" aria-label="Close obligation" onClick={onClose}><Icon name="close" /></button>
@@ -156,6 +220,11 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
             <dt>Origin</dt><dd>{ORIGIN[o.state_origin] ?? sentence(o.state_origin)}</dd>
             {o.met_at && <><dt>Met</dt><dd>{when(o.met_at)}</dd></>}
           </dl>
+          <ol className="obligation-flow" aria-label="Who does what">
+            <li className={o.evidence.length ? "done" : "now"}><strong>Institution</strong> submits a scanned-clean document version as evidence</li>
+            <li className={o.status === "EVIDENCE_SUBMITTED" ? "now" : o.status === "MET" ? "done" : undefined}><strong>Officer</strong> accepts or rejects it</li>
+            <li className={o.status === "MET" ? "done" : undefined}><strong>Met</strong> only when an officer accepts</li>
+          </ol>
           <h3>Evidence</h3>
           {o.evidence.length === 0 ? <p className="muted">No evidence has been submitted.</p> : (
             <ul className="evidence-list">
