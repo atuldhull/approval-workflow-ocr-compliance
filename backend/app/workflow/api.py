@@ -1,8 +1,10 @@
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from app.platform.auth import current_principal
 from app.platform.db import new_session
@@ -13,8 +15,10 @@ from app.workflow import case_service
 from app.workflow import deficiency
 from app.workflow import committee
 from app.workflow.commands import WorkflowValidationFailed
-from app.workflow.case_api_models import ActionIn, CaseActionOut, CaseOut, CasePageOut, ERROR_RESPONSES
+from app.workflow.case_api_models import ActionIn, CaseActionOut, CaseErrorOut, CaseOut, CasePageOut, ERROR_RESPONSES
+from app.workflow.models import Ruleset
 from contracts.enums import ApplicationStatus, Stage
+from contracts.errors import NotFound
 from contracts.ports import AuthzPort, RulesetPort
 from contracts.types import Principal, ResourceRef
 
@@ -82,6 +86,39 @@ def get_ruleset(key: str, principal: Principal = Depends(current_principal)):
                          stages=[StageOut(stage=s.stage, when=s.when) for s in r.stages])
                 for r in rs.routes.values()],
     )
+
+
+class ChecklistItemOut(BaseModel):
+    item_key: str
+    mandatory: bool
+
+
+class ChecklistOut(BaseModel):
+    ruleset_key: str
+    category: str
+    status: Literal["DEMO_ASSUMPTION"]
+    label: Literal["DEMO ASSUMPTION"]
+    assumption_refs: list[str]
+    dsc_required: bool
+    items: list[ChecklistItemOut]
+
+
+@router.get("/rulesets/{key}/checklists/{category}", response_model=ChecklistOut, tags=["rulesets"],
+            responses={404: {"model": CaseErrorOut}},
+            description="Read-only document checklist of one category, as pinned when the ruleset was loaded. "
+                        "Items are DEMO ASSUMPTION stand-ins for Annexure 2, not an official list.")
+def get_checklist(key: str, category: str, principal: Principal = Depends(current_principal)):
+    port(AuthzPort).check(principal, "ruleset.read", ResourceRef("ruleset"))
+    with new_session() as session:
+        metadata = session.scalar(select(Ruleset.source_metadata).where(Ruleset.key == key))
+    if metadata is None:
+        raise NotFound(f"ruleset {key} is not loaded")
+    checklist = (metadata.get("intake") or {}).get(category)
+    if checklist is None:
+        raise NotFound(f"category {category} has no checklist in {key}")
+    return ChecklistOut(ruleset_key=key, category=category, status=checklist["status"], label=checklist["label"],
+                        assumption_refs=checklist["assumption_refs"], dsc_required=checklist["dsc_required"],
+                        items=[ChecklistItemOut(**item) for item in checklist["items"]])
 
 
 @router.get("/rulesets", response_model=list[str], tags=["rulesets"])

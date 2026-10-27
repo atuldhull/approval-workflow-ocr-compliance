@@ -50,3 +50,19 @@ class ItemsOut(BaseModel):
     items: list[ItemOut]
     dsc_required: bool
     assumptions: list[str]
+
+
+class ApplicationChecklistOut(BaseModel):
+    """Read-only checklist state; items/flags are DEMO ASSUMPTION stand-ins (INTAKE_* assumption refs)."""
+    application_id: UUID
+    category: str
+    ruleset_key: str
+    pinned: bool
+    status: Literal["DEMO_ASSUMPTION"]
+    label: Literal["DEMO ASSUMPTION"]
+    assumptions: list[str]
+    dsc_required: bool
+    dsc_present: bool
+    items: list[ItemOut]
+    missing_mandatory_item_keys: list[str]
+    mandatory_items_complete: bool

@@ -8,7 +8,8 @@ from sqlalchemy import select
 from app.intake import service
 from app.intake.models import Application, Institution
 from app.intake.rules import SubmissionBlocked, plan
-from app.intake.shapes import ItemIn, ItemsIn, ItemsOut, SubmissionIn, SubmissionErrorOut, SubmissionInputErrorOut
+from app.intake.shapes import (ApplicationChecklistOut, ItemIn, ItemsIn, ItemsOut, SubmissionIn, SubmissionErrorOut,
+                                SubmissionInputErrorOut)
 from app.platform.auth import current_principal
 from app.platform.db import new_session
 from app.platform.idempotency import idempotency_key, idempotent_response
@@ -155,3 +156,10 @@ def get_application(application_id: UUID, principal: Principal = Depends(current
                               ResourceRef("application", a.id, owner_institution_id=a.institution_id))
         return _out(a)
 
+
+@router.get("/applications/{application_id}/checklist", response_model=ApplicationChecklistOut,
+            description="Read-only checklist for this application with the state of each item, against its pinned "
+                        "ruleset (the default ruleset while it is a draft). Items are DEMO ASSUMPTION stand-ins.")
+def application_checklist(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return service.checklist(session, principal, application_id)

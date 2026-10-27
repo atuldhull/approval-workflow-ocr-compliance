@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.intake.models import Application, ApplicationItem, Institution, StageVisit
 from app.intake import rules as intake_rules
-from app.intake.shapes import ItemIn, ItemOut, ItemsOut
+from app.intake.shapes import ApplicationChecklistOut, ItemIn, ItemOut, ItemsOut
 from app.platform.registry import port
 from contracts.enums import ApplicationStatus
 from contracts.errors import Conflict, NotFound, ValidationFailed
@@ -117,3 +117,24 @@ class Cases:
             raise NotFound("application not found")
         inst = session.get(Institution, row.institution_id)
         return CaseRef(application_id=row.id, institution_id=row.institution_id, region=inst.ro_region)
+
+
+def checklist(session: Session, principal, application_id: UUID) -> ApplicationChecklistOut:
+    """Read-only per-item state against the pinned ruleset (the default ruleset while still a draft)."""
+    ref = port(CasePort).lookup(session, application_id)
+    port(AuthzPort).check(principal, "application.read",
+                          ResourceRef("application", application_id, ref.institution_id, ref.region))
+    app = session.get(Application, application_id)
+    key = app.ruleset_rev or port(RulesetPort).default_key()
+    config = intake_rules.plan(session, app.category, key)
+    known = {item["item_key"]: item for item in config.checklist["items"]}
+    rows = {item.item_key: item for item in session.scalars(select(ApplicationItem).where(
+        ApplicationItem.application_id == application_id))}
+    items = [ItemOut(item_key=k, mandatory=known[k]["mandatory"], state=rows[k].state if k in rows else "MISSING",
+                     document_ref=rows[k].document_ref if k in rows else None) for k in sorted(known)]
+    missing = [i.item_key for i in items if i.mandatory and i.state != "PROVIDED"]
+    return ApplicationChecklistOut(
+        application_id=application_id, category=app.category, ruleset_key=key, pinned=app.ruleset_rev is not None,
+        status=config.checklist["status"], label=config.checklist["label"], assumptions=list(config.assumptions),
+        dsc_required=config.checklist["dsc_required"], dsc_present=app.dsc_present, items=items,
+        missing_mandatory_item_keys=missing, mandatory_items_complete=not missing)
