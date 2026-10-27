@@ -4,6 +4,11 @@ WORKDIR /srv
 ENV PYTHONPATH=/srv:/srv/backend \
     PYTHONUNBUFFERED=1
 
+# Tesseract for scanned documents (English, plus Hindi/Devanagari); PDF text layers are read with pypdf.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-hin \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
