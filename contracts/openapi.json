@@ -277,6 +277,87 @@
         "title": "AlertOut",
         "type": "object"
       },
+      "ApplicationChecklistOut": {
+        "description": "Read-only checklist state; items/flags are DEMO ASSUMPTION stand-ins (INTAKE_* assumption refs).",
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "dsc_present": {
+            "title": "Dsc Present",
+            "type": "boolean"
+          },
+          "dsc_required": {
+            "title": "Dsc Required",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/app__intake__shapes__ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "const": "DEMO ASSUMPTION",
+            "title": "Label",
+            "type": "string"
+          },
+          "mandatory_items_complete": {
+            "title": "Mandatory Items Complete",
+            "type": "boolean"
+          },
+          "missing_mandatory_item_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Mandatory Item Keys",
+            "type": "array"
+          },
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_id",
+          "category",
+          "ruleset_key",
+          "pinned",
+          "status",
+          "label",
+          "assumptions",
+          "dsc_required",
+          "dsc_present",
+          "items",
+          "missing_mandatory_item_keys",
+          "mandatory_items_complete"
+        ],
+        "title": "ApplicationChecklistOut",
+        "type": "object"
+      },
       "ApplicationIn": {
         "properties": {
           "academic_year": {
@@ -922,6 +1003,75 @@
           "missing_item_keys"
         ],
         "title": "CaseSubmissionErrorOut",
+        "type": "object"
+      },
+      "ChecklistItemOut": {
+        "properties": {
+          "item_key": {
+            "title": "Item Key",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "item_key",
+          "mandatory"
+        ],
+        "title": "ChecklistItemOut",
+        "type": "object"
+      },
+      "ChecklistOut": {
+        "properties": {
+          "assumption_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumption Refs",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "dsc_required": {
+            "title": "Dsc Required",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "const": "DEMO ASSUMPTION",
+            "title": "Label",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ruleset_key",
+          "category",
+          "status",
+          "label",
+          "assumption_refs",
+          "dsc_required",
+          "items"
+        ],
+        "title": "ChecklistOut",
         "type": "object"
       },
       "CheckpointOut": {
@@ -2250,6 +2400,19 @@
               }
             ],
             "title": "Document Version Id"
+          },
+          "f_no": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F No"
           },
           "issue_date": {
             "format": "date",
@@ -5834,6 +5997,7 @@
         ]
       },
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_api_applications_post",
         "parameters": [
           {
@@ -5900,6 +6064,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -6061,6 +6241,116 @@
           }
         },
         "summary": "Get Application",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/applications/{application_id}/checklist": {
+      "get": {
+        "description": "Read-only checklist for this application with the state of each item, against its pinned ruleset (the default ruleset while it is a draft). Items are DEMO ASSUMPTION stand-ins.",
+        "operationId": "application_checklist_api_applications__application_id__checklist_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationChecklistOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Application Checklist",
         "tags": [
           "applications"
         ]
@@ -6325,6 +6615,7 @@
     },
     "/api/applications/{application_id}/items": {
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "provide_items_api_applications__application_id__items_post",
         "parameters": [
           {
@@ -6402,6 +6693,22 @@
               ],
               "title": "X-Demo-Region"
             }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "requestBody": {
@@ -6444,6 +6751,7 @@
     },
     "/api/applications/{application_id}/submit": {
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "submit_api_applications__application_id__submit_post",
         "parameters": [
           {
@@ -6520,6 +6828,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -7563,7 +7887,7 @@
     },
     "/api/cases/{application_id}/actions": {
       "post": {
-        "description": "Apply one versioned action atomically. Idempotency-Key is accepted for future P3 middleware; this handler does not cache/replay responses. Reusing a consumed expected_version returns 409. Guard facts must come from trusted server providers; unavailable facts reject the action.",
+        "description": "Apply one versioned action atomically. Optional Idempotency-Key: a retry with the same key and body replays the stored response with Idempotent-Replayed: true; the same key with a different body is 422, and 409 while the first request still holds the key. Without a key, reusing a consumed expected_version returns 409. Guard facts come only from trusted server records; unavailable facts reject the action.",
         "operationId": "case_action_api_cases__application_id__actions_post",
         "parameters": [
           {
@@ -7574,26 +7898,6 @@
               "format": "uuid",
               "title": "Application Id",
               "type": "string"
-            }
-          },
-          {
-            "description": "Reserved for P3 idempotency middleware; not enforced by this handler.",
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 200,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Reserved for P3 idempotency middleware; not enforced by this handler.",
-              "title": "Idempotency-Key"
             }
           },
           {
@@ -7660,6 +7964,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -7744,6 +8064,7 @@
     },
     "/api/cases/{application_id}/committees": {
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_committee_api_cases__application_id__committees_post",
         "parameters": [
           {
@@ -7820,6 +8141,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -8051,6 +8388,7 @@
     },
     "/api/cases/{application_id}/deficiencies/{deficiency_id}/review": {
       "post": {
+        "description": "Optional Idempotency-Key (replay/422/409).",
         "operationId": "review_deficiency_api_cases__application_id__deficiencies__deficiency_id__review_post",
         "parameters": [
           {
@@ -8137,6 +8475,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -8780,6 +9134,7 @@
         ]
       },
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_report_api_committees__committee_id__reports_post",
         "parameters": [
           {
@@ -8856,6 +9211,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -8937,6 +9308,7 @@
     },
     "/api/committees/{committee_id}/tasks": {
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_task_api_committees__committee_id__tasks_post",
         "parameters": [
           {
@@ -9013,6 +9385,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -11551,7 +11939,7 @@
     },
     "/api/evc/coi": {
       "post": {
-        "description": "Manager records a controlled COI, including recusal on behalf of the expert. Identical repeats are no-ops.",
+        "description": "Manager records a controlled COI, including recusal on behalf of the expert. Identical repeats are no-ops. Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "coi_api_evc_coi_post",
         "parameters": [
           {
@@ -11618,6 +12006,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -11839,7 +12243,7 @@
         ]
       },
       "post": {
-        "description": "Register an opaque P3 user_ref. User-master existence/role validation is pending P3's lookup port. Optional personal details are stored exclusively through PersonalDataPort. Duplicate user_ref returns 409.",
+        "description": "Register an opaque P3 user_ref. User-master existence/role validation is pending P3's lookup port. Optional personal details are stored exclusively through PersonalDataPort. Duplicate user_ref returns 409. Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_expert_api_evc_experts_post",
         "parameters": [
           {
@@ -11907,6 +12311,22 @@
               ],
               "title": "X-Demo-Region"
             }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "requestBody": {
@@ -11950,7 +12370,7 @@
     },
     "/api/evc/experts/{id}/availability": {
       "post": {
-        "description": "Set up to 732 unique date/AM-PM entries atomically. Identical repeats are no-ops without new events.",
+        "description": "Set up to 732 unique date/AM-PM entries atomically. Identical repeats are no-ops without new events. Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "availability_api_evc_experts__id__availability_post",
         "parameters": [
           {
@@ -12027,6 +12447,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -13982,6 +14418,134 @@
         ]
       }
     },
+    "/api/rulesets/{key}/checklists/{category}": {
+      "get": {
+        "description": "Read-only document checklist of one category, as pinned when the ruleset was loaded. Items are DEMO ASSUMPTION stand-ins for Annexure 2, not an official list.",
+        "operationId": "get_checklist_api_rulesets__key__checklists__category__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Checklist",
+        "tags": [
+          "rulesets"
+        ]
+      }
+    },
     "/api/sim/clock": {
       "get": {
         "operationId": "read_clock_api_sim_clock_get",
@@ -14290,6 +14854,7 @@
     },
     "/api/tasks/{task_id}/observations": {
       "post": {
+        "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_observation_api_tasks__task_id__observations_post",
         "parameters": [
           {
@@ -14366,6 +14931,22 @@
                 }
               ],
               "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
