@@ -54,6 +54,7 @@ class Expert(Base):
     )
     id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
     user_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    personal_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
     region: Mapped[str] = mapped_column(Text)
     expertise_tags: Mapped[list[str]] = mapped_column(ARRAY(Text))
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))

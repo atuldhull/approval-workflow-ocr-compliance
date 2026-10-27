@@ -141,6 +141,7 @@ def sync_rulesets(session: Session, registry: RulesetRegistry, *, created_by_ref
             demo_only=demo_only, source_status=rules.status, source_files=manifest,
             source_metadata={"source": raw.get("source"), "workflow_source": raw.get("workflow_source"),
                              "roles": rules.roles, "banner": rules.banner, "intake": intake,
+                             "expert_pool": rules.expert_pool,
                              "deficiency": validate_config(raw, rules.deadline_rules),
                              "evc": validate_evc(raw, rules.deadline_rules)},
             created_at=now, created_by_ref=created_by_ref, approved_at=None, approved_by_ref=None,

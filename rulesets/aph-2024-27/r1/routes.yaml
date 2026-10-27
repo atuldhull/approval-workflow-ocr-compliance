@@ -18,6 +18,13 @@ evc:
   rule_id: EVC_PROCESSING
   source_status: DEMO_ASSUMPTION
   assumption_code: EVC_DURATION_UNCONFIRMED
+# DEMO ASSUMPTION: not an APH-confirmed geographic eligibility or COI policy.
+expert_pool:
+  region_rule: SAME_REGION
+  slot_parts: [AM, PM]
+  coi_reasons: {INSTITUTION_LINK: INSTITUTION_LINK, PRIOR_ENGAGEMENT: PRIOR_ENGAGEMENT, RECUSAL: RECUSAL}
+  source_status: DEMO_ASSUMPTION
+  assumption_code: EXPERT_POLICY_UNCONFIRMED
 intake: {checklist_file: checklists.yaml}
 # DEMO ASSUMPTION: controlled demonstration requirements and response-window policy.
 # Duration is configurable in P2's deadlines.yaml under response_rule_id, not APH-confirmed.

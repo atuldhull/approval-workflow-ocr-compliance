@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "expert_id",
+    "user_ref",
+    "region",
+    "expertise_tags",
+    "active",
+    "personal_ref"
+  ],
+  "properties": {
+    "expert_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "user_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "expertise_tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      }
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "personal_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    }
+  }
+}

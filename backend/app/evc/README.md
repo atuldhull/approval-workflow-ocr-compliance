@@ -23,9 +23,16 @@ Implemented queue/lifecycle:
 - evc_0002 adds pinned rule/ruleset/deadline/visit references and closed_at, keeping legacy rows nullable rather than fabricating provenance. Legacy duplicates make the active uniqueness migration fail explicitly; existing cached ruleset checksums remain immutable. Use a fresh disposable demo database for the approved r1 source changes.
 - EVC_PROCESSING is an INTERNAL/COMMITTEE clock with a configurable **7 calendar-day DEMO ASSUMPTION**, not an APH-confirmed duration. Queue rows expose source_status, assumption_code, duration_days and pinned metadata. Waiting days count elapsed 24-hour periods and stop at completion/cancellation. P2 alone owns overdue escalation; P1 only opens/closes through DeadlinePort.
 
+Expert pool management:
+- `POST /api/evc/experts` accepts opaque P3 user_ref, coded region/tags, active and optional personal_details. Contact fields go exclusively through PersonalDataPort; expert/event/response data retains only personal_ref. Identity is explicitly P3_USER_REF_UNVERIFIED until P3 supplies an authoritative lookup interface. Duplicate user_ref returns 409.
+- `POST /api/evc/experts/{id}/availability` atomically sets `items: [{date, slot_part, available}]` (1–732 unique keys); identical repeats produce no new events. `POST /api/evc/coi` records matching INSTITUTION_LINK, PRIOR_ENGAGEMENT or RECUSAL source/reason codes; duplicates are no-ops.
+- `GET /api/evc/experts?region=&available_on=` is a scoped directory, with optional slot_part and offset/limit. Date filtering excludes inactive, missing/false availability and reserved experts. RO users only manage/read their own region. It has no institution context; COI filtering belongs to request-specific eligibility.
+- `eligibility.eligible_experts(request, date, slot_part)` consumes an immutable EligibilityRequest snapshot, returns UUID-sorted ExpertCandidates and performs no I/O/clock access. `pool.eligibility_snapshot(session, request_id)` loads own EVC tables and the pinned RulesetPort policy; a future scheduler must recheck before reserving/publishing. All COIs exclude; both proposed/published assignments reserve that date/part conservatively. YAML SAME_REGION/ANY_REGION/OTHER_REGION policy and AM/PM codes are labelled DEMO ASSUMPTION.
+- Lifecycle audit events: evc.expert_registered.v1, evc.availability_set.v1, evc.coi_recorded.v1. evc_0003 adds nullable opaque personal_ref only; no user master copy or personal fields in evc.
+
 Still planned:
 - Panels come from a labelled stand-in for the authorised selector (APH 1.8(a): automated, not random)
 - CP-SAT chooses **dates only**; EDF baseline for comparison; explanations for unavailable slots
 - APIs: `POST /evc/schedule:propose`, `POST /evc/schedule:publish`
 
-Capacity consumption, availability/COI/active-expert guards, selector integration, EDF/CPSAT optimization and publishing authorization/events remain future work. AM/PM and the availability pattern are DEMO assumptions, not an APH EVC duration or official calendar. The available extracts reference report section 23 but do not contain that section's full text.
+Capacity consumption, selector integration, EDF/CPSAT optimization and publication-time reservation/authorization/events remain future work. AM/PM and the availability pattern are DEMO assumptions, not an APH EVC duration or official calendar. The available extracts reference report section 23 but do not contain that section's full text.

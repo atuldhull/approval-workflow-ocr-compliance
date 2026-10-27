@@ -8,6 +8,7 @@ from app.platform.registry import port
 from app.workflow.grammar import validate_workflow
 from app.workflow.checklists import Citation, validate_checklists
 from app.workflow.deficiency_config import validate_config
+from app.workflow.expert_pool_config import validate_config as validate_expert_pool
 from pydantic import ValidationError
 from contracts.enums import Stage
 from contracts.errors import Forbidden, NotFound, ValidationFailed
@@ -127,6 +128,7 @@ class RulesetRegistry:
                 key=key, ruleset=ruleset, revision=revision, status=raw.get("status", base.status),
                 routes=base.routes, deadline_rules=base.deadline_rules, clocks_on_submit=base.clocks_on_submit,
                 roles={**base.roles, **raw.get("roles", {})}, banner=raw.get("banner"),
+                expert_pool=base.expert_pool,
             )
 
         routes_raw = _read(folder / "routes.yaml")
@@ -155,6 +157,7 @@ class RulesetRegistry:
             key=key, ruleset=ruleset, revision=revision, status=routes_raw.get("status", "unknown"),
             routes=routes, deadline_rules=rules,
             clocks_on_submit=on_submit, roles=routes_raw.get("roles", {}), banner=routes_raw.get("banner"),
+            expert_pool=validate_expert_pool(routes_raw),
         )
 
 

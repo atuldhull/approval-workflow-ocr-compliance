@@ -53,11 +53,12 @@ class FakeNotes:
 
 
 class FakePersonalData:
-    def __init__(self):
+    def __init__(self, *, reference_factory=uuid4):
         self.rows: dict[UUID, dict[str, Any]] = {}
+        self.reference_factory = reference_factory
 
     def store(self, uow, data: dict[str, Any], purpose: str) -> UUID:
-        ref = uuid4()
+        ref = self.reference_factory()
         self.rows[ref] = data
         return ref
 

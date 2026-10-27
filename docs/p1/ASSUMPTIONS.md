@@ -1,5 +1,12 @@
 # P1 assumptions
 
+## Expert pool 3.3 (27 October 2026)
+
+- EXPERT_POLICY_UNCONFIRMED — DEMO ASSUMPTION: SAME_REGION is the configurable default (alternatives ANY_REGION/OTHER_REGION), AM/PM are demonstration slot parts, and INSTITUTION_LINK/PRIOR_ENGAGEMENT/RECUSAL are controlled demonstration COI source/reason pairs. None is asserted to be a verified APH regional/panel policy. API policy output labels the assumption. Regions compare as uppercase tokens; no official geographic mapping is invented.
+- EXPERT-IDENTITY-001 — P3 owns user/role master data but provides no lookup port/read-only view in this checkout. P1 accepts user_ref as an externally supplied opaque reference and explicitly returns P3_USER_REF_UNVERIFIED; it does not create user identities or certify role/existence. Optional contact details go only through PersonalDataPort.store; evc.expert and events contain personal_ref only. Authoritative identity validation is pending P3's interface.
+- EXPERT-ELIGIBILITY-001 — missing availability excludes an expert; both proposed and published assignments reserve date/part for eligibility conservatively. This is a pure selection predicate, not panel authorization, optimization or publication. Historical COIs exclude regardless of legacy source codes. Managers record recusal on behalf of experts because no EXPERT auth role exists. The expert directory has no institution context and does not itself apply COI checks; request-specific eligible_experts does.
+- The user approved the exact shared value-type/fake/schema/OpenAPI changes and four P3 auth permission additions in the expert-pool contract request. No P3 auth logic, P2 file or new cross-schema write is added. Fresh disposable demo databases preserve existing r1 checksum protection; no existing case is repinned.
+
 ## EVC queue 3.2 (27 October 2026)
 
 - EVC_DURATION_UNCONFIRMED — DEMO ASSUMPTION: the user approved a P2-rule addition with 7 calendar days for EVC_PROCESSING, INTERNAL/COMMITTEE. The value is configurable in YAML and is not APH-confirmed. P1 validates this supported calendar-day policy; earliest_date is the logical IST date and due_by agrees with P2's calendar-day arithmetic. Queue output labels the assumption and shows the pinned rule/duration. No P2 overdue/escalation implementation or direct dl write is added.

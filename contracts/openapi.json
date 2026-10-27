@@ -265,6 +265,98 @@
         "title": "ApplicationStatus",
         "type": "string"
       },
+      "AvailabilityItem": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "slot_part": {
+            "enum": [
+              "AM",
+              "PM"
+            ],
+            "title": "Slot Part",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "slot_part",
+          "available"
+        ],
+        "title": "AvailabilityItem",
+        "type": "object"
+      },
+      "AvailabilityResult": {
+        "properties": {
+          "assumption_code": {
+            "const": "EXPERT_POLICY_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "changed_count": {
+            "title": "Changed Count",
+            "type": "integer"
+          },
+          "expert_id": {
+            "format": "uuid",
+            "title": "Expert Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expert_id",
+          "changed_count",
+          "items",
+          "ruleset_key",
+          "source_status",
+          "assumption_code"
+        ],
+        "title": "AvailabilityResult",
+        "type": "object"
+      },
+      "AvailabilitySet": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityItem"
+            },
+            "maxItems": 732,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AvailabilitySet",
+        "type": "object"
+      },
       "CaseActionOut": {
         "properties": {
           "assumption_status": {
@@ -598,6 +690,110 @@
         "title": "ClosedDeadlineOut",
         "type": "object"
       },
+      "CoiCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "expert_id": {
+            "format": "uuid",
+            "title": "Expert Id",
+            "type": "string"
+          },
+          "institution_ref": {
+            "format": "uuid",
+            "title": "Institution Ref",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "INSTITUTION_LINK",
+              "PRIOR_ENGAGEMENT",
+              "RECUSAL"
+            ],
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "INSTITUTION_LINK",
+              "PRIOR_ENGAGEMENT",
+              "RECUSAL"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expert_id",
+          "institution_ref",
+          "source",
+          "reason_code"
+        ],
+        "title": "CoiCreate",
+        "type": "object"
+      },
+      "CoiResult": {
+        "additionalProperties": false,
+        "properties": {
+          "assumption_code": {
+            "const": "EXPERT_POLICY_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "expert_id": {
+            "format": "uuid",
+            "title": "Expert Id",
+            "type": "string"
+          },
+          "institution_ref": {
+            "format": "uuid",
+            "title": "Institution Ref",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "INSTITUTION_LINK",
+              "PRIOR_ENGAGEMENT",
+              "RECUSAL"
+            ],
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "INSTITUTION_LINK",
+              "PRIOR_ENGAGEMENT",
+              "RECUSAL"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expert_id",
+          "institution_ref",
+          "source",
+          "reason_code",
+          "created",
+          "ruleset_key",
+          "source_status",
+          "assumption_code"
+        ],
+        "title": "CoiResult",
+        "type": "object"
+      },
       "CommitteeIn": {
         "additionalProperties": false,
         "properties": {
@@ -819,6 +1015,188 @@
           "rounds"
         ],
         "title": "DeficienciesOut",
+        "type": "object"
+      },
+      "ExpertCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "expertise_tags": {
+            "items": {
+              "maxLength": 100,
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Expertise Tags",
+            "type": "array"
+          },
+          "personal_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "maxLength": 100,
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Region",
+            "type": "string"
+          },
+          "user_ref": {
+            "format": "uuid",
+            "title": "User Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_ref",
+          "region",
+          "expertise_tags"
+        ],
+        "title": "ExpertCreate",
+        "type": "object"
+      },
+      "ExpertOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "available_parts": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "AM",
+                    "PM"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Parts"
+          },
+          "expertise_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expertise Tags",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "identity_status": {
+            "const": "P3_USER_REF_UNVERIFIED",
+            "default": "P3_USER_REF_UNVERIFIED",
+            "title": "Identity Status",
+            "type": "string"
+          },
+          "personal_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personal Ref"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "user_ref": {
+            "format": "uuid",
+            "title": "User Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_ref",
+          "region",
+          "expertise_tags",
+          "active",
+          "personal_ref"
+        ],
+        "title": "ExpertOut",
+        "type": "object"
+      },
+      "ExpertPage": {
+        "properties": {
+          "assumption_code": {
+            "const": "EXPERT_POLICY_UNCONFIRMED",
+            "default": "EXPERT_POLICY_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExpertOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "region_rule": {
+            "enum": [
+              "SAME_REGION",
+              "ANY_REGION",
+              "OTHER_REGION"
+            ],
+            "title": "Region Rule",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "ruleset_key",
+          "region_rule"
+        ],
+        "title": "ExpertPage",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1292,6 +1670,52 @@
           }
         },
         "title": "Payload",
+        "type": "object"
+      },
+      "PersonalDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 254,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "title": "PersonalDetails",
         "type": "object"
       },
       "QueueItem": {
@@ -5418,6 +5842,526 @@
         "summary": "Explain Deadline",
         "tags": [
           "deadlines"
+        ]
+      }
+    },
+    "/api/evc/coi": {
+      "post": {
+        "description": "Manager records a controlled COI, including recusal on behalf of the expert. Identical repeats are no-ops.",
+        "operationId": "coi_api_evc_coi_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoiCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoiResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Coi",
+        "tags": [
+          "evc",
+          "evc"
+        ]
+      }
+    },
+    "/api/evc/experts": {
+      "get": {
+        "description": "Scoped directory in UUID order. available_on filters active experts with at least one unreserved available part; slot_part optionally narrows it. Includes proposed reservations. This directory has no institution context and does not apply COI eligibility.",
+        "operationId": "experts_api_evc_experts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "query",
+            "name": "available_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Available On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slot_part",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "AM",
+                    "PM"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Slot Part"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Experts",
+        "tags": [
+          "evc",
+          "evc"
+        ]
+      },
+      "post": {
+        "description": "Register an opaque P3 user_ref. User-master existence/role validation is pending P3's lookup port. Optional personal details are stored exclusively through PersonalDataPort. Duplicate user_ref returns 409.",
+        "operationId": "create_expert_api_evc_experts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Expert",
+        "tags": [
+          "evc",
+          "evc"
+        ]
+      }
+    },
+    "/api/evc/experts/{id}/availability": {
+      "post": {
+        "description": "Set up to 732 unique date/AM-PM entries atomically. Identical repeats are no-ops without new events.",
+        "operationId": "availability_api_evc_experts__id__availability_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvailabilitySet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Availability",
+        "tags": [
+          "evc",
+          "evc"
         ]
       }
     },

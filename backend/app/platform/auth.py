@@ -17,6 +17,10 @@ EVERYONE = set(Role)
 
 # action -> roles allowed. Object-level rules are applied in Authz.check.
 POLICY: dict[str, set[Role]] = {
+    "evc.expert.register": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
+    "evc.availability.set": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
+    "evc.coi.record": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
+    "evc.expert.read": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD, Role.SCRUTINY_COMMITTEE, Role.AUDITOR},
     "institution.list": EVERYONE,
     "ruleset.read": EVERYONE,
     "application.create": {Role.INSTITUTION},
