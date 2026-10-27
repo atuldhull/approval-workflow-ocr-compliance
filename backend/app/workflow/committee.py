@@ -249,6 +249,51 @@ def append_report(uow: UnitOfWork, committee_id: UUID, body: ReportIn) -> Report
     return _report_out(report, parent)
 
 
+class LatestReportOut(BaseModel):
+    id: UUID
+    version_no: int
+    created_at: datetime
+    author_user_ref: UUID
+    content_note_hash: Digest
+
+
+class CommitteeSummaryOut(BaseModel):
+    id: UUID
+    application_id: UUID
+    ordinal: int
+    type: CommitteeType
+    status: Literal["ACTIVE", "CLOSED"]
+    members: list[MemberIn]
+    task_count: int
+    report_count: int
+    latest_report: LatestReportOut | None
+    assumption_status: Literal["DEMO_ASSUMPTION"] = "DEMO_ASSUMPTION"
+
+
+def case_committees(session: Session, case_id: UUID, principal: Principal) -> list[CommitteeSummaryOut]:
+    """Every committee formed for one case, in formation order, scoped like the case."""
+    # The case's own scope states its institution and region, so regional officers can read their region's cases.
+    scope(session, case_id, principal, "committee.read")
+    rows = {row.id: row for row in session.scalars(select(Committee).where(Committee.application_id == case_id))}
+    # Committee IDs are derived from the formation ordinal, so formation order is recovered without a timestamp.
+    by_ordinal = {_id("formation", case_id, n): n for n in range(1, len(rows) + 1)}
+    ordered = sorted(rows.values(), key=lambda row: (by_ordinal.get(row.id, len(rows) + 1), str(row.id)))
+    result = []
+    for ordinal, row in enumerate(ordered, start=1):
+        members = session.scalars(select(CommitteeMember).where(CommitteeMember.committee_id == row.id)
+                                  .order_by(CommitteeMember.user_ref))
+        tasks = session.scalar(select(func.count()).select_from(CommitteeTask).where(CommitteeTask.committee_id == row.id))
+        reports = session.scalar(select(func.count()).select_from(ReportVersion).where(ReportVersion.committee_id == row.id))
+        latest = session.scalar(select(ReportVersion).where(ReportVersion.committee_id == row.id)
+                                .order_by(ReportVersion.version_no.desc()).limit(1))
+        result.append(CommitteeSummaryOut(id=row.id, application_id=row.application_id, ordinal=ordinal, type=row.type,
+            status=row.status, members=[MemberIn(user_ref=m.user_ref, role=m.role) for m in members], task_count=tasks,
+            report_count=reports, latest_report=LatestReportOut(id=latest.id, version_no=latest.version_no,
+                created_at=latest.created_at, author_user_ref=latest.author_user_ref,
+                content_note_hash=latest.content_note_hash) if latest else None))
+    return result
+
+
 def read(session: Session, committee_id: UUID, principal: Principal) -> CommitteeOut:
     row = _committee(session, committee_id, principal, "committee.read", write=False)
     return _out(session, row)
@@ -304,6 +349,14 @@ def create_report(committee_id: UUID, body: ReportIn, principal: Principal = Dep
     return idempotent_response(principal, key, "POST", "/committees/{committee_id}/reports",
         {"committee_id": str(committee_id)}, body.model_dump(mode="json", exclude_unset=True),
         lambda uow: append_report(uow, committee_id, body), _json, status_code=201)
+
+
+@router.get("/cases/{application_id}/committees", response_model=list[CommitteeSummaryOut], responses=ERROR_RESPONSES,
+            description="Committees formed for one case in formation order: type, status, members as user references, "
+                        "task and report counts and the latest report version (hash only). Scoped like the case.")
+def list_committees(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return case_committees(session, application_id, principal)
 
 
 @router.get("/committees/{committee_id}", response_model=CommitteeOut, responses=ERROR_RESPONSES)

@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.intake.models import Application, ApplicationItem, Institution, StageVisit
 from app.intake import rules as intake_rules
+from app.intake.documents import check_document_refs
 from app.intake.shapes import ApplicationChecklistOut, ItemIn, ItemOut, ItemsOut
 from app.platform.registry import port
 from contracts.enums import ApplicationStatus
@@ -88,6 +89,7 @@ def mark_items(uow: UnitOfWork, application_id: UUID, items: list[ItemIn]) -> It
     keys = [item.item_key for item in items]
     if len(keys) != len(set(keys)) or set(keys) - known.keys():
         raise ValidationFailed("INVALID_APPLICATION_ITEMS")
+    check_document_refs(uow.session, application_id, [item.document_ref for item in items if item.document_ref is not None])
     for item in sorted(items, key=lambda item: item.item_key):
         row = uow.session.get(ApplicationItem, (application_id, item.item_key))
         if row is None and item.state == "MISSING":

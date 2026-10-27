@@ -16,7 +16,7 @@ INST = headers("INSTITUTION", SUNRISE)
 OFFICER_USER = "00000000-0000-4000-9000-0000000000c1"
 OFFICER = headers("SCRUTINY_COMMITTEE", user=OFFICER_USER)
 BUREAU = headers("BUREAU_OFFICER")
-REF = "00000000-0000-4000-8000-000000000099"
+REF = "b870b346-498b-55b1-945e-c0e24d268980"  # DEMO fixture document reference (UUID5), accepted only in DEMO_MODE
 DRAFT = {"institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}
 
 

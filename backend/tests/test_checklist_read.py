@@ -2,7 +2,7 @@
 from conftest import NORTHFIELD, SUNRISE, headers
 
 INST = headers("INSTITUTION", SUNRISE)
-REF = "00000000-0000-4000-8000-000000000099"
+REF = "b870b346-498b-55b1-945e-c0e24d268980"  # DEMO fixture document reference (UUID5), accepted only in DEMO_MODE
 KEY = "aph-2024-27@r1"
 
 

@@ -15,8 +15,8 @@ from app.platform.db import new_session
 from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from contracts.enums import Role
-from contracts.errors import NotFound
-from contracts.ports import AuthzPort
+from contracts.errors import Forbidden, NotFound
+from contracts.ports import AuthzPort, CasePort
 from contracts.types import Principal, ResourceRef
 
 router = APIRouter(tags=["applications"])
@@ -146,14 +146,18 @@ def list_applications(principal: Principal = Depends(current_principal)):
         return [_out(a) for a in session.scalars(q).all()]
 
 
-@router.get("/applications/{application_id}", response_model=ApplicationOut)
+@router.get("/applications/{application_id}", response_model=ApplicationOut,
+            description="One application, scoped like the case: institutions their own, regional officers their region.")
 def get_application(application_id: UUID, principal: Principal = Depends(current_principal)):
     with new_session() as session:
         a = session.get(Application, application_id)
         if a is None:
             raise NotFound("application not found")
+        case = port(CasePort).lookup(session, application_id)
         port(AuthzPort).check(principal, "application.read",
-                              ResourceRef("application", a.id, owner_institution_id=a.institution_id))
+                              ResourceRef("application", a.id, owner_institution_id=a.institution_id, region=case.region))
+        if principal.role == Role.RO_OFFICER and (not principal.region or principal.region != case.region):
+            raise Forbidden("regional officer may only access their own region")
         return _out(a)
 
 

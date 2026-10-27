@@ -121,6 +121,34 @@ def get_checklist(key: str, category: str, principal: Principal = Depends(curren
                         items=[ChecklistItemOut(**item) for item in checklist["items"]])
 
 
+class DeficiencyVocabularyOut(BaseModel):
+    ruleset_key: str
+    item_keys: list[str]
+    reason_codes: list[str]
+    response_rule_id: str
+    source_status: Literal["DEMO_ASSUMPTION"]
+    assumption_code: str
+
+
+@router.get("/rulesets/{key}/deficiency-vocabulary", response_model=DeficiencyVocabularyOut, tags=["rulesets"],
+            responses={404: {"model": CaseErrorOut}},
+            description="Coded deficiency item kinds and reason codes a deficiency may use under this ruleset, as pinned "
+                        "when it was loaded (DEMO ASSUMPTION stand-ins, not an official list). 404 when the ruleset is not "
+                        "loaded or has no deficiency configuration.")
+def get_deficiency_vocabulary(key: str, principal: Principal = Depends(current_principal)):
+    port(AuthzPort).check(principal, "ruleset.read", ResourceRef("ruleset"))
+    with new_session() as session:
+        metadata = session.scalar(select(Ruleset.source_metadata).where(Ruleset.key == key))
+    if metadata is None:
+        raise NotFound(f"ruleset {key} is not loaded")
+    config = metadata.get("deficiency")
+    if config is None:
+        raise NotFound(f"ruleset {key} has no deficiency configuration")
+    return DeficiencyVocabularyOut(ruleset_key=key, item_keys=list(config["item_keys"]),
+        reason_codes=list(config["reason_codes"]), response_rule_id=config["response_rule_id"],
+        source_status=config["source_status"], assumption_code=config["assumption_code"])
+
+
 @router.get("/rulesets", response_model=list[str], tags=["rulesets"])
 def list_rulesets(principal: Principal = Depends(current_principal)):
     port(AuthzPort).check(principal, "ruleset.read", ResourceRef("ruleset"))

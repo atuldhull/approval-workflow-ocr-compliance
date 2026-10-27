@@ -21,7 +21,7 @@ from contracts.enums import Role
 INST = headers("INSTITUTION", SUNRISE)
 OFFICER = headers("SCRUTINY_COMMITTEE")
 KEYS = ["DEMO_CORE_REFERENCE", "DEMO_ADDITIONAL_REFERENCE"]
-REF = "00000000-0000-4000-8000-000000000099"
+REF = "b870b346-498b-55b1-945e-c0e24d268980"  # DEMO fixture document reference (UUID5), accepted only in DEMO_MODE
 
 
 @pytest.fixture
