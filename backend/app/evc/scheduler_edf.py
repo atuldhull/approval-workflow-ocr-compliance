@@ -1,7 +1,12 @@
-"""Earliest-Deadline-First baseline; SIMULATED authorised selector (stand-in)."""
+"""Earliest-Deadline-First baseline and the EVC propose command (EDF or CP-SAT).
+
+SIMULATED authorised selector (stand-in). plan_edf is the baseline; handle() runs either
+plan_edf or scheduler_cpsat.solve_cpsat on the same locked SchedulingProblem.
+"""
 from collections import Counter
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
+from typing import Literal
 from uuid import UUID, NAMESPACE_URL, uuid5
 
 from sqlalchemy import select, text
@@ -9,8 +14,8 @@ from sqlalchemy import select, text
 from app.evc.metrics import evaluate_schedule
 from app.evc.models import Assignment, EvcRequest, Expert, ScheduleRun, Slot
 from app.evc.pool import policy
-from app.evc.scheduling import (Allocation, SchedulingPlan, SchedulingProblem, SchedulingRequest, SchedulingSlot,
-                                earliest_date, logical_date, selector_at)
+from app.evc.scheduling import (PART_ORDER, Allocation, SchedulingPlan, SchedulingProblem, SchedulingRequest,
+                                SchedulingSlot, earliest_date, logical_date, selector_at)
 from app.evc.selector import select_panel
 from app.evc.selector_service import selector_request
 from app.platform.db import unit_of_work
@@ -21,6 +26,8 @@ from contracts.ports import AuthzPort, CasePort, ClockPort, LedgerPort, UnitOfWo
 from contracts.types import EventIn, Principal, ResourceRef
 
 SCHEDULING_LOCK = 26262035
+ALGORITHMS = ("EDF", "CPSAT")
+MAX_SLOT_DAYS = 120
 
 
 def plan_edf(problem: SchedulingProblem) -> SchedulingPlan:
@@ -58,6 +65,9 @@ class ScheduleCommand:
     horizon_start: date
     horizon_end: date
     region: str | None = None
+    algorithm: Literal["EDF", "CPSAT"] = "EDF"
+    # DEMO ASSUMPTION: when set, AM/PM slot rows missing in the horizon are created with this panel capacity.
+    slot_capacity: int | None = None
 
 
 @dataclass(frozen=True)
@@ -76,14 +86,33 @@ def _scheduler_policy(raw: dict) -> bool:
     return raw["allow_late"]
 
 
+def ensure_slots(session, start: date, end: date, capacity: int) -> None:
+    """Create one canonical slot per date/part that has no slot row yet; existing rows keep their capacity."""
+    if type(capacity) is not int or capacity <= 0:
+        raise ValidationFailed("SCHEDULER_SLOT_CAPACITY_INVALID")
+    if (end - start).days >= MAX_SLOT_DAYS:
+        raise ValidationFailed("SCHEDULER_HORIZON_TOO_LONG")
+    for offset in range((end - start).days + 1):
+        day = start + timedelta(days=offset)
+        for part in PART_ORDER:
+            session.execute(text("INSERT INTO evc.slot (id, date, slot_part, capacity) SELECT :id, :date, :part, :capacity "
+                                 "WHERE NOT EXISTS (SELECT 1 FROM evc.slot WHERE date = :date AND slot_part = :part) "
+                                 "ON CONFLICT (id) DO NOTHING"),
+                            dict(id=uuid5(NAMESPACE_URL, f"sih26262:evc:slot:{day.isoformat()}:{part}"), date=day, part=part,
+                                 capacity=capacity))
+
+
 def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
     """Auth, lock, snapshot, plan, validate and persist inside the caller's transaction."""
-    port(AuthzPort).check(uow.principal, "evc.schedule.propose", ResourceRef("evc_schedule_run", command.run_id, region=command.region))
     scope = command.region
     if uow.principal.role == Role.RO_OFFICER:
         if not uow.principal.region or (scope is not None and scope.upper() != uow.principal.region.upper()):
             raise Forbidden("SCHEDULE_REGION_FORBIDDEN")
         scope = uow.principal.region
+    # The platform policy compares RO regions exactly, so it gets the principal's own spelling once they match.
+    port(AuthzPort).check(uow.principal, "evc.schedule.propose", ResourceRef("evc", command.run_id, region=scope))
+    if command.algorithm not in ALGORITHMS:
+        raise ValidationFailed("SCHEDULER_ALGORITHM_INVALID")
     if command.horizon_end < command.horizon_start:
         raise ValidationFailed("SCHEDULER_HORIZON_INVALID")
     now = port(ClockPort).now()
@@ -94,6 +123,8 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
     session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": SCHEDULING_LOCK})
     if session.get(ScheduleRun, command.run_id) is not None:
         raise Conflict("SCHEDULE_RUN_ALREADY_EXISTS")
+    if command.slot_capacity is not None:
+        ensure_slots(session, start, command.horizon_end, command.slot_capacity)
     queued = session.scalars(select(EvcRequest).where(EvcRequest.status == "QUEUED")
                              .order_by(EvcRequest.due_by, EvcRequest.requested_at, EvcRequest.id).with_for_update()).all()
     selected = []
@@ -129,15 +160,23 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
         select(Assignment).where(Assignment.slot_id.in_([slot.id for slot in slots])).order_by(Assignment.id)))
     problem = SchedulingProblem(tuple(requests), tuple(SchedulingSlot(s.id, s.date, s.slot_part, s.capacity) for s in slots),
                                 existing, start, command.horizon_end, now)
-    plan = plan_edf(problem)
+    solver = {}
+    if command.algorithm == "CPSAT":
+        from app.evc.scheduler_cpsat import solve_cpsat  # imports plan_edf from here
+        solved = solve_cpsat(problem)
+        plan, solver = solved.plan, solved.numeric()
+    else:
+        plan = plan_edf(problem)
     parameters = dict(horizon_start_ordinal=start.toordinal(), horizon_end_ordinal=command.horizon_end.toordinal(),
         simulated_selector=True, capacity_counts_panels=True, demo_assumptions=True,
-        input_fingerprint_bytes=list(bytes.fromhex(plan.input_fingerprint)))
-    session.add(ScheduleRun(run_id=command.run_id, algorithm="EDF", status="PROPOSED", parameters=parameters,
+        input_fingerprint_bytes=list(bytes.fromhex(plan.input_fingerprint)), **solver)
+    if command.slot_capacity is not None:
+        parameters["default_slot_capacity"] = command.slot_capacity
+    session.add(ScheduleRun(run_id=command.run_id, algorithm=plan.algorithm, status="PROPOSED", parameters=parameters,
                             created_at=now, metrics=plan.metrics.numeric_json()))
     session.flush()
     port(LedgerPort).append(uow, EventIn(aggregate_type="evc_schedule_run", aggregate_id=command.run_id,
-        event_type="evc.schedule_proposed", payload=dict(run_id=command.run_id, algorithm="EDF", horizon_start=start.isoformat(),
+        event_type="evc.schedule_proposed", payload=dict(run_id=command.run_id, algorithm=plan.algorithm, horizon_start=start.isoformat(),
             horizon_end=command.horizon_end.isoformat(), input_fingerprint=plan.input_fingerprint, metrics=plan.metrics.numeric_json(),
             simulation_status="SIMULATED", source_status="DEMO_ASSUMPTION")))
     by_id = {row.id: row for row in selected}
