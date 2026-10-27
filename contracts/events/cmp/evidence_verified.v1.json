@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cmp.evidence_verified v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "obligation_id", "application_id", "institution_id", "decision", "reason_code",
+               "obligation_status"],
+  "properties": {
+    "evidence_id": {"type": "string", "format": "uuid"},
+    "obligation_id": {"type": "string", "format": "uuid"},
+    "application_id": {"type": "string", "format": "uuid"},
+    "institution_id": {"type": "string", "format": "uuid"},
+    "decision": {"type": "string", "enum": ["ACCEPTED", "REJECTED"]},
+    "reason_code": {"type": ["string", "null"],
+                    "enum": ["DOCUMENT_ILLEGIBLE", "DOCUMENT_INCOMPLETE", "WRONG_DOCUMENT", "AMOUNT_MISMATCH",
+                             "DATE_MISMATCH", "DOCUMENT_EXPIRED", "SIGNATURE_OR_ATTESTATION_MISSING",
+                             "OTHER_SEE_NOTE", null]},
+    "obligation_status": {"type": "string", "enum": ["OPEN", "EVIDENCE_SUBMITTED", "MET"]}
+  }
+}
