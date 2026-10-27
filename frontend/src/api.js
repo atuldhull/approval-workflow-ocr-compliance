@@ -40,10 +40,22 @@ export const DEMO_USERS = [
 ];
 
 export class ApiError extends Error {
-  constructor(status, detail) {
+  // `code` is the server's error class name (e.g. "FourEyesViolation"), for screens that explain a refusal.
+  constructor(status, detail, code = null) {
     super(detail);
     this.status = status;
+    this.code = code;
   }
+}
+
+// A 422 from request validation carries a list of field problems; show their messages, not the raw structure.
+function detailText(detail, fallback) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((d) => (typeof d?.msg === "string" ? d.msg : null)).filter(Boolean);
+    if (messages.length) return `The request was not accepted: ${messages.join("; ")}.`;
+  }
+  return detail === undefined || detail === null ? fallback : JSON.stringify(detail);
 }
 
 // `who` is either a DEMO_USERS entry or { mode: "oidc", config } for a signed-in user.
@@ -65,15 +77,17 @@ async function identityHeaders(who) {
 // A request that has not answered by then is abandoned, so no screen waits forever.
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export async function api(who, path, { method = "GET", body, headers: extra = {}, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+// `form` sends a FormData body (a multipart upload); the browser sets its Content-Type and boundary.
+export async function api(who, path, { method = "GET", body, form, headers: extra = {}, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const headers = { ...(await identityHeaders(who)), ...extra };
   if (body !== undefined) headers["Content-Type"] = "application/json";
+  const payload = form !== undefined ? form : body === undefined ? undefined : JSON.stringify(body);
 
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   let res;
   try {
-    res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: abort.signal });
+    res = await fetch(`/api${path}`, { method, headers, body: payload, signal: abort.signal });
   } catch {
     // A change that timed out may still have been applied; say so rather than invite a blind retry.
     const write = method !== "GET";
@@ -86,7 +100,7 @@ export async function api(who, path, { method = "GET", body, headers: extra = {}
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    let detail = typeof data?.detail === "string" ? data.detail : JSON.stringify(data?.detail ?? res.statusText);
+    let detail = detailText(data?.detail, res.statusText);
     if (res.status === 401) {
       detail = "Your session has ended or is not valid. Please sign in again.";
       endSession(who);
@@ -94,7 +108,7 @@ export async function api(who, path, { method = "GET", body, headers: extra = {}
     if (res.status === 403) detail = `Not permitted: ${detail}`;
     if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
     if (res.status === 502 || res.status === 504) detail = "The server is unavailable right now. Try again shortly.";
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, typeof data?.error === "string" ? data.error : null);
   }
   return data;
 }
