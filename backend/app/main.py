@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 import app as app_pkg
+from app.platform.http_security import security_headers
 from contracts.errors import ContractError
 
 FIRST = "platform"  # wired first: everyone else depends on its ports
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
             wiring.wire()
 
     api = FastAPI(title="Approval Workflow, OCR & Compliance", version="0.1.0")
+    api.middleware("http")(security_headers)
     for m in module_names():
         mod = _optional(m, "api")
         if mod is not None:

@@ -68,6 +68,9 @@ def client(database):
         )).all()
         tables = [qualified for schema, table, qualified in rows if is_test_cleanup_table(schema, table)]
         if tables:
+            # The only place awoc.test_reset is set: document-history TRUNCATE guards allow it within this
+            # transaction (set_config(..., true) is transaction-local). Application code must never set it.
+            c.execute(text("SELECT set_config('awoc.test_reset', 'on', true)"))
             c.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
     seed()
     clock.reset()

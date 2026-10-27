@@ -9,4 +9,9 @@ export default defineConfig({
       "/api": process.env.VITE_API_TARGET || "http://localhost:8000",
     },
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.js"],
+    restoreMocks: true,
+  },
 });

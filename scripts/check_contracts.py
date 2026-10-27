@@ -80,7 +80,7 @@ def check_openapi(write: bool) -> list[str]:
     from app.main import create_app
     current = json.dumps(create_app().openapi(), indent=2, sort_keys=True) + "\n"
     if write:
-        OPENAPI.write_text(current, encoding="utf-8")
+        OPENAPI.write_text(current, encoding="utf-8", newline="\n")
         return []
     if not OPENAPI.exists() or OPENAPI.read_text(encoding="utf-8") != current:
         return ["contracts/openapi.json is out of date - run: python scripts/check_contracts.py --write"]

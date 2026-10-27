@@ -1,0 +1,20 @@
+# Wakes up contracts-approval.yml when a review is submitted, dismissed or edited.
+#
+# GitHub runs pull_request_review with the pull request's own copy of this file, so it is trusted for nothing:
+# no permissions, no checkout, no data passed on. The trusted workflow reads everything itself from GitHub.
+# If a pull request deletes or renames this file, reviews stop re-triggering the check and the status stays as
+# it was. That cannot turn missing approvals into a pass, and deleting this file is itself a protected change
+# that needs the whole team; a withdrawal AFTER full approval would then go unnoticed (docs/CONTRACT_APPROVAL.md).
+name: contracts-approval-review-signal
+
+on:
+  pull_request_review:
+    types: [submitted, dismissed, edited]
+
+permissions: {}
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Review changed; contracts-approval re-evaluates from the default branch."
