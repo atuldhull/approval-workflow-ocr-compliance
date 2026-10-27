@@ -213,6 +213,20 @@ def test_replay_reports_a_deliberate_mismatch_field_by_field(client):
     assert p["differences"] == [{"key": app_id, "field": "status", "replayed": "IN_PROCESS", "live": "APPROVED"}]
 
 
+def test_a_due_date_moved_by_a_pause_is_a_gap_not_a_mismatch(client):
+    app_id = submit_one(client)
+    # resume_internal moves the date and bumps due_version, but no event records it yet
+    sql(f"UPDATE dl.deadline SET due_date = due_date + 1, due_version = 2 WHERE subject_id = '{app_id}'")
+    r = replay.replay()
+    deadlines = {p["name"]: p for p in r["projections"]}["deadlines"]
+    assert deadlines["status"] == "MATCH" and deadlines["differences"] == [] and deadlines["unrecorded"] == {"due_date": 1}
+    assert (r["ok"], r["verdict"]) == (False, "CONSISTENT_SUBSET")
+    assert {"kind": "CHANGED_WITHOUT_EVENT", "projection": "deadlines", "field": "due_date", "records": 1} in r["gaps"]
+    # any other field still has to match
+    sql(f"UPDATE dl.deadline SET clock_owner = 'SOMEONE_ELSE' WHERE subject_id = '{app_id}'")
+    assert replay.replay(["deadlines"])["verdict"] == "MISMATCH"
+
+
 def test_replay_is_deterministic(client):
     submit_one(client)
     assert replay.replay() == replay.replay()

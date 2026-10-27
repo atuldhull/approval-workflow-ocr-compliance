@@ -9,7 +9,7 @@ live state agree. Nothing here writes to another module's schema.
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.platform.replay import EventRecord
+from app.platform.replay import UNRECORDED, EventRecord
 
 # transition targets that are stages; the others (APPROVED, REJECTED, WITHDRAWN) end the route
 STAGES = frozenset({"SELF_DISCLOSURE", "SCRUTINY", "RESCRUTINY", "DEFICIENT", "EVC", "SHC", "EC", "COUNCIL"})
@@ -51,7 +51,8 @@ class DeadlinesProjection:
     name = "deadlines"
     owner = "Person 2 events, projection in analytics"
     handles = frozenset({("dl.deadline_opened", 1)})
-    # status (MET, BREACHED, ...) is not compared: no event reports it yet
+    # status (MET, BREACHED, ...) is not compared: no event reports it yet. due_date is the date the deadline opened
+    # with; a pause and resume moves it (due_version > 1) without an event, so a moved date is reported as a gap.
     compared_fields = ("subject_type", "subject_id", "rule_id", "clock_kind", "clock_owner", "due_date")
 
     def apply(self, state: dict[str, dict], ev: EventRecord) -> None:
@@ -61,9 +62,13 @@ class DeadlinesProjection:
 
     def live(self, session: Session) -> dict[str, dict]:
         rows = session.execute(text(
-            "SELECT id::text, subject_type, subject_id::text, rule_id, clock_kind, clock_owner, due_date::text "
-            "FROM dl.deadline")).all()
-        return {r[0]: dict(zip(self.compared_fields, r[1:])) for r in rows}
+            "SELECT id::text, subject_type, subject_id::text, rule_id, clock_kind, clock_owner, due_date::text, "
+            "due_version FROM dl.deadline")).all()
+        live = {r[0]: dict(zip(self.compared_fields, r[1:7])) for r in rows}
+        for r in rows:
+            if r[7] > 1:
+                live[r[0]]["due_date"] = UNRECORDED
+        return live
 
 
 ALL = (ApplicationsProjection(), DeadlinesProjection())

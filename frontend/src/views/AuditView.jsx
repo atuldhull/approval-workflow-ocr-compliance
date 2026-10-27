@@ -44,6 +44,7 @@ const GAP_TEXT = {
   UNHANDLED_EVENT_TYPE: (g) => `${g.events} stored ${g.event_type} event(s) have no projector, so they were not checked`,
   UNKNOWN_EVENT_VERSION: (g) => `${g.projection}: ${g.events} event(s) of ${g.event} use a version it does not understand`,
   NO_LIVE_MODEL: (g) => `${g.projection} has no live model to compare against`,
+  CHANGED_WITHOUT_EVENT: (g) => `${g.projection}: ${g.field} of ${g.records} record(s) changed without an event (for example a paused clock), so it was not compared`,
   NO_PROJECTORS: () => "No projector ran, so nothing was replayed",
   UNKNOWN_PROJECTOR: (g) => `Projector "${g.projection}" was requested but is not registered`,
   NO_FIELDS_COMPARED: (g) => `${g.projection} compares no fields, so a match proves nothing`,

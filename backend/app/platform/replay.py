@@ -24,6 +24,18 @@ from app.platform.settings import settings
 MAX_DIFFS = 100
 
 
+class _Unrecorded:
+    """A live value a projector says no stored event describes (it changed without an event).
+
+    `live()` puts it in place of a field value; that field is then not compared for that record and the report lists
+    it as a gap, so the verdict can be at most CONSISTENT_SUBSET - never a pass, never a false mismatch."""
+    def __repr__(self) -> str:
+        return "UNRECORDED"
+
+
+UNRECORDED = _Unrecorded()
+
+
 @dataclass(frozen=True)
 class EventRecord:
     seq: int
@@ -67,6 +79,7 @@ class ProjectionResult:
     compared_fields: tuple[str, ...]
     differences: list[dict] = field(default_factory=list)
     skipped_versions: dict[str, int] = field(default_factory=dict)
+    unrecorded: dict[str, int] = field(default_factory=dict)   # field -> records whose value no event describes
 
 
 def stored_events(session: Session) -> Iterable[EventRecord]:
@@ -75,7 +88,8 @@ def stored_events(session: Session) -> Iterable[EventRecord]:
                           e.payload, e.ruleset_rev)
 
 
-def diff(replayed: dict[str, dict], live: dict[str, dict], fields: tuple[str, ...]) -> list[dict]:
+def diff(replayed: dict[str, dict], live: dict[str, dict], fields: tuple[str, ...],
+         unrecorded: Counter | None = None) -> list[dict]:
     out = []
     for key in sorted(set(replayed) | set(live)):
         if key not in live:
@@ -85,6 +99,10 @@ def diff(replayed: dict[str, dict], live: dict[str, dict], fields: tuple[str, ..
         else:
             for f in fields:
                 a, b = replayed[key].get(f), live[key].get(f)
+                if b is UNRECORDED:
+                    if unrecorded is not None:
+                        unrecorded[f] += 1
+                    continue
                 if a != b:
                     out.append({"key": key, "field": f, "replayed": a, "live": b})
         if len(out) >= MAX_DIFFS:
@@ -137,7 +155,9 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
                 r = ProjectionResult(name, p.owner, "NO_LIVE_MODEL", applied[name], len(states[name]),
                                      p.compared_fields, skipped_versions=dict(skipped[name]))
                 if live is not None:
-                    r.differences = diff(states[name], live, p.compared_fields)
+                    unrecorded = Counter()
+                    r.differences = diff(states[name], live, p.compared_fields, unrecorded)
+                    r.unrecorded = dict(unrecorded)
                     r.status = "MISMATCH" if r.differences else "MATCH"
                 if r.skipped_versions:
                     r.status = "INCOMPLETE" if r.status == "MATCH" else r.status
@@ -174,6 +194,8 @@ def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dic
             gaps.append({"kind": "NO_FIELDS_COMPARED", "projection": r.name})
         gaps += [{"kind": "UNKNOWN_EVENT_VERSION", "projection": r.name, "event": ev, "events": n}
                  for ev, n in sorted(r.skipped_versions.items())]
+        gaps += [{"kind": "CHANGED_WITHOUT_EVENT", "projection": r.name, "field": f, "records": n}
+                 for f, n in sorted(r.unrecorded.items())]
         if r.status == "NO_LIVE_MODEL":
             gaps.append({"kind": "NO_LIVE_MODEL", "projection": r.name})
     handled = {h for p in selected.values() for h in p.handles}

@@ -88,8 +88,13 @@ The report gives one `verdict`:
 | Verdict | Meaning | `ok` |
 |---|---|---|
 | `VERIFIED_COMPLETE` | Every stored event was projected and every projection matched a live model | true |
-| `CONSISTENT_SUBSET` | Nothing disagreed, but `gaps` lists what was not checked: event types with no projector, unknown versions, projections with no live model | false |
+| `CONSISTENT_SUBSET` | Nothing disagreed, but `gaps` lists what was not checked: event types with no projector, unknown versions, projections with no live model, fields that changed without an event | false |
 | `MISMATCH` | A projection disagrees with its live model | false |
+
+A projector's `live()` may mark a value as `replay.UNRECORDED` when the live record changed in a way no stored event
+describes. That field is skipped for that record and reported as a `CHANGED_WITHOUT_EVENT` gap, so the verdict is at
+most `CONSISTENT_SUBSET`. The deadlines projection uses it for due dates moved by a pause and resume
+(`due_version > 1`), which emit no event yet.
 
 Checking nothing is never verification: no projectors selected (`NO_PROJECTORS`), a requested projector that is not
 registered (`UNKNOWN_PROJECTOR`) and a projection that compares no fields (`NO_FIELDS_COMPARED`) are all gaps.
