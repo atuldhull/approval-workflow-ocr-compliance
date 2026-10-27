@@ -240,9 +240,19 @@ export function drawDivider(text, color, W = 512) {
 export function drawLabel(title, caption = "", { W = 640, color = "#F4D9A0", sub = "#c5bba9" } = {}) {
   const H = Math.round(W / 4);
   const [c, ctx] = canvas(W, H);
-  ctx.fillStyle = color; ctx.font = `${Math.round(H * 0.34)}px ${SERIF}`;
+  // shrink to fit, so no label is ever cut off at the canvas edge
+  const fit = (text, size, family) => {
+    let s = size;
+    do { ctx.font = family(s); } while (ctx.measureText(text).width > W - 20 && --s > 8);
+  };
+  ctx.fillStyle = color;
+  fit(title, Math.round(H * 0.34), (s) => `${s}px ${SERIF}`);
   ctx.fillText(title, 8, H * 0.46);
-  if (caption) { ctx.fillStyle = sub; ctx.font = `600 ${Math.round(H * 0.17)}px ${MONO}`; ctx.fillText(caption.toUpperCase(), 10, H * 0.82); }
+  if (caption) {
+    ctx.fillStyle = sub;
+    fit(caption.toUpperCase(), Math.round(H * 0.17), (s) => `600 ${s}px ${MONO}`);
+    ctx.fillText(caption.toUpperCase(), 10, H * 0.82);
+  }
   return c;
 }
 
