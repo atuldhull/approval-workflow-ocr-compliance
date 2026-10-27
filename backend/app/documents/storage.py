@@ -1,7 +1,9 @@
 """Atomic private quarantine storage for document-ingestion primitives.
 
-This adapter exposes no reader/download API. A transaction owner must call
-abort() if the database transaction fails after staging and before commit.
+This adapter exposes no download API. open_private() is for in-process
+scanning and text extraction only and is never wired to an HTTP response.
+A transaction owner must call abort() if the database transaction fails after
+staging and before commit.
 """
 
 from __future__ import annotations
@@ -56,6 +58,8 @@ class DocumentStorage(Protocol):
     ) -> StagedObject: ...
 
     def abort(self, staged: StagedObject) -> None: ...
+
+    def open_private(self, storage_ref: str) -> BinaryIO: ...
 
     def reconcile_abandoned_staging(self) -> int: ...
 
@@ -482,6 +486,14 @@ class LocalQuarantineStorage:
             self._sync_directory(path.parent)
         except OSError as exc:
             raise StorageError("failed to abort staged object") from exc
+
+    def open_private(self, storage_ref: str) -> BinaryIO:
+        """Open a stored object for the scanner or text engine; the caller closes it."""
+        path = self._path(storage_ref)
+        try:
+            return path.open("rb")
+        except OSError as exc:
+            raise StorageError("stored document object is unavailable") from exc
 
     def reconcile_abandoned_staging(self) -> int:
         """Remove abandoned staging artifacts without touching active uploads.
