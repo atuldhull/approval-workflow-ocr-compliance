@@ -1,5 +1,13 @@
 # P1 assumptions
 
+## SIMULATED authorised selector (stand-in) — 3.4, 27 October 2026
+
+- SELECTOR_POLICY_UNCONFIRMED — DEMO ASSUMPTION: panel_size=3, default required expertise tag DEMO, minimum match count 1 and empty category-specific overrides are configurable YAML demonstration policy, not APH-confirmed panel composition or qualification requirements. The work pack references APH 1.8(a) as automated selection; the underlying official clause/report is absent. Every selector result is labelled SIMULATED authorised selector (stand-in) and SIMULATED; identities remain P3_USER_REF_UNVERIFIED.
+- SEL-001 — ordered criteria are hard eligibility, descending distinct expertise matches, ascending assignment memberships, oldest earlier assignment date (no earlier date first), then UUID. An expertise priority can outweigh workload; the 100-request fairness evidence is deliberately limited to equally qualified fictional experts. A shortage returns no partial panel. No random source or wall-clock is used.
+- SEL-002 — workload counts distinct assignment/expert memberships for all stored proposed/published commitments, including future and same-day assignments. Rotation uses only earlier calendar dates. Exact duplicate history does not inflate workload; contradictory duplicates are refused. The stand-in selects candidates for a date/part but does not reserve, appoint or publish them; the future scheduler must recheck inside its transaction.
+- SEL-003 — the preview reuses existing pool-read and case-timeline permissions. RO preview requires an own-region authoritative case and SAME_REGION policy; cross-region policy previews need an existing global pool-reader role so the endpoint cannot expose another region's experts through the ranking. This is a conservative demonstration access rule, not an APH rule. No P3 auth edits are needed.
+- The user explicitly approved generated OpenAPI only, leaving shared ports/types/enums/fakes and event schemas unchanged. P1's r1 source changes still require a fresh disposable demo database; cached checksum rejection and existing case pins remain protected. Official authorised selection and P3 user-master verification remain integration follow-ups.
+
 ## Expert pool 3.3 (27 October 2026)
 
 - EXPERT_POLICY_UNCONFIRMED — DEMO ASSUMPTION: SAME_REGION is the configurable default (alternatives ANY_REGION/OTHER_REGION), AM/PM are demonstration slot parts, and INSTITUTION_LINK/PRIOR_ENGAGEMENT/RECUSAL are controlled demonstration COI source/reason pairs. None is asserted to be a verified APH regional/panel policy. API policy output labels the assumption. Regions compare as uppercase tokens; no official geographic mapping is invented.

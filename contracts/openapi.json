@@ -894,6 +894,60 @@
         "title": "CommitteeOut",
         "type": "object"
       },
+      "CriterionScores": {
+        "properties": {
+          "eligibility_passed": {
+            "const": true,
+            "default": true,
+            "title": "Eligibility Passed",
+            "type": "boolean"
+          },
+          "expertise_matches": {
+            "title": "Expertise Matches",
+            "type": "integer"
+          },
+          "last_assignment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Assignment Date"
+          },
+          "rotation_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotation Days"
+          },
+          "rotation_ordinal": {
+            "title": "Rotation Ordinal",
+            "type": "integer"
+          },
+          "workload_assignments": {
+            "title": "Workload Assignments",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expertise_matches",
+          "workload_assignments",
+          "last_assignment_date",
+          "rotation_days",
+          "rotation_ordinal"
+        ],
+        "title": "CriterionScores",
+        "type": "object"
+      },
       "DeadlineOut": {
         "properties": {
           "clause": {
@@ -1563,6 +1617,155 @@
         "title": "OpenedDeadlineOut",
         "type": "object"
       },
+      "PanelSelection": {
+        "properties": {
+          "assumption_code": {
+            "const": "SELECTOR_POLICY_UNCONFIRMED",
+            "default": "SELECTOR_POLICY_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "criteria_order": {
+            "default": [
+              "ELIGIBILITY",
+              "EXPERTISE_MATCH",
+              "WORKLOAD",
+              "ROTATION",
+              "EXPERT_ID"
+            ],
+            "maxItems": 5,
+            "minItems": 5,
+            "prefixItems": [
+              {
+                "const": "ELIGIBILITY",
+                "type": "string"
+              },
+              {
+                "const": "EXPERTISE_MATCH",
+                "type": "string"
+              },
+              {
+                "const": "WORKLOAD",
+                "type": "string"
+              },
+              {
+                "const": "ROTATION",
+                "type": "string"
+              },
+              {
+                "const": "EXPERT_ID",
+                "type": "string"
+              }
+            ],
+            "title": "Criteria Order",
+            "type": "array"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "eligible_count": {
+            "title": "Eligible Count",
+            "type": "integer"
+          },
+          "identity_status": {
+            "const": "P3_USER_REF_UNVERIFIED",
+            "default": "P3_USER_REF_UNVERIFIED",
+            "title": "Identity Status",
+            "type": "string"
+          },
+          "panel": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Panel",
+            "type": "array"
+          },
+          "policy_version": {
+            "const": "DEMO_SELECTOR_V1",
+            "default": "DEMO_SELECTOR_V1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "ranked_experts": {
+            "items": {
+              "$ref": "#/components/schemas/RankedExpert"
+            },
+            "title": "Ranked Experts",
+            "type": "array"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "requested_size": {
+            "title": "Requested Size",
+            "type": "integer"
+          },
+          "required_expertise_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Expertise Tags",
+            "type": "array"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "selector_label": {
+            "const": "SIMULATED authorised selector (stand-in)",
+            "default": "SIMULATED authorised selector (stand-in)",
+            "title": "Selector Label",
+            "type": "string"
+          },
+          "simulation_status": {
+            "const": "SIMULATED",
+            "default": "SIMULATED",
+            "title": "Simulation Status",
+            "type": "string"
+          },
+          "slot_part": {
+            "enum": [
+              "AM",
+              "PM"
+            ],
+            "title": "Slot Part",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SELECTED",
+              "INSUFFICIENT_CANDIDATES"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "ruleset_key",
+          "date",
+          "slot_part",
+          "requested_size",
+          "status",
+          "panel",
+          "eligible_count",
+          "required_expertise_tags",
+          "ranked_experts"
+        ],
+        "title": "PanelSelection",
+        "type": "object"
+      },
       "Payload": {
         "additionalProperties": false,
         "properties": {
@@ -1869,6 +2072,42 @@
           "limit"
         ],
         "title": "QueuePage",
+        "type": "object"
+      },
+      "RankedExpert": {
+        "properties": {
+          "criterion_scores": {
+            "$ref": "#/components/schemas/CriterionScores"
+          },
+          "expert_id": {
+            "format": "uuid",
+            "title": "Expert Id",
+            "type": "string"
+          },
+          "matched_expertise_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Expertise Tags",
+            "type": "array"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "selected": {
+            "title": "Selected",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rank",
+          "expert_id",
+          "selected",
+          "matched_expertise_tags",
+          "criterion_scores"
+        ],
+        "title": "RankedExpert",
         "type": "object"
       },
       "ReportDiff": {
@@ -6559,6 +6798,140 @@
         },
         "summary": "Queue",
         "tags": [
+          "evc"
+        ]
+      }
+    },
+    "/api/evc/requests/{id}/panel-preview": {
+      "get": {
+        "description": "SIMULATED authorised selector (stand-in). Read-only DEMO ranking, not a panel appointment or reservation. Returns exactly N experts or an explained shortage. Ordered criteria: eligibility, expertise, workload, rotation, UUID. RO readers require their own case and SAME_REGION policy; cross-region preview requires a global pool-reader role.",
+        "operationId": "panel_preview_api_evc_requests__id__panel_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slot_part",
+            "required": true,
+            "schema": {
+              "enum": [
+                "AM",
+                "PM"
+              ],
+              "title": "Slot Part",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PanelSelection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Panel Preview",
+        "tags": [
+          "evc",
           "evc"
         ]
       }

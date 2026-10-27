@@ -25,6 +25,15 @@ expert_pool:
   coi_reasons: {INSTITUTION_LINK: INSTITUTION_LINK, PRIOR_ENGAGEMENT: PRIOR_ENGAGEMENT, RECUSAL: RECUSAL}
   source_status: DEMO_ASSUMPTION
   assumption_code: EXPERT_POLICY_UNCONFIRMED
+  # SIMULATED authorised selector (stand-in); DEMO ASSUMPTION, not an official panel policy.
+  selector:
+    version: DEMO_SELECTOR_V1
+    panel_size: 3
+    required_expertise_tags: [DEMO]
+    category_expertise_tags: {}
+    minimum_expertise_matches: 1
+    source_status: DEMO_ASSUMPTION
+    assumption_code: SELECTOR_POLICY_UNCONFIRMED
 intake: {checklist_file: checklists.yaml}
 # DEMO ASSUMPTION: controlled demonstration requirements and response-window policy.
 # Duration is configurable in P2's deadlines.yaml under response_rule_id, not APH-confirmed.
