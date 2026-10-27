@@ -1,12 +1,12 @@
 # Simulated selector preview — generated OpenAPI approval request
 
-Status: the user explicitly approved the OpenAPI-only update on 27 October 2026 before protected edits. Shared ports/types/enums/fakes, event schemas and P3 auth remain unchanged.
+Status: Person 1 explicitly approved the OpenAPI-only update on 27 October 2026 before protected edits. Shared ports/types/enums/fakes, event schemas and P3 auth remain unchanged.
 
 ## What and why
 
-The user requests a deterministic selector, ranked criterion scores and the label "SIMULATED authorised selector (stand-in)" in API output. Add a read-only preview of the actual selector result so the label and ranking can be tested through FastAPI. Existing shared ports/types/enums/fakes already suffice; the selector's input/result models live in P1's EVC module. No state is changed and no new ledger event, table or migration is proposed.
+Person 1 requests a deterministic selector, ranked criterion scores and the label "SIMULATED authorised selector (stand-in)" in API output. Add a read-only preview of the actual selector result so the label and ranking can be tested through FastAPI. Existing shared ports/types/enums/fakes already suffice; the selector's input/result models live in P1's EVC module. No state is changed and no new ledger event, table or migration is proposed.
 
-AGENTS requires: "If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change". This request is specifically for **generated OpenAPI only**, leaving contracts/fakes.py unchanged because no port or shared value contract changes. No artificial fake edit is needed. No P3 auth or P2 edit is requested.
+ENGINEERING_RULES.md requires: "If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change". This request is specifically for **generated OpenAPI only**, leaving contracts/fakes.py unchanged because no port or shared value contract changes. No artificial fake edit is needed. No P3 auth or P2 edit is requested.
 
 ## Exact API operation to generate
 

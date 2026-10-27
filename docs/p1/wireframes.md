@@ -1,14 +1,14 @@
 # P1 low-fidelity wireframes for P3
 
-25 October 2026. P1 supplies domain requirements; P3 owns every screen. These are text designs and proposed acceptance criteria, not implemented features or approved API changes. Basis: AGENTS.md, 00_repo_audit.md, the P1 Work Pack (especially 1.1/1.2/1.4/6/7), and current intake/workflow API models. No code or contracts change in this task.
+25 October 2026. P1 supplies domain requirements; P3 owns every screen. These are text designs and proposed acceptance criteria, not implemented features or approved API changes. Basis: ENGINEERING_RULES.md, 00_repo_audit.md, the P1 Work Pack (especially 1.1/1.2/1.4/6/7), and current intake/workflow API models. No code or contracts change in this task.
 
 ## Reading this document
 
 - **CURRENT** means an endpoint/response field exists in the checked-out code. It does not mean every wireframe feature is implemented. **PROPOSED** means a P1 field or interaction still to build and review with P3.
 - `docs/p1/api_plan.md` does not exist. Only the nine endpoint patterns explicitly listed in Work Pack 1.2 are specified as calls below. Work Pack paths omit the real `/api` prefix; this document includes it. `{id}` means the application's UUID except in admin ruleset paths, where its representation remains to be agreed. The current submit route names its path parameter `{application_id}`; this is the same URL shape.
-- Every missing integration is marked **TO BE BUILT in prompt X.Y**. X.Y is deliberately an unassigned placeholder: no numbered implementation prompt plan has been supplied. Section names identify the work, without inventing prompt numbers or additional URL paths.
+- Every missing integration is marked **TO BE BUILT (later task)**. No numbered implementation plan exists, so section names identify the work, without inventing task numbers or additional URL paths.
 - Existing read DTOs are documented as evidence, but read URLs outside the allowed list are not introduced as integration calls here. Data needed to reload/deep-link a page, list institutions/categories, or read committee/ruleset details is an explicit integration gap until an API plan names the calls. A create/submit response can seed the case view; it cannot replace an authorized fresh read after navigation or a conflict.
-- Proposed dotted field paths are design names, not claims about today's OpenAPI. P1 must resolve these in later endpoint work; any shared-contract change follows AGENTS.md. No reason-code catalog, policy, legal clause, committee API, or expert API is approved by this document.
+- Proposed dotted field paths are design names, not claims about today's OpenAPI. P1 must resolve these in later endpoint work; any shared-contract change follows ENGINEERING_RULES.md. No reason-code catalog, policy, legal clause, committee API, or expert API is approved by this document.
 - All synthetic fixtures show DEMO. Demo overlays display the server's simulation banner. All displayed times come from server/ClockPort-backed values; P3 may format them with an explicit timezone, but must not derive deadlines from browser time. Never render unavailable values as zero, success, or verified law.
 
 ### Allowed call register
@@ -17,13 +17,13 @@
 |---|---|---|
 | C | `POST /api/applications` | CURRENT: ApplicationIn -> ApplicationOut; 201 |
 | S | `POST /api/applications/{id}/submit` | CURRENT: no request body -> ApplicationOut; 200 |
-| A | `POST /api/cases/{id}/actions` | TO BE BUILT in prompt X.Y (guarded transitions/commands) |
-| Q | `GET /api/evc/queue` | TO BE BUILT in prompt X.Y (queue and scheduling context) |
-| P | `POST /api/evc/schedule:propose` | TO BE BUILT in prompt X.Y (dates-only proposal) |
-| U | `POST /api/evc/schedule:publish` | TO BE BUILT in prompt X.Y (publish reviewed run) |
-| R | `POST /api/admin/rulesets` | TO BE BUILT in prompt X.Y (register candidate revision) |
-| V | `POST /api/admin/rulesets/{id}/validate` | TO BE BUILT in prompt X.Y (candidate validation) |
-| G | `POST /api/admin/rulesets/{id}/approve` | TO BE BUILT in prompt X.Y (authorized approval) |
+| A | `POST /api/cases/{id}/actions` | TO BE BUILT (later task) (guarded transitions/commands) |
+| Q | `GET /api/evc/queue` | TO BE BUILT (later task) (queue and scheduling context) |
+| P | `POST /api/evc/schedule:propose` | TO BE BUILT (later task) (dates-only proposal) |
+| U | `POST /api/evc/schedule:publish` | TO BE BUILT (later task) (publish reviewed run) |
+| R | `POST /api/admin/rulesets` | TO BE BUILT (later task) (register candidate revision) |
+| V | `POST /api/admin/rulesets/{id}/validate` | TO BE BUILT (later task) (candidate validation) |
+| G | `POST /api/admin/rulesets/{id}/approve` | TO BE BUILT (later task) (authorized approval) |
 
 ### Shared interaction and permission rules
 
@@ -58,12 +58,12 @@ Current domain error shape is `{error, detail}` for ContractError (422 Validatio
 |---|---|
 | Institution ID, category, academic year | C request: `institution_id`, `category`, `academic_year` (CURRENT); year pattern YYYY-YY, category uppercase code |
 | Draft ID/status/timestamps | C/S response: `id`, `status`, `created_at`, `submitted_at` (CURRENT) |
-| Institution display name; category labels/options | CURRENT DTO names: `InstitutionOut.name`, `RouteOut.category/label`; authorized options read integration TO BE BUILT in prompt X.Y (not an allowed call here) |
-| Checklist/evidence/DSC/readiness | PROPOSED `checklist.items[].id/label/mandatory/status/evidence_refs[]`, `dsc_confirmed`, `can_submit`, `missing_item_ids[]`; checklist read/write integration TO BE BUILT in prompt X.Y; not accepted by current C or returned by S |
+| Institution display name; category labels/options | CURRENT DTO names: `InstitutionOut.name`, `RouteOut.category/label`; authorized options read integration TO BE BUILT (later task) (not an allowed call here) |
+| Checklist/evidence/DSC/readiness | PROPOSED `checklist.items[].id/label/mandatory/status/evidence_refs[]`, `dsc_confirmed`, `can_submit`, `missing_item_ids[]`; checklist read/write integration TO BE BUILT (later task); not accepted by current C or returned by S |
 | Route/current stage/pin | S response `route[].stage/when`, `current_stage`, `ruleset_rev` (CURRENT); DRAFT values may be null |
-| Clause source | PROPOSED S response `route_citation.doc/clause/page/status`; TO BE BUILT in prompt X.Y (citation exposure); not an existing ApplicationOut field |
+| Clause source | PROPOSED S response `route_citation.doc/clause/page/status`; TO BE BUILT (later task) (citation exposure); not an existing ApplicationOut field |
 
-**Buttons -> calls:** Create draft -> C with the three CURRENT fields. Submit -> S using returned ID, only after future readiness checks; today S does not enforce checklist/DSC. Select evidence/checklist save/DSC save -> **TO BE BUILT in prompt X.Y** (intake/P2 evidence integration; no URL invented). Route display consumes S response, with a clear not-yet-available placeholder for missing citations. Initial category preview requires the future options/read integration; no hardcoded route lookup in the browser.
+**Buttons -> calls:** Create draft -> C with the three CURRENT fields. Submit -> S using returned ID, only after future readiness checks; today S does not enforce checklist/DSC. Select evidence/checklist save/DSC save -> **TO BE BUILT (later task)** (intake/P2 evidence integration; no URL invented). Route display consumes S response, with a clear not-yet-available placeholder for missing citations. Initial category preview requires the future options/read integration; no hardcoded route lookup in the browser.
 
 **Empty/error states:** no authorized institution/options -> no create button and an explicit unavailable state; no category-specific checklist -> readiness unknown, not complete. New draft has no submitted route. 422 -> retain inputs and identify invalid field/missing item; 403 -> clear unauthorized data; 409 repeat submit -> refresh via future authorized read rather than submit again. Source unknown -> "Citation unavailable - DEMO ASSUMPTION", never invent a clause. Table 2.3's global YAML source must not be blindly attributed to NEW_INSTITUTION's Chapter I route.
 
@@ -95,13 +95,13 @@ Current domain error shape is `{error, detail}` for ContractError (422 Validatio
 
 | Shown field | Endpoint/field mapping |
 |---|---|
-| Case identity, state, plan and pin | C/S `id`, `status`, `route[].stage/when`, `current_stage`, `ruleset_rev` CURRENT; fresh case read TO BE BUILT in prompt X.Y |
-| Visit history | PROPOSED read fields `stage_visits[].id/stage/entered_at/left_at`; model fields exist but are not returned by ApplicationOut; TO BE BUILT in prompt X.Y |
-| Available actions | PROPOSED `available_actions[].action/enabled/block_reason_code/target_stages[]`; read integration TO BE BUILT in prompt X.Y; not derived from role labels alone |
-| Deficiency tabs/rows | PROPOSED `deficiencies[].id/items[].id/status/raised_at/response_ref`, `open_item_count`, `resolved_item_count`; TO BE BUILT in prompt X.Y; UI "Closed" means proposed canonical RESOLVED, not a third state |
-| Post-action state | PROPOSED A response `application.id/status/current_stage/ruleset_rev`, `available_actions[]`, `deficiencies[]`, `state_version`; TO BE BUILT in prompt X.Y |
+| Case identity, state, plan and pin | C/S `id`, `status`, `route[].stage/when`, `current_stage`, `ruleset_rev` CURRENT; fresh case read TO BE BUILT (later task) |
+| Visit history | PROPOSED read fields `stage_visits[].id/stage/entered_at/left_at`; model fields exist but are not returned by ApplicationOut; TO BE BUILT (later task) |
+| Available actions | PROPOSED `available_actions[].action/enabled/block_reason_code/target_stages[]`; read integration TO BE BUILT (later task); not derived from role labels alone |
+| Deficiency tabs/rows | PROPOSED `deficiencies[].id/items[].id/status/raised_at/response_ref`, `open_item_count`, `resolved_item_count`; TO BE BUILT (later task); UI "Closed" means proposed canonical RESOLVED, not a third state |
+| Post-action state | PROPOSED A response `application.id/status/current_stage/ruleset_rev`, `available_actions[]`, `deficiencies[]`, `state_version`; TO BE BUILT (later task) |
 
-**Buttons -> calls:** Record deficiency/Open compliance/Open Re-Scrutiny navigate to screens 3/4 without mutation. Complete -> A, PROPOSED request `action: complete`, `expected_state_version`; Revert -> confirmation/reason form then A, PROPOSED `action: authorised_revert`, `target_stage`, `reason_code`, `note`, conditional `second_approver_ref`, `expected_state_version`. These action names occur in YAML, but A and its payload are **TO BE BUILT in prompt X.Y**. Tabs filter already authorized rows locally; reload/initial deep link -> **TO BE BUILT in prompt X.Y** (fresh case read). Do not use S to advance a submitted case.
+**Buttons -> calls:** Record deficiency/Open compliance/Open Re-Scrutiny navigate to screens 3/4 without mutation. Complete -> A, PROPOSED request `action: complete`, `expected_state_version`; Revert -> confirmation/reason form then A, PROPOSED `action: authorised_revert`, `target_stage`, `reason_code`, `note`, conditional `second_approver_ref`, `expected_state_version`. These action names occur in YAML, but A and its payload are **TO BE BUILT (later task)**. Tabs filter already authorized rows locally; reload/initial deep link -> **TO BE BUILT (later task)** (fresh case read). Do not use S to advance a submitted case.
 
 **Empty/error states:** no deficiencies -> "No deficiencies recorded" with zero counts only after successful load; DRAFT -> no current stage/visits yet; no available actions -> read-only explanation; failed action/read -> show failure, not empty history. 404 -> case not found; 403 -> no case content; 409 stale state -> require reload before another write; reason codes unavailable -> do not invent choices.
 
@@ -133,13 +133,13 @@ Current domain error shape is `{error, detail}` for ContractError (422 Validatio
 
 | Form field | Endpoint/field mapping |
 |---|---|
-| Case/stage/version, selectable open items | CURRENT C/S id/current_stage; PROPOSED authorized case fields `state_version`, `deficiencies[].items[].id/status/requirement_ref`; read integration TO BE BUILT in prompt X.Y |
-| Reason choices and requirement labels | PROPOSED `reason_codes[].code/label`, `requirements[].id/label`; TO BE BUILT in prompt X.Y; no current reason enum/catalog exists |
+| Case/stage/version, selectable open items | CURRENT C/S id/current_stage; PROPOSED authorized case fields `state_version`, `deficiencies[].items[].id/status/requirement_ref`; read integration TO BE BUILT (later task) |
+| Reason choices and requirement labels | PROPOSED `reason_codes[].code/label`, `requirements[].id/label`; TO BE BUILT (later task); no current reason enum/catalog exists |
 | Recorded deficiency | PROPOSED A request `action: record_deficiency`, `reason_code`, `note`, `items[].requirement_ref`, `expected_state_version`; response `deficiency.id`, `deficiency.items[].id/status`, `application.current_stage`, `note_ref`, `note_hash` |
 | Compliance response | PROPOSED A request `action: submit_compliance`, `responses[].item_id/note/evidence_refs[]`, `expected_state_version`; response `response.id`, `deficiency.items[].response_ref/status`, `application.current_stage` |
-| Clock consequence preview | PROPOSED `clock_effects[].rule_id/operation/clock_kind/source_status` returned by future read/guard metadata; not a browser-computed due date; TO BE BUILT in prompt X.Y |
+| Clock consequence preview | PROPOSED `clock_effects[].rule_id/operation/clock_kind/source_status` returned by future read/guard metadata; not a browser-computed due date; TO BE BUILT (later task) |
 
-All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a command input over HTTP, not event payload content: the backend must call notes.create and append only note_ref/note_hash to events; personal information requires personal.store. No frontend call to an internal port is specified. Evidence uses P2-owned references; an upload integration is outside this allowed endpoint list and remains **TO BE BUILT in prompt X.Y**.
+All A payloads/results above are **TO BE BUILT (later task)**. Free text is a command input over HTTP, not event payload content: the backend must call notes.create and append only note_ref/note_hash to events; personal information requires personal.store. No frontend call to an internal port is specified. Evidence uses P2-owned references; an upload integration is outside this allowed endpoint list and remains **TO BE BUILT (later task)**.
 
 **Buttons -> calls:** Add/remove item edits local form state. Cancel discards local changes after unsaved-change confirmation, no API. Record deficiency -> A using proposed record payload; Submit compliance -> A using proposed response payload. On success use returned state, then future fresh read; never infer that submission itself verifies or resolves every item. Preview is explanatory, not a separate timer request. P1's command coordinates P2 timers atomically.
 
@@ -167,9 +167,9 @@ All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a c
 +------------------------------------------------------------------+
 ```
 
-**Data mapping:** PROPOSED authorized Re-Scrutiny read `application.id/current_stage/state_version`, `open_items[].id/requirement_ref/response_ref/evidence_refs[]/status`, `open_item_count`, `available_actions[]`; **TO BE BUILT in prompt X.Y** (open-item projection). Labels/evidence content come through authorized read integrations, not unrestricted file links. PROPOSED review input `item_id`, `outcome` (RESOLVED or OPEN), `reason_code`, `note`, `expected_state_version`; result `item.id/status/response_ref` and refreshed counts/version. This review-save integration is **TO BE BUILT in prompt X.Y**; no new action name or URL is approved here.
+**Data mapping:** PROPOSED authorized Re-Scrutiny read `application.id/current_stage/state_version`, `open_items[].id/requirement_ref/response_ref/evidence_refs[]/status`, `open_item_count`, `available_actions[]`; **TO BE BUILT (later task)** (open-item projection). Labels/evidence content come through authorized read integrations, not unrestricted file links. PROPOSED review input `item_id`, `outcome` (RESOLVED or OPEN), `reason_code`, `note`, `expected_state_version`; result `item.id/status/response_ref` and refreshed counts/version. This review-save integration is **TO BE BUILT (later task)**; no new action name or URL is approved here.
 
-**Buttons -> calls:** Open shows the item's response/evidence through **TO BE BUILT in prompt X.Y** (authorized detail read). Accept response/Still deficient set local review outcome. Save review -> **TO BE BUILT in prompt X.Y** (review command; missing from section 1.2/API plan). Complete Re-Scrutiny -> A, proposed `action: complete`, `expected_state_version`, guarded by `open_items == 0` in YAML; A is **TO BE BUILT in prompt X.Y**. History navigates to screen 2 locally.
+**Buttons -> calls:** Open shows the item's response/evidence through **TO BE BUILT (later task)** (authorized detail read). Accept response/Still deficient set local review outcome. Save review -> **TO BE BUILT (later task)** (review command; missing from section 1.2/API plan). Complete Re-Scrutiny -> A, proposed `action: complete`, `expected_state_version`, guarded by `open_items == 0` in YAML; A is **TO BE BUILT (later task)**. History navigates to screen 2 locally.
 
 **Empty/error states:** successful open_items=[] -> "No open items" and enable completion only if the server also permits it. Missing response/evidence -> explicit unavailable state, not assumed compliance. Failed list/count request -> completion disabled. 403 -> no unauthorized item content; 409 -> refresh before a second review; 422 guard failure -> retain list and show structured reason if available.
 
@@ -197,9 +197,9 @@ All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a c
 +------------------------------------------------------------------+
 ```
 
-**Data mapping:** all PROPOSED, **TO BE BUILT in prompt X.Y** (committee read/write integration): `committee.id`, `application.id`, `membership.member_ref`, `tasks[].id/assignee_ref/status/due_at`, `observations[].id/task_id/item_id/author_ref/note_ref/created_at`, `report_versions[].id/version/author_ref/created_at/note_ref`, and `can_write`. No committee model, task model, report response or committee-specific action exists today. due_at is optional and displayed only when supplied by the backend. P3-resolved display labels may accompany references after authorization; no personal names enter workflow event payloads.
+**Data mapping:** all PROPOSED, **TO BE BUILT (later task)** (committee read/write integration): `committee.id`, `application.id`, `membership.member_ref`, `tasks[].id/assignee_ref/status/due_at`, `observations[].id/task_id/item_id/author_ref/note_ref/created_at`, `report_versions[].id/version/author_ref/created_at/note_ref`, and `can_write`. No committee model, task model, report response or committee-specific action exists today. due_at is optional and displayed only when supplied by the backend. P3-resolved display labels may accompany references after authorization; no personal names enter workflow event payloads.
 
-**Buttons -> calls:** select task/View observation/View report -> **TO BE BUILT in prompt X.Y** (authorized reads). Add observation/Save task work/New report version -> **TO BE BUILT in prompt X.Y** (committee commands). Proposed command fields: task_id/item_id and note for observation; task_id, proposed outcome and expected_state_version for task work; base_version and report note for append. Author and timestamp are server-attributed, never trusted from editable fields. No endpoints outside the allowed list are invented, and no generic A action is falsely claimed for committee writes. Old report versions expose View only.
+**Buttons -> calls:** select task/View observation/View report -> **TO BE BUILT (later task)** (authorized reads). Add observation/Save task work/New report version -> **TO BE BUILT (later task)** (committee commands). Proposed command fields: task_id/item_id and note for observation; task_id, proposed outcome and expected_state_version for task work; base_version and report note for append. Author and timestamp are server-attributed, never trusted from editable fields. No endpoints outside the allowed list are invented, and no generic A action is falsely claimed for committee writes. Old report versions expose View only.
 
 **Empty/error states:** no assignment -> read-only/403 as policy decides, not a writable empty workspace; no tasks -> "No tasks assigned"; no versions -> "No report submitted"; missing author metadata -> "Attribution unavailable", never a guessed author. Missing authorized note content -> unavailable placeholder. A concurrent base-version 409 refreshes history and preserves a local draft; validation failure creates no version.
 
@@ -229,7 +229,7 @@ All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a c
 +------------------------------------------------------------------+
 ```
 
-**Data mapping** (all PROPOSED; Q/P/U are **TO BE BUILT in prompt X.Y**)
+**Data mapping** (all PROPOSED; Q/P/U are **TO BE BUILT (later task)**)
 
 | Widget | Allowed call / proposed response fields |
 |---|---|
@@ -239,7 +239,7 @@ All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a c
 | Why panel | P `assignments[].why.reason_codes[]/constraint_refs[]/alternative_slots[]`; labels map codes for display, with no claimed legal EVC duration |
 | Publication | U `run_id`, `status`, `published_at`, `assignments[]`; server-derived logical timestamps |
 
-**Buttons -> calls:** Reload queue -> Q. Propose dates -> P with PROPOSED `request_ids[]`, `input_snapshot_version`, explicit logical planning horizon; no user-supplied expert reassignment. Why this slot expands the returned explanation locally, no extra endpoint. Publish -> confirmation, then U with PROPOSED `run_id` and `input_snapshot_version`; never publish by resending a table edited in the browser. Availability/COI edits are outside the named endpoints and **TO BE BUILT in prompt X.Y** if requested later; current design is read-only pool context.
+**Buttons -> calls:** Reload queue -> Q. Propose dates -> P with PROPOSED `request_ids[]`, `input_snapshot_version`, explicit logical planning horizon; no user-supplied expert reassignment. Why this slot expands the returned explanation locally, no extra endpoint. Publish -> confirmation, then U with PROPOSED `run_id` and `input_snapshot_version`; never publish by resending a table edited in the browser. Availability/COI edits are outside the named endpoints and **TO BE BUILT (later task)** if requested later; current design is read-only pool context.
 
 **Empty/error states:** empty queue -> no proposal call; no eligible panel/availability -> UNSCHEDULABLE with reason codes, not blank slots marked success. Timeout/solver unknown -> no publish. 403 outside scope -> no queue/expert details; 409 queue/availability changed -> invalidate proposal, reload Q and propose again. Missing EDF/score definition -> "Comparison unavailable", not a performance claim. r3-DEMO banner remains visible, and dates/durations without official basis are DEMO ASSUMPTION.
 
@@ -273,13 +273,13 @@ All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a c
 
 | Field | Source/availability |
 |---|---|
-| Key/status/default/banner/routes | CURRENT `RulesetOut.key/status/is_default/banner/routes[].category/label/stages[].stage/when` DTO; list/detail read integration is outside section 1.2 and **TO BE BUILT in prompt X.Y** in an API plan; do not call validation to emulate a list read |
-| Role difference, base/source/effective metadata | PROPOSED detail fields `roles.evc_constituted_by`, `extends`, `source`, `effective_from`, `clocks_on_submit`; **TO BE BUILT in prompt X.Y** (read exposure). These are not all in RulesetOut; effective_from is currently ignored by the loader |
-| Candidate registration | R PROPOSED request `ruleset_key`, `candidate_ref`; response `id/key/status`; **TO BE BUILT in prompt X.Y** |
-| Validation | V PROPOSED response `validation_id`, `candidate_version`, `valid`, `issues[].code/path`, `validated_at`; **TO BE BUILT in prompt X.Y** |
-| Approval | G PROPOSED request `validation_id`, `candidate_version`; response `key/status/approved_by_ref/approved_at`; **TO BE BUILT in prompt X.Y** |
+| Key/status/default/banner/routes | CURRENT `RulesetOut.key/status/is_default/banner/routes[].category/label/stages[].stage/when` DTO; list/detail read integration is outside section 1.2 and **TO BE BUILT (later task)** in an API plan; do not call validation to emulate a list read |
+| Role difference, base/source/effective metadata | PROPOSED detail fields `roles.evc_constituted_by`, `extends`, `source`, `effective_from`, `clocks_on_submit`; **TO BE BUILT (later task)** (read exposure). These are not all in RulesetOut; effective_from is currently ignored by the loader |
+| Candidate registration | R PROPOSED request `ruleset_key`, `candidate_ref`; response `id/key/status`; **TO BE BUILT (later task)** |
+| Validation | V PROPOSED response `validation_id`, `candidate_version`, `valid`, `issues[].code/path`, `validated_at`; **TO BE BUILT (later task)** |
+| Approval | G PROPOSED request `validation_id`, `candidate_version`; response `key/status/approved_by_ref/approved_at`; **TO BE BUILT (later task)** |
 
-**Buttons -> calls:** Register -> R after local candidate selection (candidate upload/authoring integration is **TO BE BUILT in prompt X.Y**, no upload URL invented). Validate -> V for a selected registered ID. Approve -> G after policy/validation confirmation; approval does not implicitly change default revision or migrate cases. Reload/list/select comparison revisions -> **TO BE BUILT in prompt X.Y** (authorized list/detail reads). Compare locally operates only on two successfully loaded, version-identified responses; no fabricated diff endpoint. Current YAML changes EVC constitution metadata only; it does not change route stages or deadline keys.
+**Buttons -> calls:** Register -> R after local candidate selection (candidate upload/authoring integration is **TO BE BUILT (later task)**, no upload URL invented). Validate -> V for a selected registered ID. Approve -> G after policy/validation confirmation; approval does not implicitly change default revision or migrate cases. Reload/list/select comparison revisions -> **TO BE BUILT (later task)** (authorized list/detail reads). Compare locally operates only on two successfully loaded, version-identified responses; no fabricated diff endpoint. Current YAML changes EVC constitution metadata only; it does not change route stages or deadline keys.
 
 **Empty/error states:** no registered candidates -> empty list and permitted Register action; missing list integration -> "Ruleset listing not connected", not zero rulesets. Invalid candidate -> show V issues, Approve disabled; unavailable validation -> unknown, not valid. Outside demo mode r3 loading is refused: show refusal rather than bypassing it to compute a diff. 403 cannot validate/approve; 409 changed candidate invalidates prior validation. Status `verified_text` is displayed as metadata, not an independent legal verification claim.
 
@@ -306,9 +306,9 @@ All A payloads/results above are **TO BE BUILT in prompt X.Y**. Free text is a c
 +------------------------------------------------------------------+
 ```
 
-**Data mapping:** CURRENT S `ruleset_rev`, `category`, `route[].stage/when`, `current_stage` can seed this case view. CURRENT RulesetOut DTO `key`, `routes[].category/label/stages[].stage/when` describes a version's plan; authorized reload/version selection is **TO BE BUILT in prompt X.Y** (read integration outside the allowed endpoint list). PROPOSED `route_citation.doc/clause/page/status` and optional `transition_definitions[].from/action/to/guard/timers` exposure are **TO BE BUILT in prompt X.Y**; transitions are currently discarded by RuleSet loading, so do not pretend the diagram has received them. No BPMN XML, process-instance ID or execution endpoint exists or is required for this text design.
+**Data mapping:** CURRENT S `ruleset_rev`, `category`, `route[].stage/when`, `current_stage` can seed this case view. CURRENT RulesetOut DTO `key`, `routes[].category/label/stages[].stage/when` describes a version's plan; authorized reload/version selection is **TO BE BUILT (later task)** (read integration outside the allowed endpoint list). PROPOSED `route_citation.doc/clause/page/status` and optional `transition_definitions[].from/action/to/guard/timers` exposure are **TO BE BUILT (later task)**; transitions are currently discarded by RuleSet loading, so do not pretend the diagram has received them. No BPMN XML, process-instance ID or execution endpoint exists or is required for this text design.
 
-**Buttons -> calls:** Choose route/version -> **TO BE BUILT in prompt X.Y** (authorized route read). Show text/Fit diagram are local rendering controls with no API calls. For a case view, any comparison version is clearly separate from its immutable pinned context. No Complete/Advance/Run button: state-changing actions belong to screen 2/A. No download endpoint is invented.
+**Buttons -> calls:** Choose route/version -> **TO BE BUILT (later task)** (authorized route read). Show text/Fit diagram are local rendering controls with no API calls. For a case view, any comparison version is clearly separate from its immutable pinned context. No Complete/Advance/Run button: state-changing actions belong to screen 2/A. No download endpoint is invented.
 
 **Empty/error states:** null DRAFT route -> "Submit to obtain pinned route"; unknown/empty route -> explicit load/validation error rather than invented Start/End success. Failed version read -> keep a stale-state label or clear diagram; outside-demo overlay -> refusal. Missing transition metadata -> show route sequence only and note that deficiency/revert loops are unavailable; if current stage is absent from the plan, display it separately without highlighting a wrong node. Citation unavailable stays explicit.
 

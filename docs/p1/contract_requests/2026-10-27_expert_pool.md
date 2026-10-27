@@ -1,12 +1,12 @@
 # Expert pool contracts and P3 permission request
 
-Status: the user explicitly approved both the proposed contract changes and the four P3 permission additions on 27 October 2026. Implementation proceeds under those approvals.
+Status: Person 1 explicitly approved both the proposed contract changes and the four P3 permission additions on 27 October 2026. Implementation proceeds under those approvals.
 
 ## Why
 
 The requested three audit events require schemas; four new endpoints require regenerated OpenAPI and dedicated permissions (P3 currently rejects unknown actions). The pure eligibility core needs the pinned YAML expert policy through the existing RulesetPort, rather than importing workflow internals or reading another schema. All storage already exists except an optional opaque personal_ref column in evc.expert (P1 migration).
 
-AGENTS: "If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change"; platform/auth.py also requires approval.
+ENGINEERING_RULES.md: "If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change"; platform/auth.py also requires approval.
 
 ## Exact shared value-type addition
 

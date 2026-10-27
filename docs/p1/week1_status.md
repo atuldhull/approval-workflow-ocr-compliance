@@ -80,7 +80,7 @@ Other explicit simulation boundaries: X-Demo-* supplies caller-declared identity
 
 Current task: **only `docs/p1/week1_status.md` changes**. No outside-owned file is changed now.
 
-Historical feature baseline: `git diff --name-only 6349b0d..ad6306a` (after the requested root-agent bootstrap, before P1 implementation). Treat tests for P1 modules/fixtures as P1-owned per AGENTS, regardless of their shared `backend/tests/` location. The complete list outside explicitly listed P1 areas is **nine files**, not just generated OpenAPI and event schemas:
+Historical feature baseline: `git diff --name-only 6349b0d..ad6306a` (after the root rules file, before P1 implementation). Treat tests for P1 modules/fixtures as P1-owned per ENGINEERING_RULES.md, regardless of their shared `backend/tests/` location. The complete list outside explicitly listed P1 areas is **nine files**, not just generated OpenAPI and event schemas:
 
 | File | Evidence / disposition |
 |---|---|
@@ -92,9 +92,9 @@ Historical feature baseline: `git diff --name-only 6349b0d..ad6306a` (after the 
 | `contracts/events/wf/application_item_updated.v1.json` | Explicit additional-schema approval/request, `730356b` |
 | `backend/app/platform/auth.py` | **P3 exception:** user-approved narrow case-action policy and RO-region checks, `665aeca`; 19 added lines |
 | `backend/tests/test_ledger.py` | **P3 exception:** user-approved `submit_one` fixture-only prerequisites update, `730356b`; ledger/tamper assertions unchanged |
-| `rulesets/aph-2024-27/r1/checklists.yaml` | Explicitly requested in task 1.5, `730356b`; belongs to P1 intake requirements but is not in AGENTS' literal file allowlist; confirm ownership entry with team |
+| `rulesets/aph-2024-27/r1/checklists.yaml` | Explicitly requested in task 1.5, `730356b`; belongs to P1 intake requirements but is not in ENGINEERING_RULES.md's literal file allowlist; confirm ownership entry with team |
 
-For completeness, expanding the baseline to original scaffold `5ff5049` also includes these six setup/reference paths outside the literal P1 allowlist: `.gitattributes` (`d87e479`, line-ending setup), `AGENTS.md` (`6349b0d`, expressly requested root rules), `docs/reference/SIH26262_Team_Split.pdf`, `docs/reference/SIH26262_Team_Split.txt`, `docs/reference/SIH26262_Person1_Work_Pack.pdf`, `docs/reference/SIH26262_Person1_Work_Pack.txt` (`453ca0c`, expressly requested reference import). These are historical setup changes, not hidden feature edits. This inventory describes Git history, not proof of team-wide approval beyond recorded user authorizations. Shared ports/types/enums/fakes, P2 runtime/deadline YAML, frontend, scripts, CI and Compose are unchanged over the feature baseline.
+For completeness, expanding the baseline to original scaffold `5ff5049` also includes these six setup/reference paths outside the literal P1 allowlist: `.gitattributes` (`d87e479`, line-ending setup), `ENGINEERING_RULES.md` (`6349b0d`, expressly requested root rules), `docs/reference/SIH26262_Team_Split.pdf`, `docs/reference/SIH26262_Team_Split.txt`, `docs/reference/SIH26262_Person1_Work_Pack.pdf`, `docs/reference/SIH26262_Person1_Work_Pack.txt` (`453ca0c`, expressly requested reference import). These are historical setup changes, not hidden feature edits. This inventory describes Git history, not proof of team-wide approval beyond recorded user authorizations. Shared ports/types/enums/fakes, P2 runtime/deadline YAML, frontend, scripts, CI and Compose are unchanged over the feature baseline.
 
 ## Open questions and follow-ups — no fixes in this task
 
@@ -110,7 +110,7 @@ For completeness, expanding the baseline to original scaffold `5ff5049` also inc
 - Confirm acceptance of the two explicitly approved P3-file exceptions above, including action-role policy/RO checks; decide production identity/policy integration. Legacy intake list/detail do not enforce RO region like the new case APIs do; audit that scope before production use.
 - Implement Idempotency-Key middleware/replay semantics; the header is currently documented/reserved, and stale expected versions return 409. Agree projection handling for both submit event orders, application_submitted v2 and attached-deadline timeline matching.
 - Supply independent signed ledger checkpoints and replay/scorecard/notifier integrations. Passing local hash-chain verification is not independent tail-deletion or rehash protection, nor proof of notification delivery.
-- Resolve Windows Alembic path splitting (Linux checks see three chains; the historical Windows check saw zero), the existing Starlette/AnyIO deprecation warning, and whether the designated ClockPort provider is exempt from AGENTS' literal datetime.now ban. Current sole match is `backend/app/deadlines/clock.py:14`; no P1 wall-clock call is introduced.
+- Resolve Windows Alembic path splitting (Linux checks see three chains; the historical Windows check saw zero), the existing Starlette/AnyIO deprecation warning, and whether the designated ClockPort provider is exempt from ENGINEERING_RULES.md's literal datetime.now ban. Current sole match is `backend/app/deadlines/clock.py:14`; no P1 wall-clock call is introduced.
 
 **P1 / team**
 

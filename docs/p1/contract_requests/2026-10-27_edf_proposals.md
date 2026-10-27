@@ -1,12 +1,12 @@
 # EDF proposal audit schemas and scheduling permission request
 
-Status: the user explicitly approved the two schema files and single P3 permission entry on 27 October 2026 before protected edits. No other shared contract/auth change is authorized or made.
+Status: Person 1 explicitly approved the two schema files and single P3 permission entry on 27 October 2026 before protected edits. No other shared contract/auth change is authorized or made.
 
 ## Why and scope
 
-The requested EDF persistence creates a schedule_run, assignments and PROPOSED request state. AGENTS requires authz.check first and ledger records for state changes. Existing evc.expert.read/register permissions do not authorize scheduling, and existing lifecycle schemas do not describe proposals.
+The requested EDF persistence creates a schedule_run, assignments and PROPOSED request state. ENGINEERING_RULES.md requires authz.check first and ledger records for state changes. Existing evc.expert.read/register permissions do not authorize scheduling, and existing lifecycle schemas do not describe proposals.
 
-AGENTS says: "If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change". It also requires approval for backend/app/platform/. Request the two exact schema files below plus one permission entry. This is specifically a **schema-only contracts exception**: ports.py, types.py, enums.py and fakes.py stay unchanged because no shared port/value interface changes. No new endpoint is part of this module task, so OpenAPI remains unchanged. Run the contract checker/generator and commit approved schemas together, mentioning approval.
+ENGINEERING_RULES.md says: "If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change". It also requires approval for backend/app/platform/. Request the two exact schema files below plus one permission entry. This is specifically a **schema-only contracts exception**: ports.py, types.py, enums.py and fakes.py stay unchanged because no shared port/value interface changes. No new endpoint is part of this module task, so OpenAPI remains unchanged. Run the contract checker/generator and commit approved schemas together, mentioning approval.
 
 ## Exact P3 auth addition
 

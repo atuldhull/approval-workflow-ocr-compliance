@@ -2,7 +2,7 @@
 
 ## Status after task 1.3
 
-The user explicitly authorized new wf.* event schemas in task 1.3. That task adds transition_applied, stage_entered and stage_exited schemas; the checked-in schemas supersede the illustrative transition payload below. Shared ports/types/enums/fakes remain unchanged. The engine reads its own persisted wf route/transition definitions, so it does not require the proposed RuleSet.workflow_definition field. Conditional timer closes require a trusted workflow-local fact provider; production live-clock inspection remains a P2 integration decision. The remaining proposals below are still unapproved and must not be applied implicitly.
+Person 1 explicitly authorized new wf.* event schemas in task 1.3. That task adds transition_applied, stage_entered and stage_exited schemas; the checked-in schemas supersede the illustrative transition payload below. Shared ports/types/enums/fakes remain unchanged. The engine reads its own persisted wf route/transition definitions, so it does not require the proposed RuleSet.workflow_definition field. Conditional timer closes require a trusted workflow-local fact provider; production live-clock inspection remains a P2 integration decision. The remaining proposals below are still unapproved and must not be applied implicitly.
 
 25 October 2026. Request only: **do not apply** without explicit authorization and team agreement. Static validation/template expansion in task 1.1 needs no contract changes. A future engine must not bypass RulesetPort to obtain the workflow definition or emit an unregistered event. This request blocks that runtime wiring/emission, not the independent validator or YAML work.
 

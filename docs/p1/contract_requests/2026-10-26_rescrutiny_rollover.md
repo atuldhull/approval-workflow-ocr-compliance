@@ -1,8 +1,8 @@
 # Re-Scrutiny rollover contract request
 
-APPROVED: the user explicitly authorized this schema and OpenAPI regeneration on 26 October 2026, leaving shared ports/types/enums/fakes unchanged.
+APPROVED: Person 1 explicitly authorized this schema and OpenAPI regeneration on 26 October 2026, leaving shared ports/types/enums/fakes unchanged.
 
-AGENTS.md requires explicit authorization before contracts edits. This task needs the generated OpenAPI updated for GET /cases/{id}/rescrutiny and lineage/closure metadata. Rejected rounds must be superseded without falsely emitting an all-accepted deficiency_closed event. Propose the following exact additional event schema; existing event schemas remain unchanged.
+ENGINEERING_RULES.md requires explicit authorization before contracts edits. This task needs the generated OpenAPI updated for GET /cases/{id}/rescrutiny and lineage/closure metadata. Rejected rounds must be superseded without falsely emitting an all-accepted deficiency_closed event. Propose the following exact additional event schema; existing event schemas remain unchanged.
 
 ```diff
 --- /dev/null

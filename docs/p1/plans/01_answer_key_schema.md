@@ -1,6 +1,6 @@
 # Answer-key proposal plan
 
-1. Read AGENTS, the repository audit, Team Split 3.1/5.1/7, and the P1 generator requirements.
+1. Read ENGINEERING_RULES.md, the repository audit, Team Split 3.1/5.1/7, and the P1 generator requirements.
 2. Define a versioned, DEMO-only per-seed document with typed IDs, logical times, workflow scenarios, route outcomes and clock expectations.
 3. Reserve empty, closed extension objects for P2 and P3; document their intended scope without inventing their fields.
 4. Generate draft 2020-12 JSON Schema from Pydantic models and validate a hand-written example, schema/model parity, invalid inputs and relational invariants.

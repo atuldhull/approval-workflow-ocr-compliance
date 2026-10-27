@@ -1,6 +1,6 @@
 # Committee workspace integration request
 
-APPROVED on 26 October 2026: the user explicitly authorized the five policy additions and generated OpenAPI refresh, leaving shared ports/types/enums/fakes unchanged.
+APPROVED on 26 October 2026: Person 1 explicitly authorized the five policy additions and generated OpenAPI refresh, leaving shared ports/types/enums/fakes unchanged.
 
 The task explicitly requests four wf event schemas. Also request authorization to regenerate contracts/openapi.json for the six requested endpoints, leaving shared ports/types/enums/fakes byte-identical (existing FakeLedger/Notes/Authz interfaces already suffice).
 

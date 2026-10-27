@@ -1,6 +1,6 @@
 # Letter issuance contract request — TEAM REVIEW NEEDED
 
-Status: proposed only. The user explicitly instructed: if LetterIn lacks a needed field, write a contract request and do not edit contracts/. This request records that blocker; letter issuance has not been enabled and no shared contract or production code is changed.
+Status: proposed only. Person 1 explicitly instructed: if LetterIn lacks a needed field, write a contract request and do not edit contracts/. This request records that blocker; letter issuance has not been enabled and no shared contract or production code is changed.
 
 ## What is missing and why
 

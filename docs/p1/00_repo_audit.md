@@ -1,7 +1,7 @@
 # Person 1 repository audit
 
 Date: 24 October 2026 (Asia/Calcutta). Branch: `person-1`. Audited HEAD: `6349b0d`.
-This report describes checked-out source, not deployed infrastructure or verified APH law. Reference documents are requirements and historical claims, not authorization to implement them. Only this new audit file is written. No source fixes, commit, push, or contract refresh was performed. Verification dependencies were installed outside the repository; database mutations were restricted to a dedicated disposable PostgreSQL container. No separate plan or assumptions file was created because the user authorized exactly one new file.
+This report describes checked-out source, not deployed infrastructure or verified APH law. Reference documents are requirements and historical claims, not authorization to implement them. Only this new audit file is written. No source fixes, commit, push, or contract refresh was performed. Verification dependencies were installed outside the repository; database mutations were restricted to a dedicated disposable PostgreSQL container. No separate plan or assumptions file was created because Person 1 authorized exactly one new file.
 
 ## 1. Directory map: actual files
 
@@ -15,7 +15,7 @@ The following is the complete tracked-file inventory at the start of the audit, 
 .github/workflows/ci.yml
 .github/workflows/contracts-approval.yml
 .gitignore
-AGENTS.md
+ENGINEERING_RULES.md
 README.md
 backend/Dockerfile
 backend/alembic.ini
@@ -749,11 +749,11 @@ DONE means the stated narrow starter capability exists in source, with test exec
 | Section 2 next step 4: EVC queue | NOT STARTED | No EVC router/service/models. |
 | Section 2 next step 5: scale generator and answer key | NOT STARTED | Seed-only generator; no answer key. |
 
-Dependency boundaries: P2 must coordinate deadline mutation events, EVC clocks/rules and real letter registration. P3 must supply idempotency and stronger policy enforcement; answer-key schema is a shared P1/P3 decision with P2 fields. New event schemas and API snapshots require the AGENTS.md contract-request procedure and explicit authorization. These are future dependencies, not reasons to change other owners' files during this audit.
+Dependency boundaries: P2 must coordinate deadline mutation events, EVC clocks/rules and real letter registration. P3 must supply idempotency and stronger policy enforcement; answer-key schema is a shared P1/P3 decision with P2 fields. New event schemas and API snapshots require the ENGINEERING_RULES.md contract-request procedure and explicit authorization. These are future dependencies, not reasons to change other owners' files during this audit.
 
 ## 8. Commands and observed results
 
-Initial attempts: all three requested commands were run from repository root with the current `python` (`C:\Python314\python.exe`, Python 3.14). PYTHONDONTWRITEBYTECODE=1 was set for these checks to avoid generating bytecode. These initial attempts preceded isolated dependency installation. Tests were not modified.
+Initial attempts: all three requested commands were run from repository root with the current `python` (the local Windows Python 3.14). PYTHONDONTWRITEBYTECODE=1 was set for these checks to avoid generating bytecode. These initial attempts preceded isolated dependency installation. Tests were not modified.
 
 | Command | Exit | Actual result |
 |---|---|---|
@@ -763,7 +763,7 @@ Initial attempts: all three requested commands were run from repository root wit
 
 ### Final verification: PASS (24 October 2026)
 
-After the user required the 31-test baseline to pass, Docker Desktop was started. It initially reported a WSL disk-attachment timeout, then recovered. Dependencies from `backend/requirements-dev.txt` were installed into an isolated temporary Windows Python 3.12 environment outside this repository. That environment returned `contracts ok`, but the Windows migration check misleadingly returned `checked 0 migration chains` (exit 0). This did not count as successful migration verification: the checkout path contains spaces and `backend/alembic.ini` uses `version_path_separator = space`, splitting paths incorrectly.
+After Person 1 required the 31-test baseline to pass, Docker Desktop was started. It initially reported a WSL disk-attachment timeout, then recovered. Dependencies from `backend/requirements-dev.txt` were installed into an isolated temporary Windows Python 3.12 environment outside this repository. That environment returned `contracts ok`, but the Windows migration check misleadingly returned `checked 0 migration chains` (exit 0). This did not count as successful migration verification: the checkout path contains spaces and `backend/alembic.ini` uses `version_path_separator = space`, splitting paths incorrectly.
 
 The authoritative final run used Linux `python:3.12-slim` and a dedicated `postgres:16-alpine` container, matching CI's Python/PostgreSQL major versions. Repository source was mounted **read-only** at `/repo`, avoiding Windows path splitting. The test runner installed the unchanged declared development requirements into its disposable container. `DATABASE_URL` targeted only `sih_p1_audit_test` inside the dedicated PostgreSQL container; no application database was used. The suite's database recreation, migrations, fixture truncation and writes executed only there.
 
@@ -794,13 +794,13 @@ The one warning is a Starlette TestClient dependency deprecation: `anyio.abc.Blo
 7. **Reason codes absent:** no enum despite the reference discussing shared vocabularies/reason codes; EventIn accepts arbitrary reason_code string. No general invalid-transition errors exist to prove 100% rejection.
 8. **Authz-first rule mismatch:** submit reads/locks and may return NotFound before authz.check; object reads likewise load before checking. This can expose existence distinctions; no writes occur before its authorization check. Region/stage/assignment scope is absent.
 9. **Demo-only security:** arbitrary identity headers, true-by-default demo flags, and no production identity provider. DEMO_AUTH=false is fail-closed 401. No Idempotency-Key middleware; repeat submit is a 409, not replay-safe idempotency. ORM/fakes use uuid4, so deterministic replay needs deliberate design.
-10. **Clock wording/CI mismatch:** AGENTS bans datetime.now anywhere, while `backend/app/deadlines/clock.py:14` uses datetime.now(timezone.utc) inside the designated clock source. CI currently has no grep step enforcing that ban. This requires clarification of the clock-provider exception, not replacement of time calls in this audit.
+10. **Clock wording/CI mismatch:** ENGINEERING_RULES.md bans datetime.now anywhere, while `backend/app/deadlines/clock.py:14` uses datetime.now(timezone.utc) inside the designated clock source. CI currently has no grep step enforcing that ban. This requires clarification of the clock-provider exception, not replacement of time calls in this audit.
 11. **Ruleset metadata and provenance:** r1 status is verified_text but comment says demo until authorized review; registry drops source, and API omits it. Unknown legal values cannot be certified from this checkout; Final Report and official source snapshots are missing. P2 APPEAL_7D uses verified status while comment says calendar-vs-working is unconfirmed; avoid presenting that choice as verified law.
 12. **Overlay limits:** effective_from/revision metadata ignored, gate is status-based, no approval/publishing flow, routes/deadlines share base mutable dictionaries despite frozen dataclass wrappers. Pinning protects key selection but not external edits to the same revision file; no content hash/immutability enforcement or explicit loaded-overlay pinning regression test.
 13. **Protocol/API mismatch:** list_rulesets calls available() not declared on RulesetPort; FakeRulesets lacks it. Real registry works, alternate conforming ports may fail this endpoint.
 14. **Compliance integration missing:** FakeCompliance does not imply actual registration; calling port(CompliancePort) currently raises RuntimeError. Letter trigger cannot complete until P2 provides a real implementation.
 15. **Contract CI approval claim is stronger than implementation:** contracts-approval counts any two non-author approving users; it does not restrict to the named team accounts or bind approvals to current commit SHA. Whether branch protection prevents bypass cannot be determined from local files. CODEOWNERS lists all three globally, not per-folder owners.
-16. **Reference branch typo:** Work Pack section 8 example says git switch person-2 even for P1. Follow AGENTS and user's person-1 instruction. TEAM_WORKFLOW sync example is also person-2; this audit made no branch change.
+16. **Reference branch typo:** Work Pack section 8 example says git switch person-2 even for P1. Follow ENGINEERING_RULES.md and Person 1's branch instruction. TEAM_WORKFLOW sync example is also person-2; this audit made no branch change.
 17. **Deadline and scale limitations:** computed lease rule cannot be opened by generic DeadlineEngine.open; working_days raises a missing-calendar error; timers/alerts/escalation are not executable from YAML extra fields. Scale answer-key agreement remains open; no evidence of COI/conflict-free schedules or EDF comparison.
 18. **Ledger verification boundary:** current hash-chain verification lacks independent signed checkpoints; removal of the tail and recomputation cannot be proven detectable against an independent trusted head by this implementation alone. Existing deletion test deletes the first entry, not the tail.
 19. **Windows migration-check false green:** an isolated Windows Python 3.12 run returned exit 0 with `checked 0 migration chains`, because space-separated version locations split the checkout path. Final Linux verification returned `checked 3 migration chains` and passed the schema/model comparison as part of all 31 tests. No configuration was fixed. Browser behavior, deployed services, and current GitHub CI status were not inspected.

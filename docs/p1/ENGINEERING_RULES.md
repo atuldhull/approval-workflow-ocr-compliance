@@ -1,6 +1,6 @@
-# AGENTS.md — rules for any AI agent working in this repo
+# Person 1 engineering rules
 
-## Who I am working for
+## Scope
 Person 1 (P1): Approval workflow + EVC. Work only on branch person-1.
 Reference docs: docs/reference/SIH26262_Team_Split.txt and docs/reference/SIH26262_Person1_Work_Pack.txt. Read the relevant section before every task.
 
@@ -11,9 +11,9 @@ rulesets/aph-2024-27/r1/routes.yaml, rulesets/aph-2024-27/r3-DEMO/overlay.yaml (
 generator/cases/
 tests/e2e/step01*, step02*, step03*, step04*, step10* and tests for P1 modules
 docs/p1/
-Postgres schemas I write to: wf and evc ONLY.
+Postgres schemas P1 writes to: wf and evc ONLY.
 
-## What P1 must NOT edit (ask me first)
+## What P1 must NOT edit (ask Person 1 first)
 contracts/ (needs approval from all three people; see "Contract change procedure")
 backend/app/platform/, analytics/ (P3); documents/, compliance/, deadlines/, calendars/, generator/documents/ (P2); frontend/, docker-compose.yml, .github/, scripts/ (P3); rulesets/.../r1/deadlines.yaml (P2).
 
@@ -32,7 +32,7 @@ backend/app/platform/, analytics/ (P3); documents/, compliance/, deadlines/, cal
 12. Do not invent legal/APH clauses. If a clause or number is unknown, make it a configurable demo assumption and list it in docs/p1/ASSUMPTIONS.md.
 
 ## Contract change procedure
-If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change to docs/p1/contract_requests/<date>_<topic>.md (what, why, exact diff, impact on fakes.py and openapi.json). I will take it to the team. If I explicitly authorise it: edit contracts/ AND contracts/fakes.py in the same commit, run python scripts/check_contracts.py --write, and mention it in the commit message.
+If a task seems to need a change in contracts/: STOP, do not edit it, and write the proposed change to docs/p1/contract_requests/<date>_<topic>.md (what, why, exact diff, impact on fakes.py and openapi.json). Person 1 takes it to the team. Once all three approve: edit contracts/ AND contracts/fakes.py in the same commit, run python scripts/check_contracts.py --write, and mention it in the commit message.
 
 ## Definition of done (every task)
 - Code + migrations + event schemas + OpenAPI refreshed (python scripts/check_contracts.py --write only if the API changed)
@@ -40,7 +40,7 @@ If a task seems to need a change in contracts/: STOP, do not edit it, and write 
 - python scripts/check_contracts.py and python scripts/check_migration_heads.py pass
 - No datetime.now()/utcnow() anywhere
 - docs/p1/ASSUMPTIONS.md updated for any new assumption
-- Final message lists: files changed, new endpoints/events/tables, tests added, commands run with results, assumptions made, and anything blocked on P2/P3.
+- The commit or pull request description lists: files changed, new endpoints/events/tables, tests added, commands run with results, assumptions made, and anything blocked on P2/P3.
 
 ## Style
 Python 3.x, FastAPI, SQLAlchemy, Alembic, Pydantic, pytest. Small functions, type hints, explicit error classes from contracts/errors.py (ValidationFailed 422, NotFound 404, Forbidden 403, Conflict 409). Commit messages short and imperative.

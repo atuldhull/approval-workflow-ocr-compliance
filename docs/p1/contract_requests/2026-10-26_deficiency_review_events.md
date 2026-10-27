@@ -1,8 +1,8 @@
 # Deficiency review event — approved
 
-The user explicitly approved the additional wf.deficiency_item_decided.v1 schema and OpenAPI regeneration, leaving shared ports/types/enums/fakes unchanged. The officer review endpoint was also explicitly approved.
+Person 1 explicitly approved the additional wf.deficiency_item_decided.v1 schema and OpenAPI regeneration, leaving shared ports/types/enums/fakes unchanged. The officer review endpoint was also explicitly approved.
 
-The task authorizes four deficiency wf schemas. The separately approved officer review endpoint also changes each item's decision state, which AGENTS.md hard rule 6 requires us to record. Add one further schema and regenerate OpenAPI for the requested APIs. No shared port, enum, type or fake signature needs changing; existing FakeLedger already accepts EventIn, so contracts/fakes.py should remain byte-identical.
+The task authorizes four deficiency wf schemas. The separately approved officer review endpoint also changes each item's decision state, which ENGINEERING_RULES.md hard rule 6 requires us to record. Add one further schema and regenerate OpenAPI for the requested APIs. No shared port, enum, type or fake signature needs changing; existing FakeLedger already accepts EventIn, so contracts/fakes.py should remain byte-identical.
 
 Exact additional file diff:
 
