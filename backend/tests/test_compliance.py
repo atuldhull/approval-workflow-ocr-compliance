@@ -3,7 +3,7 @@
 Evidence versions are inserted the way the documents module stores them: quarantined and scan-pending, then
 marked clean (AVAILABLE) by a scanner verdict unless a test needs one still in quarantine.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import UUID, uuid4
 
@@ -321,6 +321,70 @@ def test_a_non_human_actor_cannot_verify(client, loa):
             service.verify_evidence(uow, eid, "ACCEPTED")
     with new_session() as s:
         assert s.get(Evidence, eid).status == "SUBMITTED"
+
+
+# ---- verification notes ----
+
+NOTE = "Synthetic note: the deposit receipt is cut off at the bottom."
+
+
+def rejected_with_note(client, app_id, oid, note=NOTE):
+    eid = submit(client, oid, document_version(app_id)).json()["id"]
+    r = verify(client, eid, decision="REJECTED", reason_code="DOCUMENT_INCOMPLETE", note=note)
+    assert r.status_code == 200, r.text
+    return eid
+
+
+def read_note(client, eid, role):
+    return client.get(f"/api/compliance/evidence/{eid}/note", headers=ROLES[role])
+
+
+@pytest.mark.parametrize("role,code", [
+    ("inst_sunrise", 200), ("committee", 200), ("ro_south", 200), ("bureau_officer", 200), ("bureau_head", 200),
+    ("inst_north", 403), ("ro_north", 403), ("auditor", 403),
+])
+def test_who_may_read_a_verification_note(client, loa, role, code):
+    app_id, letter = loa
+    eid = rejected_with_note(client, app_id, letter["obligation_ids"][0])
+    r = read_note(client, eid, role)
+    assert r.status_code == code
+    if code == 200:
+        assert r.json() == {"evidence_id": eid, "has_note": True, "note": NOTE, "redacted": False,
+                            "verified_role": "BUREAU_OFFICER", "verified_at": r.json()["verified_at"]}
+    else:
+        assert NOTE not in r.text
+
+
+def test_the_auditor_sees_that_a_note_exists_but_not_its_text(client, loa):
+    app_id, letter = loa
+    oid = letter["obligation_ids"][0]
+    eid = rejected_with_note(client, app_id, oid)
+    seen = client.get(f"/api/compliance/obligations/{oid}", headers=ROLES["auditor"])
+    assert seen.status_code == 200 and seen.json()["evidence"][0]["has_note"] is True
+    assert NOTE not in seen.text and read_note(client, eid, "auditor").status_code == 403
+
+
+def test_no_note_redacted_note_and_tampered_note(client, loa):
+    from app.platform.records import redact_note
+
+    app_id, letter = loa
+    plain = submit(client, letter["obligation_ids"][0], document_version(app_id)).json()["id"]
+    verify(client, plain, decision="REJECTED", reason_code="DOCUMENT_ILLEGIBLE")
+    assert read_note(client, plain, "bureau_officer").json()["has_note"] is False
+    assert read_note(client, str(uuid4()), "bureau_officer").status_code == 404
+
+    eid = rejected_with_note(client, app_id, letter["obligation_ids"][1])
+    with new_session() as s:
+        ref = s.get(Evidence, UUID(eid)).note_ref
+        s.get(CaseNote, ref).body = "Text changed after the decision."
+        s.commit()
+    r = read_note(client, eid, "bureau_officer")
+    assert r.status_code == 409 and r.json()["error"] == "NoteIntegrityError" and "changed" not in r.text
+    with new_session() as s:
+        redact_note(s, ref)
+        s.commit()
+    r = read_note(client, eid, "inst_sunrise").json()
+    assert r["has_note"] is True and r["note"] is None and r["redacted"] is True
 
 
 # ---- transactions and events ----

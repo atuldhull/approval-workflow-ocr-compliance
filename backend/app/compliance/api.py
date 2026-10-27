@@ -56,6 +56,15 @@ class EvidenceOut(BaseModel):
     has_note: bool
 
 
+class EvidenceNoteOut(BaseModel):
+    evidence_id: UUID
+    has_note: bool
+    note: str | None  # None when there is no note or it was redacted
+    redacted: bool
+    verified_role: str | None
+    verified_at: str | None
+
+
 class ObligationOut(BaseModel):
     id: UUID
     application_id: UUID
@@ -203,6 +212,16 @@ def submit_evidence(obligation_id: UUID, body: EvidenceIn, principal: Principal 
         {"obligation_id": str(obligation_id)}, body.model_dump(mode="json"),
         lambda uow: service.submit_evidence(uow, obligation_id, body.document_version_id),
         lambda e: _evidence_out(e).model_dump(mode="json"), status_code=201)
+
+
+@router.get("/compliance/evidence/{evidence_id}/note", response_model=EvidenceNoteOut)
+def read_evidence_note(evidence_id: UUID, principal: Principal = Depends(current_principal)):
+    """The verifying officer's note. Officers who may verify this evidence and the owning institution only;
+    auditors and other roles get 403 (they see has_note on the evidence)."""
+    with new_session() as session:
+        ev, note, redacted = service.read_evidence_note(session, principal, evidence_id)
+        return EvidenceNoteOut(evidence_id=ev.id, has_note=ev.note_ref is not None, note=note, redacted=redacted,
+                               verified_role=ev.verified_role, verified_at=_iso(ev.verified_at))
 
 
 @router.post("/compliance/evidence/{evidence_id}/verify", response_model=EvidenceOut)

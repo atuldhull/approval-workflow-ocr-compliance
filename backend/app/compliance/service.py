@@ -12,11 +12,12 @@ from app.compliance.rules import LETTER_VALIDITY_RULES, obligations_for
 from app.compliance.vocab import Decision, ObligationStatus, RejectionReason
 from app.deadlines.models import Deadline
 from app.documents.models import DocumentVersion, Fact
+from app.platform.models import CaseNote
 from app.platform.registry import port
 from contracts.enums import DeadlineStatus, FactState, LetterType, Role
 from contracts.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from contracts.ports import AuthzPort, CasePort, ClockPort, DeadlinePort, LedgerPort, NotesPort, RulesetPort, UnitOfWork
-from contracts.types import Anchor, CaseRef, EventIn, LetterIn, ResourceRef, SubjectRef
+from contracts.types import Anchor, CaseRef, EventIn, LetterIn, Principal, ResourceRef, SubjectRef
 
 IST = ZoneInfo("Asia/Kolkata")
 ISSUE_DATE_SOURCES = frozenset({"PORTAL_EVENT", "CONFIRMED_FACT"})
@@ -286,6 +287,36 @@ def verify_evidence(uow: UnitOfWork, evidence_id: UUID, decision: str, reason_co
                  "obligation_status": ob.status},
     ))
     return ev
+
+
+# ---- reading a verification note ----
+
+class NoteIntegrityError(Conflict):
+    """The stored note text no longer matches the hash recorded with the decision."""
+
+
+def read_evidence_note(session, principal: Principal, evidence_id: UUID) -> tuple[Evidence, str | None, bool]:
+    """The note an officer left on a verification: (evidence, text or None, redacted).
+
+    Officers who may verify this obligation's evidence and the owning institution may read it. Everyone else
+    (auditors included) is refused here; they see only that a note exists (EvidenceOut.has_note). The text lives in
+    the platform note store; contracts' NotesPort has no read method yet, so it is read by its reference here and
+    checked against the hash the decision recorded. Events never carry the text.
+    """
+    ev = session.get(Evidence, evidence_id)
+    if ev is None:
+        raise NotFound("evidence not found")
+    ob = session.get(Obligation, ev.obligation_id)
+    action = "compliance.read" if principal.role == Role.INSTITUTION else "compliance.evidence.verify"
+    port(AuthzPort).check(principal, action, resource(ob))
+    if ev.note_ref is None:
+        return ev, None, False
+    note = session.get(CaseNote, ev.note_ref)
+    if note is None or note.redacted_at is not None or note.body is None:
+        return ev, None, True
+    if sha256(note.body.encode("utf-8")).hexdigest() != ev.note_hash:
+        raise NoteIntegrityError("the stored note does not match the decision's record, so it is not shown")
+    return ev, note.body, False
 
 
 def _close_clock(uow: UnitOfWork, ob: Obligation) -> None:
