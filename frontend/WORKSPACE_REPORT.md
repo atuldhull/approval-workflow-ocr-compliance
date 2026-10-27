@@ -82,8 +82,7 @@ Browser checks (Chromium via playwright-cli, local backend on 8051 with syntheti
 - Before: `opsui-shots/before/` — `{1440|390}-{role}-{screen}.png` and `-full.png` (180 files)
 - After: `opsui-shots/after/` — same names (180 files)
 
-Roles: sunrise (institution), scrutiny, ro-southern, bureau-officer, bureau-head, auditor. The folders are kept outside the repository in
-`D:\awoc-review-shots\opsui-shots\`; they are not committed.
+Roles: sunrise (institution), scrutiny, ro-southern, bureau-officer, bureau-head, auditor. The folders are kept outside the repository; they are not committed.
 
 ## Backend gaps met (not worked around)
 
@@ -138,8 +137,7 @@ expert, set availability and proposed with CP-SAT; the bureau officer published 
 the 409 in words). An EVC committee was formed and the visit completed. With `WF_ENABLE_LETTER_ISSUANCE=true` the
 bureau officer was refused for citing the scrutiny report (`DECISION_NOT_AUTHORISED`, in words), then issued the LoA
 citing the EVC report, and the letter appeared under Compliance. No horizontal overflow at 390 px on the new screens
-(one found and fixed: checkboxes stretched to full width). Screenshots are kept outside the repository in
-`D:\awoc-review-shots\p1ui\`.
+(one found and fixed: checkboxes stretched to full width). Screenshots are kept outside the repository.
 
 Backend gaps met (reported, not worked around):
 

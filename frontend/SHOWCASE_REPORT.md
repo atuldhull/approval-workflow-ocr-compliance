@@ -147,8 +147,7 @@ on navigation. Text colours on ink: stone `#c5bba9` and dim `#a39882` are both a
 
 ## Screenshots
 
-Saved outside the repository in
-`D:\awoc-review-shots\showcase-shots\`:
+Saved outside the repository (a few later ones are committed under `docs/screenshots/`):
 
 - Before: `before-root-1440.png`, `before-root-390.png` (API down, connection screen).
 - Hero 1440×900 at 0/25/50/75/100 % of the hero: `hero-final1440-{0,25,50,75,100}.png` (iterations `hero-w1440*`).

@@ -34,3 +34,16 @@ Thumbs.db
 
 # Local keys and audit witness copies - never commit
 .secrets/
+
+# Build, coverage and test output
+dist/
+build/
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+junit*.xml
+test-results/
+playwright-report/
+.playwright-cli/

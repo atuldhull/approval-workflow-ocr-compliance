@@ -1,6 +1,6 @@
 # AICTE Approval Operations — local frontend redesign
 
-Implemented in `D:\approval-workflow-ocr-compliance\frontend` using the supplied person-3 ZIP baseline. Before editing, every source frontend file matched the ZIP exactly. The reversible backup is `review/operations/frontend-before.zip`.
+Implemented in `frontend/`, starting from the Person 3 frontend as it stood before the redesign.
 
 ## Brand and design
 **AICTE Approval Operations** names the actual work: approval routing, document review, compliance and operational assurance. Subtitle: **Workflow · OCR · Compliance**. Product branding, browser title and source namespace have been updated consistently. The existing official-portal provenance disclaimer is preserved.

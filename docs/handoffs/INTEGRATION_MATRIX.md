@@ -2,7 +2,7 @@
 
 State of every point where Person 3's platform meets the other modules, checked against the code on `person-3`
 and the remote branches on 2026-10-24, second check after sprint P3-13..18 (`origin/main` and `origin/person-2`
-unchanged since the scaffold; `origin/person-1` added documents and an agent-rules file only, no code or API).
+unchanged since the scaffold; `origin/person-1` added documents and a rules file only, no code or API).
 Re-checked for sprint P3-19..24: still no new published interface from Persons 1 or 2, so no adapter changed.
 Updated 27 Oct 2026 on `p3/finish` (Person 2's finished backend + Person 3's platform and screens): the Person 2 rows
 below now describe what runs.

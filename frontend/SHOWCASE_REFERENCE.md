@@ -6,7 +6,7 @@ building it, what was taken and what was rejected, and the art direction chosen.
 
 ## 1. Math Collective: how it gets impact cheaply
 
-Read locally at `D:\math-collective\frontend\src\features\home\`: `HomePage.jsx`, `HeroExperience.jsx`,
+Read from the home page source of an earlier project (Math Collective, `frontend/src/features/home/`): `HomePage.jsx`, `HeroExperience.jsx`,
 `HeroNarrativeOverlay.jsx`, `MathFieldHero.jsx`, `mathField.js`, and `src/lib/heroSpan.js`. Only technique was
 taken; no branding, copy or geometry.
 

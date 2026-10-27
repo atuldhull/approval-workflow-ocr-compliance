@@ -1,6 +1,6 @@
 # AICTE Approval Operations — redesign plan
 
-Baseline: every frontend file in the supplied person-3 ZIP matches this local frontend. Snapshot saved in review/operations/frontend-before.zip. Backend, contracts, migrations and adapters remain unchanged.
+Baseline: the Person 3 frontend as it stood before the redesign. Backend, contracts, migrations and adapters remain unchanged.
 
 ## Reference study
 Read Math Collective HomePage, HeroExperience, HeroNarrativeOverlay, MathFieldHero and scroll hooks. The current HeroExperience intentionally replaces its older expensive Three.js library with semantic SVG curves. Translate its subject-derived geometry, composed layering, direct CSS variable writes, bounded scroll progress and reduced device cost. Avoid its long empty hero spacer and perpetual loops for an operational workspace. Keep Three.js selectively for tangible document/route/assurance depth. Reference screenshot inspected from Downloads: diagonal illumination, champagne serif, rich mocha shadows; presenter/social UI excluded.
