@@ -803,6 +803,44 @@
         "title": "CaseErrorOut",
         "type": "object"
       },
+      "CaseEvcOut": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/CaseRequest"
+            },
+            "title": "Requests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "application_id",
+          "region",
+          "current",
+          "requests"
+        ],
+        "title": "CaseEvcOut",
+        "type": "object"
+      },
       "CaseInputErrorOut": {
         "properties": {
           "detail": {
@@ -973,6 +1011,132 @@
         "title": "CasePageOut",
         "type": "object"
       },
+      "CaseRequest": {
+        "properties": {
+          "assumption_code": {
+            "const": "EVC_DURATION_UNCONFIRMED",
+            "default": "EVC_DURATION_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "days_waiting": {
+            "title": "Days Waiting",
+            "type": "integer"
+          },
+          "due_by": {
+            "format": "date",
+            "title": "Due By",
+            "type": "string"
+          },
+          "duration_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Days"
+          },
+          "earliest_date": {
+            "format": "date",
+            "title": "Earliest Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "ruleset_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleset Key"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROPOSED",
+              "PUBLISHED",
+              "DONE",
+              "CANCELLED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "visit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseVisit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "category",
+          "requested_at",
+          "earliest_date",
+          "due_by",
+          "closed_at",
+          "ruleset_key",
+          "rule_id",
+          "days_waiting",
+          "duration_days",
+          "visit"
+        ],
+        "title": "CaseRequest",
+        "type": "object"
+      },
       "CaseSubmissionErrorOut": {
         "properties": {
           "detail": {
@@ -1003,6 +1167,72 @@
           "missing_item_keys"
         ],
         "title": "CaseSubmissionErrorOut",
+        "type": "object"
+      },
+      "CaseVisit": {
+        "properties": {
+          "algorithm": {
+            "enum": [
+              "EDF",
+              "CPSAT"
+            ],
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "expert_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Expert Ids",
+            "type": "array"
+          },
+          "panel_role": {
+            "title": "Panel Role",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "selector_label": {
+            "const": "SIMULATED authorised selector (stand-in)",
+            "title": "Selector Label",
+            "type": "string"
+          },
+          "simulation_status": {
+            "const": "SIMULATED",
+            "title": "Simulation Status",
+            "type": "string"
+          },
+          "slot_part": {
+            "title": "Slot Part",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignment_id",
+          "run_id",
+          "algorithm",
+          "date",
+          "slot_part",
+          "panel_role",
+          "expert_ids",
+          "simulation_status",
+          "selector_label"
+        ],
+        "title": "CaseVisit",
         "type": "object"
       },
       "ChecklistItemOut": {
@@ -1370,6 +1600,88 @@
         "title": "CommitteeOut",
         "type": "object"
       },
+      "CommitteeSummaryOut": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assumption_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Assumption Status",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latest_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestReportOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberIn"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "report_count": {
+            "title": "Report Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "CLOSED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_count": {
+            "title": "Task Count",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "SCRUTINY",
+              "RESCRUTINY",
+              "EVC",
+              "SHC",
+              "EC",
+              "COUNCIL"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "ordinal",
+          "type",
+          "status",
+          "members",
+          "task_count",
+          "report_count",
+          "latest_report"
+        ],
+        "title": "CommitteeSummaryOut",
+        "type": "object"
+      },
       "CriterionScores": {
         "properties": {
           "eligibility_passed": {
@@ -1545,6 +1857,51 @@
           "rounds"
         ],
         "title": "DeficienciesOut",
+        "type": "object"
+      },
+      "DeficiencyVocabularyOut": {
+        "properties": {
+          "assumption_code": {
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "item_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Item Keys",
+            "type": "array"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "response_rule_id": {
+            "title": "Response Rule Id",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ruleset_key",
+          "item_keys",
+          "reason_codes",
+          "response_rule_id",
+          "source_status",
+          "assumption_code"
+        ],
+        "title": "DeficiencyVocabularyOut",
         "type": "object"
       },
       "DiscardBody": {
@@ -2336,6 +2693,43 @@
           "assumptions"
         ],
         "title": "ItemsOut",
+        "type": "object"
+      },
+      "LatestReportOut": {
+        "properties": {
+          "author_user_ref": {
+            "format": "uuid",
+            "title": "Author User Ref",
+            "type": "string"
+          },
+          "content_note_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Note Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version_no",
+          "created_at",
+          "author_user_ref",
+          "content_note_hash"
+        ],
+        "title": "LatestReportOut",
         "type": "object"
       },
       "LetterOut": {
@@ -4570,6 +4964,545 @@
         "title": "RulesetOut",
         "type": "object"
       },
+      "RunAssignment": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "due_by": {
+            "format": "date",
+            "title": "Due By",
+            "type": "string"
+          },
+          "expert_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Expert Ids",
+            "type": "array"
+          },
+          "lateness_days": {
+            "title": "Lateness Days",
+            "type": "integer"
+          },
+          "published": {
+            "title": "Published",
+            "type": "boolean"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "slot_id": {
+            "format": "uuid",
+            "title": "Slot Id",
+            "type": "string"
+          },
+          "slot_part": {
+            "enum": [
+              "AM",
+              "PM"
+            ],
+            "title": "Slot Part",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_id",
+          "request_id",
+          "assignment_id",
+          "slot_id",
+          "date",
+          "slot_part",
+          "expert_ids",
+          "due_by",
+          "lateness_days",
+          "published"
+        ],
+        "title": "RunAssignment",
+        "type": "object"
+      },
+      "RunDetail": {
+        "properties": {
+          "algorithm": {
+            "enum": [
+              "EDF",
+              "CPSAT"
+            ],
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "assumption_code": {
+            "const": "EDF_PLANNING_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "candidate_slots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CP-SAT candidate window (DEMO ASSUMPTION); null for EDF runs.",
+            "title": "Candidate Slots"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expert_daily_cap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Visits per expert per date used by the run (DEMO ASSUMPTION).",
+            "title": "Expert Daily Cap"
+          },
+          "horizon_end": {
+            "format": "date",
+            "title": "Horizon End",
+            "type": "string"
+          },
+          "horizon_start": {
+            "format": "date",
+            "title": "Horizon Start",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "outcomes_recorded": {
+            "description": "False for runs proposed before per-request outcomes were stored; their unscheduled and withdrawn lists are then empty rather than known.",
+            "title": "Outcomes Recorded",
+            "type": "boolean"
+          },
+          "proposals": {
+            "description": "Assignments the run still holds (none once discarded).",
+            "items": {
+              "$ref": "#/components/schemas/RunAssignment"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "region_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upper-case region the run was planned for; null means every region.",
+            "title": "Region Scope"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "selector_label": {
+            "const": "SIMULATED authorised selector (stand-in)",
+            "title": "Selector Label",
+            "type": "string"
+          },
+          "simulation_status": {
+            "const": "SIMULATED",
+            "title": "Simulation Status",
+            "type": "string"
+          },
+          "slot_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "slot_capacity given on propose (DEMO ASSUMPTION), if any.",
+            "title": "Slot Capacity"
+          },
+          "solver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunSolver"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "PUBLISHED",
+              "DISCARDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unscheduled": {
+            "items": {
+              "$ref": "#/components/schemas/RunUnscheduled"
+            },
+            "title": "Unscheduled",
+            "type": "array"
+          },
+          "withdrawn": {
+            "description": "Requests whose drafts were withdrawn when the run was discarded.",
+            "items": {
+              "$ref": "#/components/schemas/RunWithdrawn"
+            },
+            "title": "Withdrawn",
+            "type": "array"
+          }
+        },
+        "required": [
+          "selector_label",
+          "simulation_status",
+          "source_status",
+          "assumption_code",
+          "run_id",
+          "algorithm",
+          "status",
+          "region_scope",
+          "horizon_start",
+          "horizon_end",
+          "created_at",
+          "input_fingerprint",
+          "metrics",
+          "expert_daily_cap",
+          "slot_capacity",
+          "candidate_slots",
+          "outcomes_recorded",
+          "solver",
+          "proposals",
+          "unscheduled",
+          "withdrawn"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "RunPage",
+        "type": "object"
+      },
+      "RunSolver": {
+        "properties": {
+          "best_bound": {
+            "title": "Best Bound",
+            "type": "integer"
+          },
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "candidate_slots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Slots"
+          },
+          "edf_scheduled": {
+            "title": "Edf Scheduled",
+            "type": "integer"
+          },
+          "fallback_to_edf": {
+            "title": "Fallback To Edf",
+            "type": "boolean"
+          },
+          "objective_value": {
+            "title": "Objective Value",
+            "type": "integer"
+          },
+          "repair_rounds": {
+            "title": "Repair Rounds",
+            "type": "integer"
+          },
+          "solver_status": {
+            "title": "Solver Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "solver_status",
+          "objective_value",
+          "best_bound",
+          "repair_rounds",
+          "candidate_count",
+          "edf_scheduled",
+          "fallback_to_edf"
+        ],
+        "title": "RunSolver",
+        "type": "object"
+      },
+      "RunSummary": {
+        "properties": {
+          "algorithm": {
+            "enum": [
+              "EDF",
+              "CPSAT"
+            ],
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "assumption_code": {
+            "const": "EDF_PLANNING_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "candidate_slots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CP-SAT candidate window (DEMO ASSUMPTION); null for EDF runs.",
+            "title": "Candidate Slots"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expert_daily_cap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Visits per expert per date used by the run (DEMO ASSUMPTION).",
+            "title": "Expert Daily Cap"
+          },
+          "horizon_end": {
+            "format": "date",
+            "title": "Horizon End",
+            "type": "string"
+          },
+          "horizon_start": {
+            "format": "date",
+            "title": "Horizon Start",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "outcomes_recorded": {
+            "description": "False for runs proposed before per-request outcomes were stored; their unscheduled and withdrawn lists are then empty rather than known.",
+            "title": "Outcomes Recorded",
+            "type": "boolean"
+          },
+          "region_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upper-case region the run was planned for; null means every region.",
+            "title": "Region Scope"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "selector_label": {
+            "const": "SIMULATED authorised selector (stand-in)",
+            "title": "Selector Label",
+            "type": "string"
+          },
+          "simulation_status": {
+            "const": "SIMULATED",
+            "title": "Simulation Status",
+            "type": "string"
+          },
+          "slot_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "slot_capacity given on propose (DEMO ASSUMPTION), if any.",
+            "title": "Slot Capacity"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "PUBLISHED",
+              "DISCARDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selector_label",
+          "simulation_status",
+          "source_status",
+          "assumption_code",
+          "run_id",
+          "algorithm",
+          "status",
+          "region_scope",
+          "horizon_start",
+          "horizon_end",
+          "created_at",
+          "input_fingerprint",
+          "metrics",
+          "expert_daily_cap",
+          "slot_capacity",
+          "candidate_slots",
+          "outcomes_recorded"
+        ],
+        "title": "RunSummary",
+        "type": "object"
+      },
+      "RunUnscheduled": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "explanation_code": {
+            "description": "Specific cause judged against the final plan: NO_AVAILABILITY, PANEL_INCOMPLETE, COI_ONLY, CAPACITY_EXHAUSTED (slot capacity or expert time taken), EXPERT_DAILY_CAP, or NO_FEASIBLE_SLOT when no slot exists in the window or no specific cause applies.",
+            "enum": [
+              "NO_AVAILABILITY",
+              "PANEL_INCOMPLETE",
+              "COI_ONLY",
+              "CAPACITY_EXHAUSTED",
+              "EXPERT_DAILY_CAP",
+              "NO_FEASIBLE_SLOT"
+            ],
+            "title": "Explanation Code",
+            "type": "string"
+          },
+          "reason_code": {
+            "const": "NO_FEASIBLE_SLOT",
+            "description": "Shared umbrella reason for every unscheduled request.",
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "reason_code",
+          "explanation_code",
+          "application_id"
+        ],
+        "title": "RunUnscheduled",
+        "type": "object"
+      },
+      "RunWithdrawn": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "application_id"
+        ],
+        "title": "RunWithdrawn",
+        "type": "object"
+      },
       "SolverOut": {
         "properties": {
           "best_bound": {
@@ -6356,6 +7289,7 @@
     },
     "/api/applications/{application_id}": {
       "get": {
+        "description": "One application, scoped like the case: institutions their own, regional officers their region.",
         "operationId": "get_application_api_applications__application_id__get",
         "parameters": [
           {
@@ -6827,6 +7761,117 @@
         "summary": "Upload Document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/applications/{application_id}/evc": {
+      "get": {
+        "description": "Expert-visit requests of one case, newest first (current is the newest), each with its published visit: date, AM/PM part and panel as expert references only (SIMULATED authorised selector (stand-in)). Proposed, unpublished drafts are not shown. Scoped like the case: institutions their own, regional officers their region. Unknown case 404; a case without requests has current null.",
+        "operationId": "application_evc_api_applications__application_id__evc_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseEvcOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Application Evc",
+        "tags": [
+          "evc",
+          "evc"
         ]
       }
     },
@@ -8280,6 +9325,156 @@
       }
     },
     "/api/cases/{application_id}/committees": {
+      "get": {
+        "description": "Committees formed for one case in formation order: type, status, members as user references, task and report counts and the latest report version (hash only). Scoped like the case.",
+        "operationId": "list_committees_api_cases__application_id__committees_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CommitteeSummaryOut"
+                  },
+                  "title": "Response List Committees Api Cases  Application Id  Committees Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 List Committees Api Cases  Application Id  Committees Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Committees",
+        "tags": [
+          "committees"
+        ]
+      },
       "post": {
         "description": "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422.",
         "operationId": "create_committee_api_cases__application_id__committees_post",
@@ -12724,7 +13919,7 @@
     },
     "/api/evc/queue": {
       "get": {
-        "description": "Role-scoped queue/history. from/to inclusively filter due_by dates. days_waiting counts whole elapsed 24-hour periods, stopped at completion/cancellation. EVC duration is a DEMO ASSUMPTION.",
+        "description": "Role-scoped queue/history. from/to inclusively filter due_by dates. application_id limits it to one case. days_waiting counts whole elapsed 24-hour periods, stopped at completion/cancellation. EVC duration is a DEMO ASSUMPTION.",
         "operationId": "queue_api_evc_queue_get",
         "parameters": [
           {
@@ -12800,6 +13995,23 @@
                 }
               ],
               "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "application_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Application Id"
             }
           },
           {
@@ -13048,6 +14260,300 @@
           }
         },
         "summary": "Panel Preview",
+        "tags": [
+          "evc",
+          "evc"
+        ]
+      }
+    },
+    "/api/evc/schedule/runs": {
+      "get": {
+        "description": "Stored EVC schedule runs, newest first, filtered by status, algorithm and region (upper-cased region_scope). Readers of the expert pool (evc.expert.read): RO_OFFICER (runs planned for their own region only), BUREAU_OFFICER, BUREAU_HEAD, SCRUTINY_COMMITTEE, AUDITOR. A regional officer naming another region is 403.",
+        "operationId": "schedule_runs_api_evc_schedule_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "PROPOSED",
+                    "PUBLISHED",
+                    "DISCARDED"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "algorithm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "EDF",
+                    "CPSAT"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Algorithm"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schedule Runs",
+        "tags": [
+          "evc",
+          "evc"
+        ]
+      }
+    },
+    "/api/evc/schedule/runs/{run_id}": {
+      "get": {
+        "description": "One stored run with its parameters, metrics, solver facts, held assignments, unscheduled requests with their explanation codes and, for a discarded run, the withdrawn requests. Readers of the expert pool (evc.expert.read): RO_OFFICER (runs planned for their own region only), BUREAU_OFFICER, BUREAU_HEAD, SCRUTINY_COMMITTEE, AUDITOR. Unknown run 404 EVC_RUN_NOT_FOUND; a run outside a regional officer's region 403.",
+        "operationId": "schedule_run_api_evc_schedule_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schedule Run",
         "tags": [
           "evc",
           "evc"
@@ -14885,6 +16391,125 @@
           }
         },
         "summary": "Get Checklist",
+        "tags": [
+          "rulesets"
+        ]
+      }
+    },
+    "/api/rulesets/{key}/deficiency-vocabulary": {
+      "get": {
+        "description": "Coded deficiency item kinds and reason codes a deficiency may use under this ruleset, as pinned when it was loaded (DEMO ASSUMPTION stand-ins, not an official list). 404 when the ruleset is not loaded or has no deficiency configuration.",
+        "operationId": "get_deficiency_vocabulary_api_rulesets__key__deficiency_vocabulary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyVocabularyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Deficiency Vocabulary",
         "tags": [
           "rulesets"
         ]
