@@ -1,7 +1,8 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, Text, text
+from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, SmallInteger,
+                        Text, UniqueConstraint, text)
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,6 +31,8 @@ class Deadline(Base):
             "duration_unit != 'working_days' OR (calendar_id IS NOT NULL AND count_anchor_day IS NOT NULL)",
             name="ck_dl_deadline_working_days_calendar",
         ),
+        # the timer worker's queue: running clocks with a firing time
+        Index("ix_dl_deadline_timer_due", "next_fire_at", postgresql_where=text("status = 'RUNNING'")),
         {"schema": SCHEMA},
     )
 
@@ -59,6 +62,81 @@ class Deadline(Base):
     paused_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     explanation: Mapped[str] = mapped_column(Text)
+    # timer state: the next ladder level to raise for this due_version, and the worker's claim on the row
+    alert_level: Mapped[int] = mapped_column(SmallInteger, default=0, server_default=text("0"))
+    timer_fence: Mapped[int] = mapped_column(BigInteger, default=0, server_default=text("0"))
+    timer_claimed_by: Mapped[str | None] = mapped_column(Text)
+    timer_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    timer_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+
+
+ALERT_STATUSES = ("OPEN", "VACANT", "ESCALATED", "ACKNOWLEDGED")
+ESCALATION_REASONS = ("VACANCY", "WINDOW_ELAPSED")
+TIMER_OUTCOMES = ("SCHEDULED", "ALERTED", "ACKNOWLEDGED", "LADDER_DONE", "NOT_RUNNING", "RETRY", "FAILED")
+
+
+def _in(column: str, values: tuple[str, ...]) -> str:
+    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+class Alert(Base):
+    """One ladder level raised for one deadline due_version. Holds roles and opaque group ids, never contacts."""
+
+    __tablename__ = "alert"
+    __table_args__ = (
+        UniqueConstraint("deadline_id", "level", "due_version", name="uq_dl_alert_level"),
+        CheckConstraint(_in("status", ALERT_STATUSES), name="ck_dl_alert_status"),
+        CheckConstraint(f"reason IS NULL OR {_in('reason', ESCALATION_REASONS)}", name="ck_dl_alert_reason"),
+        CheckConstraint("level > 0 OR (reason IS NULL AND from_alert_id IS NULL)", name="ck_dl_alert_escalation_link"),
+        Index("ix_dl_alert_region", "region"),
+        Index("ix_dl_alert_institution_id", "institution_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    deadline_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dl.deadline.id", ondelete="RESTRICT", name="fk_dl_alert_deadline_id_deadline"))
+    level: Mapped[int] = mapped_column(SmallInteger)
+    due_version: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(Text)
+    recipient_ref: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))  # opaque role-group id
+    subject_type: Mapped[str] = mapped_column(Text)
+    subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    institution_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    region: Mapped[str | None] = mapped_column(Text)
+    template: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str | None] = mapped_column(Text)
+    from_alert_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    raised_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+class TimerOutcome(Base):
+    """What one claim of a due deadline did. One row per claim (fence), so overlapping runs cannot both record."""
+
+    __tablename__ = "timer_outcome"
+    __table_args__ = (
+        UniqueConstraint("deadline_id", "fence", name="uq_dl_timer_outcome_fence"),
+        CheckConstraint(_in("outcome", TIMER_OUTCOMES), name="ck_dl_timer_outcome"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    deadline_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dl.deadline.id", ondelete="RESTRICT",
+                                       name="fk_dl_timer_outcome_deadline_id_deadline"), index=True)
+    fence: Mapped[int] = mapped_column(BigInteger)
+    due_version: Mapped[int] = mapped_column(Integer)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    worker: Mapped[str] = mapped_column(Text)
+    outcome: Mapped[str] = mapped_column(Text)
+    levels_raised: Mapped[int] = mapped_column(SmallInteger, default=0)
+    next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    detail: Mapped[str | None] = mapped_column(Text)  # an error category, never free text from an exception
 
 
 class CalendarVersion(Base):

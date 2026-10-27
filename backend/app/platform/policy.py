@@ -47,15 +47,19 @@ POLICY: dict[str, frozenset[Role]] = {
     "compliance.read": OFFICERS | {R.INSTITUTION, R.AUDITOR},
     "compliance.evidence.submit": frozenset({R.INSTITUTION}),
     "compliance.evidence.verify": OFFICERS,
+    # deadline alerts (Person 2). Institutions see and acknowledge only alerts about their own records; the
+    # deadlines module also requires the acknowledging role to be the one the alert is addressed to.
+    "alert.read": OFFICERS | {R.INSTITUTION, R.AUDITOR},
+    "alert.ack": OFFICERS | {R.INSTITUTION},
 }
 
 # Resource kinds the policy knows. Any other kind is denied.
 KINDS = frozenset({"institution", "ruleset", "application", "deadline", "ledger", "clock", "principal",
-                   "audit", "notification", "analytics", "document", "compliance"})
+                   "audit", "notification", "analytics", "document", "compliance", "alert"})
 
 # Records that belong to a regional office. A regional officer may touch them only when the caller states the
 # region (resource.region) and it is the officer's own - including list queries, which must filter by it.
-REGION_SCOPED_KINDS = frozenset({"application", "deadline", "analytics", "document", "compliance"})
+REGION_SCOPED_KINDS = frozenset({"application", "deadline", "analytics", "document", "compliance", "alert"})
 
 DEMO_ONLY_ACTIONS = frozenset({"sim.clock"})
 
@@ -74,7 +78,7 @@ def precheck(action: str, resource: ResourceRef, demo_mode: bool) -> str | None:
 # Committee members should only touch the cases assigned to them. Assignment data does not exist yet (Person 1,
 # contract change C3), so with AUTHZ_REQUIRE_ASSIGNMENT on (the production default) their case access is refused
 # rather than assumed. Off in development so the demo keeps working - see docs/SECURITY.md.
-ASSIGNMENT_SCOPED = {R.SCRUTINY_COMMITTEE: frozenset({"application", "deadline", "document", "compliance"})}
+ASSIGNMENT_SCOPED = {R.SCRUTINY_COMMITTEE: frozenset({"application", "deadline", "document", "compliance", "alert"})}
 
 
 def assignment_guard(principal: Principal, resource: ResourceRef, require_assignment: bool) -> str | None:

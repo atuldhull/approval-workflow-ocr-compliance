@@ -6,6 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.deadlines.calendars import WorkingCalendar, validate_calendar_id
+from app.deadlines.escalation import check_rule_ladders, parse_alert_config
 from contracts.enums import ClockKind, ClockOwner
 from contracts.errors import ValidationFailed
 
@@ -92,6 +93,28 @@ def parse_rule(raw: dict[str, Any]) -> DeadlineRule:
     )
 
 
+class DeadlineRules(dict):
+    """Rules by id, plus the ruleset-wide alert ladder and academic-year boundary (both may be absent)."""
+
+    def __init__(self, rules: dict[str, DeadlineRule], alerts=None, academic_year: "AcademicYearStart | None" = None,
+                 academic_year_source: str | None = None):
+        super().__init__(rules)
+        self.alerts = alerts
+        self.academic_year = academic_year
+        self.academic_year_source = academic_year_source
+
+
+def parse_academic_year(raw: object) -> tuple["AcademicYearStart | None", str | None]:
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict):
+        raise ValidationFailed("academic_year must be an object")
+    source = raw.get("source") or {}
+    if not isinstance(source, dict) or source.get("status") not in SOURCE_STATUSES:
+        raise ValidationFailed(f"academic_year.source.status must be one of {sorted(SOURCE_STATUSES)}")
+    return AcademicYearStart.parse(raw.get("starts")), source["status"]
+
+
 class RuleParser:
     def parse(self, raw: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(raw, dict):
@@ -105,7 +128,10 @@ class RuleParser:
             if rule.id in rules:
                 raise ValidationFailed(f"duplicate deadline rule {rule.id}")
             rules[rule.id] = rule
-        return rules
+        alerts = parse_alert_config(raw.get("alerts"))
+        check_rule_ladders(rules, alerts)
+        academic_year, ay_source = parse_academic_year(raw.get("academic_year"))
+        return DeadlineRules(rules, alerts, academic_year, ay_source)
 
 
 def add_months(d: date, months: int) -> date:
@@ -148,3 +174,77 @@ def end_of_day(d: date) -> datetime:
     if not isinstance(d, date) or isinstance(d, datetime):
         raise ValidationFailed("deadline due date must be a calendar date")
     return datetime.combine(d, time.max, IST)
+
+
+# ---- lease stop academic year (APH cl. 2.1(e), 6.17) ----
+
+@dataclass(frozen=True)
+class AcademicYearStart:
+    """The calendar day an academic year begins, e.g. 1 July -> AY 2031-32 runs 1 Jul 2031 to 30 Jun 2032."""
+    month: int
+    day: int
+
+    def __post_init__(self) -> None:
+        if type(self.month) is not int or type(self.day) is not int or not 1 <= self.month <= 12:
+            raise ValidationFailed("academic year start needs an integer month and day")
+        if (self.month, self.day) == (2, 29) or not 1 <= self.day <= calendar.monthrange(2001, self.month)[1]:
+            raise ValidationFailed("academic year start must be a day that exists every year")
+
+    @classmethod
+    def parse(cls, value: object) -> "AcademicYearStart":
+        if not isinstance(value, str) or len(value) != 5 or value[2] != "-" or not (value[:2] + value[3:]).isdigit():
+            raise ValidationFailed("academic year start must look like MM-DD, e.g. 07-01")
+        return cls(int(value[:2]), int(value[3:]))
+
+    def year_of(self, d: date) -> int:
+        """The starting calendar year of the academic year containing d."""
+        return d.year if (d.month, d.day) >= (self.month, self.day) else d.year - 1
+
+
+def academic_year_label(start_year: int) -> str:
+    return f"{start_year}-{(start_year + 1) % 100:02d}"
+
+
+def add_years(d: date, years: int) -> date:
+    """Anniversary of d; a 29 February start rolls to 1 March in a common year."""
+    try:
+        return d.replace(year=d.year + years)
+    except ValueError:
+        return date(d.year + years, 3, 1)
+
+
+def covers(start: date, years: int, lease_end: date) -> bool:
+    """Whether a lease ending on lease_end (inclusive) still has `years` full years left on `start`."""
+    return add_years(start, years) - timedelta(days=1) <= lease_end
+
+
+def lease_eoa_stop_year(lease_end_date: date, max_course_duration_years: int,
+                        ay_start: AcademicYearStart) -> str:
+    """First academic year for which Extension of Approval is blocked by the land lease.
+
+    APH 2.1(e) / 6.17: no EoA from the academic year in which the remaining live lease equals the longest course
+    duration, unless the lease is extended by 30 years (the caller then passes the extended end date).
+    The day on which the remaining lease equals the course duration is the last day from which a full course of
+    that length still fits in the lease; the academic year containing that day is the first one blocked.
+    """
+    if not isinstance(lease_end_date, date) or isinstance(lease_end_date, datetime):
+        raise ValidationFailed("lease_end_date must be a calendar date")
+    if type(max_course_duration_years) is not int or not 1 <= max_course_duration_years <= 10:
+        raise ValidationFailed("max_course_duration_years must be a whole number of years from 1 to 10")
+    if not isinstance(ay_start, AcademicYearStart):
+        raise ValidationFailed("ay_start must be an AcademicYearStart")
+    years = max_course_duration_years
+    # first guess, then settle on the exact last day from which `years` still fit (leap days move it by one)
+    day = add_years(lease_end_date + timedelta(days=1), -years)
+    while not covers(day, years, lease_end_date):
+        day -= timedelta(days=1)
+    while covers(day + timedelta(days=1), years, lease_end_date):
+        day += timedelta(days=1)
+    return academic_year_label(ay_start.year_of(day))
+
+
+def lease_meets_minimum(lease_start_date: date, lease_end_date: date, min_years: int = 30) -> bool:
+    """APH 2.1(e): the lease must run for at least `min_years` years (end date inclusive)."""
+    if lease_end_date < lease_start_date:
+        raise ValidationFailed("lease ends before it starts")
+    return covers(lease_start_date, min_years, lease_end_date)

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.deadlines.alerts import first_fire_at
 from app.deadlines.calendars import load_calendar
 from app.deadlines.models import Deadline
 from app.deadlines.rules import IST, DeadlineRule, due_date, end_of_day
@@ -28,7 +29,8 @@ def explain(rule: DeadlineRule, anchor: Anchor, due) -> str:
 
 class DeadlineEngine:
     def open(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str, anchor: Anchor, ruleset_key: str) -> UUID:
-        rule = port(RulesetPort).get(ruleset_key).deadline_rules.get(rule_id)
+        rules = port(RulesetPort).get(ruleset_key).deadline_rules
+        rule = rules.get(rule_id)
         if rule is None:
             raise ValidationFailed(f"no deadline rule {rule_id} in {ruleset_key}")
         if rule.duration is None:
@@ -50,6 +52,7 @@ class DeadlineEngine:
             clock_kind=rule.clock_kind, clock_owner=rule.clock_owner, status=DeadlineStatus.RUNNING,
             calendar_id=rule.calendar_id, count_anchor_day=rule.count_anchor_day,
             due_at=end_of_day(due), due_date=due, due_version=1, explanation=explain(rule, anchor, due),
+            next_fire_at=first_fire_at(rules, rule, end_of_day(due)), alert_level=0,
         )
         uow.session.add(row)
         uow.session.flush()
@@ -66,6 +69,7 @@ class DeadlineEngine:
             raise ValidationFailed("a deadline closes as MET or WAIVED")
         row = self._require_live(uow, subject, rule_id)
         row.status = outcome
+        row.next_fire_at = None
 
     def pause_internal(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str) -> None:
         row = self._require_live(uow, subject, rule_id)
@@ -96,6 +100,9 @@ class DeadlineEngine:
         row.due_version += 1
         row.status = DeadlineStatus.RUNNING
         row.paused_at = None
+        # a new due_version starts its alert ladder again; due now, so the timer worker works out the schedule
+        row.alert_level = 0
+        row.next_fire_at = now
 
     def _live(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str) -> Deadline | None:
         return uow.session.scalar(select(Deadline).where(

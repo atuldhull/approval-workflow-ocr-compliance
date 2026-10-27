@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dl.alert_acknowledged v1",
+  "description": "A member of the addressed role acknowledged an alert; no further level is raised for this deadline and due_version. The acting user is the event's actor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["alert_id", "deadline_id", "level", "role", "due_version"],
+  "properties": {
+    "alert_id": {"type": "string", "format": "uuid"},
+    "deadline_id": {"type": "string", "format": "uuid"},
+    "level": {"type": "integer", "minimum": 0, "maximum": 9},
+    "role": {"type": "string", "enum": ["INSTITUTION", "SCRUTINY_COMMITTEE", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]},
+    "due_version": {"type": "integer", "minimum": 1}
+  }
+}

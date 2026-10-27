@@ -4,13 +4,16 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.deadlines.models import Deadline
+from app.deadlines.alerts import engine as alerts
+from app.deadlines.models import Alert, Deadline
 from app.deadlines.wiring import clock
+from app.deadlines.worker import TimerWorker
 from app.platform.auth import current_principal
 from app.platform.db import new_session
+from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from contracts.enums import Role
-from contracts.errors import Forbidden, NotFound
+from contracts.errors import Forbidden, NotFound, ValidationFailed
 from contracts.ports import AuthzPort, CasePort
 from contracts.types import Principal, ResourceRef
 
@@ -99,3 +102,85 @@ def advance_clock(body: AdvanceIn, principal: Principal = Depends(current_princi
     port(AuthzPort).check(principal, "sim.clock", ResourceRef("clock"))
     clock.advance(body.days)
     return read_clock(principal)
+
+
+# ---- alerts ----
+
+ALERT_STATUSES = {"OPEN", "VACANT", "ESCALATED", "ACKNOWLEDGED"}
+
+
+class AlertOut(BaseModel):
+    id: UUID
+    deadline_id: UUID
+    level: int
+    due_version: int
+    role: str
+    subject_type: str
+    subject_id: UUID
+    institution_id: UUID | None
+    region: str | None
+    template: str
+    status: str
+    reason: str | None
+    from_alert_id: UUID | None
+    raised_at: str
+    escalated_at: str | None
+    acknowledged_at: str | None
+
+
+class TimerRunOut(BaseModel):
+    processed: int
+
+
+def _iso(value) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _alert_out(a: Alert) -> AlertOut:
+    return AlertOut(
+        id=a.id, deadline_id=a.deadline_id, level=a.level, due_version=a.due_version, role=a.role,
+        subject_type=a.subject_type, subject_id=a.subject_id, institution_id=a.institution_id, region=a.region,
+        template=a.template, status=a.status, reason=a.reason, from_alert_id=a.from_alert_id,
+        raised_at=a.raised_at.isoformat(), escalated_at=_iso(a.escalated_at), acknowledged_at=_iso(a.acknowledged_at),
+    )
+
+
+@router.get("/alerts", response_model=list[AlertOut])
+def list_alerts(status: str | None = None, deadline_id: UUID | None = None, region: str | None = None,
+                principal: Principal = Depends(current_principal)):
+    """Alerts the caller may see: an institution its own (addressed to it), a regional officer its region,
+    a committee member those addressed to the committee, bureau and audit roles all (optionally by region)."""
+    if status is not None and status not in ALERT_STATUSES:
+        raise ValidationFailed(f"status must be one of {sorted(ALERT_STATUSES)}")
+    scope_region = principal.region if principal.role == Role.RO_OFFICER else region
+    port(AuthzPort).check(principal, "alert.read", ResourceRef(
+        "alert", owner_institution_id=principal.institution_id, region=scope_region))
+    q = select(Alert).order_by(Alert.raised_at.desc(), Alert.level.desc())
+    if principal.role == Role.INSTITUTION:
+        q = q.where(Alert.institution_id == principal.institution_id, Alert.role == Role.INSTITUTION.value)
+    elif principal.role == Role.SCRUTINY_COMMITTEE:
+        q = q.where(Alert.role == Role.SCRUTINY_COMMITTEE.value)
+    if scope_region is not None:
+        q = q.where(Alert.region == scope_region)
+    if status is not None:
+        q = q.where(Alert.status == status)
+    if deadline_id is not None:
+        q = q.where(Alert.deadline_id == deadline_id)
+    with new_session() as session:
+        return [_alert_out(a) for a in session.scalars(q.limit(500)).all()]
+
+
+@router.post("/alerts/{alert_id}/ack", response_model=AlertOut)
+def acknowledge_alert(alert_id: UUID, principal: Principal = Depends(current_principal),
+                      key: str | None = Depends(idempotency_key)):
+    """Stops further escalation for the alert's deadline and due_version. Repeating it changes nothing."""
+    return idempotent_response(
+        principal, key, "POST", "/alerts/{alert_id}/ack", {"alert_id": str(alert_id)}, None,
+        lambda uow: alerts.acknowledge(uow, alert_id), lambda a: _alert_out(a).model_dump(mode="json"))
+
+
+@router.post("/sim/timers/run", response_model=TimerRunOut)
+def run_timers(principal: Principal = Depends(current_principal)):
+    """Demo only: run the timer worker once in this process, so time travel shows its alerts straight away."""
+    port(AuthzPort).check(principal, "sim.clock", ResourceRef("clock"))
+    return TimerRunOut(processed=TimerWorker(worker_id="api-sim").run_once(limit=500))
