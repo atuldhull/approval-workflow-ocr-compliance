@@ -175,3 +175,17 @@ class CalendarHoliday(Base):
     holiday_date: Mapped[date] = mapped_column(Date, primary_key=True)
     label: Mapped[str | None] = mapped_column(Text)
     source_ref: Mapped[str | None] = mapped_column(Text)
+
+
+class SimClock(Base):
+    """Demo time travel, shared by every process (API, timer worker). Ignored outside demo mode."""
+
+    __tablename__ = "sim_clock"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_dl_sim_clock_single_row"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=False)
+    offset_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
