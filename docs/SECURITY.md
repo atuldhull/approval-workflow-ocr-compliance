@@ -37,7 +37,30 @@ One table lists which roles may perform which action; anything not listed is den
 - **Time travel** (`sim.clock`) works only with `DEMO_MODE=true`.
 
 `scripts/gen_cerbos_policies.py` turns this table into the Cerbos policies in `infra/cerbos/policies/` (CI fails if
-they drift), and `backend/tests/test_cerbos_parity.py` compares both engines on 6,480 decisions against a running Cerbos.
+they drift), and `backend/tests/test_cerbos_parity.py` compares both engines on 14,040 decisions (6 principals,
+30 actions, 13 kinds, 6 record shapes) against a running Cerbos. `backend/tests/test_role_matrix.py` pins the HTTP
+status every role gets from every endpoint, and passes unchanged with `AUTHZ_ENGINE=cerbos` (checked 27 Oct 2026 on
+Cerbos 0.40.0).
+
+### Documents, compliance and alerts (Person 2's endpoints)
+
+The policy decides who may try; the module then applies its own rules, which the matrix pins as well.
+
+| Endpoint | Allowed by policy | Then, in the module |
+|---|---|---|
+| `POST /applications/{id}/documents` | the owning institution (`document.upload`) | `Idempotency-Key` required; refused before any byte is stored |
+| `GET /applications/{id}/documents`, `GET /document-versions/{id}/facts` | officers in scope, auditor, the owning institution | institutions see confirmed values only, never OCR proposals |
+| `GET /documents` | the same; a regional officer always gets their own region, another region is 403 | |
+| `POST /document-versions/{id}/scan` | the owning institution (rescan of its own upload) | a version that already has a verdict is returned unchanged |
+| `POST /document-versions/{id}/extract`, `/document-facts/{id}/entry`, `/reveal`, `/review` | committee and regional officer in scope (`document.fact.review`) | only a clean version is extracted; the suggestion is shown only to the officer who typed first; that officer must finish the review |
+| `POST /document-facts/{id}/confirm` | any officer in scope (`document.fact.confirm`) | four-eyes: the reviewer gets 409; the database refuses such a row too |
+| `POST /compliance/letters` | bureau officer and head | one LoA / EoA per case and year |
+| `GET /compliance/letters`, `/obligations` (lists and single) | officers in scope, auditor, the owning institution | lists are filtered to the caller's scope |
+| `POST /compliance/obligations/{id}/evidence` | the owning institution | only a scanner-approved version of the same case |
+| `POST /compliance/evidence/{id}/verify` | officers in scope | never an automated actor (also a database constraint) |
+| `GET /alerts` | officers, auditor, institutions | institution: its own alerts; committee: alerts addressed to the committee; regional officer: own region (a `region` filter is replaced, not refused) |
+| `POST /alerts/{id}/ack` | officers and institutions in scope | only the role the alert is addressed to (others 403) |
+| `POST /sim/clock`, `POST /sim/timers/run` | everyone, only with `DEMO_MODE=true` | demo controls; refused to all roles otherwise |
 
 ### Not enforced yet (needs other modules)
 
@@ -46,14 +69,14 @@ they drift), and `backend/tests/test_cerbos_parity.py` compares both engines on 
 | Committee members see only cases assigned to them | Person 1: assignment data, and `assigned_to` on `ResourceRef` (contract change C3) | `AUTHZ_REQUIRE_ASSIGNMENT=true` (forced on in production) refuses committee access to applications and deadlines outright. In development it is off, so committee members see all cases for the demo. |
 | Stage-based actions (e.g. only act on a case in SCRUTINY) | Person 1: current stage passed in the resource (contract change) | Not checked by policy; Person 1's service checks the state |
 | Regional officer: application list and single application | Person 1: filter `GET /applications` by `principal.region` and pass `region=` in `ResourceRef` for single reads | Refused for regional officers (safe, but they cannot use those two endpoints) |
-| Regional officer: deadline list | Person 2: filter `GET /deadlines` by region and pass `region=` | Refused for regional officers |
+| Regional officer: deadline list and explanation | Person 2: filter `GET /deadlines` by region and pass `region=` (also in `GET /deadlines/{id}/explain`) | Refused for regional officers, even for their own region's deadlines |
 
 ## Running the real stack locally
 
 ```bash
 cp .env.security.example .env.security
-docker compose --env-file .env.security --profile security --profile worker up --build
-python scripts/smoke_security.py              # 13 end-to-end checks with real tokens and Cerbos
+docker compose --env-file .env.security --profile security --profile worker --profile scanning up --build
+python scripts/smoke_security.py              # 36 end-to-end checks with real tokens and Cerbos
 ```
 
 Demo accounts and their password are listed in `infra/keycloak/README.md` (LOCAL DEMO ONLY).

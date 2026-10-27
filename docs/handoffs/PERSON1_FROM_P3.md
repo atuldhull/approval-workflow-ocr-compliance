@@ -77,3 +77,12 @@ what is needed, and how we will both know it works. Items marked **contract** ne
   `INSTITUTION` and keep the full list for officers.
 - **Acceptance:** an institution user gets exactly one row; officers get all. I will update the matrix row.
   **Contract:** no.
+
+## 9. Routing answer key for the scorecard
+
+- **Exists:** the scorecard's "Workflow routing vs APH Table 2.3" line compares the active ruleset's stages for each
+  category with `generator/answer_keys/routing.json` (`{"source": "...", "cases": [{"category": "...",
+  "expected_stages": ["SCRUTINY", ...]}]}`) and reports cases, correct, accuracy and mismatches.
+- **Needed:** that file, written from Table 2.3 by hand (not generated from `routes.yaml`, or it only checks the
+  ruleset against itself). Until it exists the line stays NOT_EVALUATED and says why.
+- **Contract:** no.

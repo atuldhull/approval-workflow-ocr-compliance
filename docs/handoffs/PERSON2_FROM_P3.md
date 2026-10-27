@@ -3,6 +3,29 @@
 These are requests, not changes: nothing in Person 2's folders has been edited. Items marked **contract** need all
 three approvals.
 
+## Status on 27 Oct 2026 (branch `p3/finish`)
+
+Delivered by Person 2 and now exercised end to end by Person 3's checks: #1 (alerts through the outbox), #2 (role
+groups and vacancy escalation), #5 (acknowledgement), #6 in a different shape (upload, scan, extraction, type-then-
+reveal entry, review and four-eyes confirm, one fact at a time), and #7 (letters, obligations, evidence). Every new
+endpoint has a row per role in `backend/tests/test_role_matrix.py`, the same table passes through Cerbos, and
+`scripts/smoke_demo.py` walks the whole flow over HTTP on the Docker stack. The scorecard now measures alert
+timeliness, scanning, four-eyes and OCR agreement from these tables, so #8's OCR key is optional.
+
+Found while testing (requests, nothing changed in your folders):
+
+- **Obligation and letter deadlines never alert.** `deadlines.alerts.subject_scope` only resolves `application`
+  subjects; an `obligation` (LoA deposit / affidavit) or `approval_letter` deadline gets `ScopeUnresolved`, the timer
+  records `FAILED SCOPE_UNRESOLVED` and no level is ever raised, although `LOA_DEPOSIT_AFFIDAVIT_15D` uses the
+  standard ladder. The scorecard's alert line shows these as missed (`missed_by_subject_type`). Suggested fix: look
+  the scope up through the obligation's / letter's application (`cmp` rows carry `institution_id` and `region`).
+- **Regional officers cannot use deadlines at all** (#4 still open): `GET /deadlines` and `GET /deadlines/{id}/explain`
+  build `ResourceRef` without `region`, so a Southern officer is refused even a Southern deadline.
+- `GET /alerts?region=Northern` from a Southern officer silently returns Southern alerts, while documents and
+  letters answer 403 for the same request. Not a leak; the inconsistency may confuse the UI.
+- `POST /document-versions/{id}/scan` is checked as `document.upload`, so only the institution can ask for a rescan
+  of a version stuck in `scan_pending`; officers and the bureau cannot.
+
 ## 1. Queue alerts through the outbox
 
 - **Exists:** `port(OutboxPort).enqueue(uow, OutboundMessage(alert_id, channel, template, recipient_ref))`; the worker
