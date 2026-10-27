@@ -1,4 +1,5 @@
 """Read-only snapshot adapter for the SIMULATED authorised selector (stand-in)."""
+from datetime import date as DateValue
 from uuid import UUID
 
 from sqlalchemy import select
@@ -12,7 +13,7 @@ from contracts.errors import Conflict, NotFound, ValidationFailed
 from contracts.ports import CasePort
 
 
-def selector_request(session: Session, request_id: UUID) -> SelectorRequest:
+def selector_request(session: Session, request_id: UUID, *, planning_until: DateValue | None = None) -> SelectorRequest:
     """Caller owns authorization and publication-time rechecks; this creates no reservation."""
     row = session.get(EvcRequest, request_id)
     if row is None:
@@ -30,4 +31,4 @@ def selector_request(session: Session, request_id: UUID) -> SelectorRequest:
     selected = SelectorPolicy.from_mapping(rules.expert_pool.get("selector"))
     history = tuple(AssignmentFact(row.assignment_id, row.expert_id, row.date, row.slot_part)
                     for row in session.scalars(select(AssignmentExpert).order_by(AssignmentExpert.assignment_id, AssignmentExpert.expert_id)))
-    return SelectorRequest(eligibility_snapshot(session, request_id), row.category, selected, history)
+    return SelectorRequest(eligibility_snapshot(session, request_id, planning_until=planning_until), row.category, selected, history)
