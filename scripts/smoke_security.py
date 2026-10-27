@@ -11,7 +11,7 @@ headers on API responses, refusals included. The document flow itself is in scri
 """
 import argparse
 import sys
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import httpx
 
@@ -40,7 +40,8 @@ def main() -> int:
     a = ap.parse_args()
     api = httpx.Client(base_url=f"{a.api}/api", timeout=10)
     h = {u: {"Authorization": f"Bearer {token(a.idp, u)}"} for u in
-         ("inst.sunrise", "inst.northfield", "ro.southern", "auditor", "bureau.head", "bureau.officer")}
+         ("inst.sunrise", "inst.northfield", "ro.southern", "ro.northern", "auditor", "bureau.head",
+                   "bureau.officer")}
 
     results = []
 
@@ -58,12 +59,22 @@ def main() -> int:
     created = expect("institution files its own application", api.post("/applications", headers=h["inst.sunrise"], json={
         "institution_id": SUNRISE, "category": "NEW_PROGRAMME", "academic_year": "2027-28"}), 201).json()
     app_id = created["id"]
-    expect("institution submits it", api.post(f"/applications/{app_id}/submit", headers=h["inst.sunrise"]), 200)
+    # Submission needs every mandatory checklist item linked. The demo realm runs with DEMO_MODE=true, where a
+    # deterministic UUID5 reference stands in for a scanned document (no ClamAV needed for these checks).
+    checklist = api.get(f"/applications/{app_id}/checklist", headers=h["inst.sunrise"]).json()
+    items = [{"item_key": i["item_key"], "state": "PROVIDED",
+              "document_ref": str(uuid5(NAMESPACE_URL, f"DEMO:smoke-security:{app_id}:{i['item_key']}"))}
+             for i in checklist.get("items", []) if i["mandatory"]]
+    expect("institution links its checklist items", api.post(f"/applications/{app_id}/items", headers=h["inst.sunrise"],
+                                                             json={"items": items}), 200)
+    expect("institution submits it", api.post(f"/applications/{app_id}/submit", headers=h["inst.sunrise"],
+                                              json={"dsc_present": True}), 200)
     expect("other institution reads it", api.get(f"/applications/{app_id}", headers=h["inst.northfield"]), 403)
     expect("other institution reads its timeline", api.get(f"/cases/{app_id}/timeline", headers=h["inst.northfield"]), 403)
     expect("other institution files for it", api.post("/applications", headers=h["inst.northfield"], json={
         "institution_id": SUNRISE, "category": "NEW_PROGRAMME", "academic_year": "2027-28"}), 403)
     expect("Southern regional officer reads Southern timeline", api.get(f"/cases/{app_id}/timeline", headers=h["ro.southern"]), 200)
+    expect("Northern regional officer reads Southern timeline", api.get(f"/cases/{app_id}/timeline", headers=h["ro.northern"]), 403)
     expect("regional officer lists unfiltered applications", api.get("/applications", headers=h["ro.southern"]), 403)
     expect("institution verifies the ledger", api.get("/ledger/verify", headers=h["inst.sunrise"]), 403)
     expect("auditor verifies the ledger", api.get("/ledger/verify", headers=h["auditor"]), 200)
