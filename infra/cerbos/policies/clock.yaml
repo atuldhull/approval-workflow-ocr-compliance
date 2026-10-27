@@ -17,6 +17,7 @@ resourcePolicy:
     - compliance.read
     - deadline.read
     - document.facts.read
+    - document.rescan
     - document.upload
     - institution.list
     - notification.inbox
@@ -65,6 +66,7 @@ resourcePolicy:
     - document.fact.confirm
     - document.fact.review
     - document.facts.read
+    - document.rescan
     - institution.list
     - notification.inbox
     - ruleset.read
@@ -93,6 +95,7 @@ resourcePolicy:
     - deadline.read
     - document.fact.confirm
     - document.facts.read
+    - document.rescan
     - institution.list
     - ledger.verify
     - notification.inbox
@@ -122,6 +125,7 @@ resourcePolicy:
     - deadline.read
     - document.fact.confirm
     - document.facts.read
+    - document.rescan
     - institution.list
     - ledger.verify
     - notification.inbox
