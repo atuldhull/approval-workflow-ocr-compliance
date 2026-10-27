@@ -162,7 +162,8 @@ def test_institution_and_foreign_ro_cannot_read_preview(selector_env):
     before = fingerprint()
     assert preview(selector_env, headers("INSTITUTION", SUNRISE)).status_code == 403
     assert preview(selector_env, dict(headers("RO_OFFICER"), **{"X-Demo-Region": "Northern"})).status_code == 403
-    assert preview(selector_env, headers("RO_OFFICER")).status_code == 403
+    # The platform refuses a regional officer without a region before any EVC code runs.
+    assert preview(selector_env, headers("RO_OFFICER")).status_code == 401
     assert preview(selector_env, dict(headers("RO_OFFICER"), **{"X-Demo-Region": "Southern"})).status_code == 200
     assert preview(selector_env, headers("AUDITOR")).status_code == 200
     assert fingerprint() == before

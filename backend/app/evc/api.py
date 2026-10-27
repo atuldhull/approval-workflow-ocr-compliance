@@ -59,9 +59,11 @@ def queue(region: str | None = Query(default=None, min_length=1, max_length=100)
           from_date: date | None = Query(default=None, alias="from"), to_date: date | None = Query(default=None, alias="to"),
           offset: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=100),
           principal: Principal = Depends(current_principal)):
-    port(AuthzPort).check(principal, "application.read", ResourceRef("application"))
     if principal.role == Role.RO_OFFICER and (not principal.region or region not in (None, principal.region)):
         raise Forbidden("regional officer may only query their own region")
+    # application is a region-scoped kind: a regional officer's listing states its own region.
+    port(AuthzPort).check(principal, "application.read", ResourceRef("application",
+        region=principal.region if principal.role == Role.RO_OFFICER else None))
     if from_date and to_date and from_date > to_date:
         raise ValidationFailed("EVC_DATE_RANGE_INVALID")
     now = port(ClockPort).now()

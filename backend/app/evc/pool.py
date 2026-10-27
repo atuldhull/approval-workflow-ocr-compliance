@@ -21,11 +21,18 @@ if TYPE_CHECKING:
     from app.evc.pool_api import AvailabilitySet, CoiCreate, ExpertCreate
 
 
+def same_region(left: str | None, right: str | None) -> bool:
+    """Expert regions are stored upper-case; principals and cases keep their own spelling."""
+    return left is not None and right is not None and left.upper() == right.upper()
+
+
 def authorize(principal: Principal, action: str, *, expert_id: UUID | None = None, region: str | None = None) -> None:
-    port(AuthzPort).check(principal, action, ResourceRef("evc_expert", expert_id, region=region))
     if principal.role == Role.RO_OFFICER:
-        if not principal.region or (region is not None and principal.region.upper() != region.upper()):
+        if not principal.region or (region is not None and not same_region(principal.region, region)):
             raise Forbidden("EVC_EXPERT_REGION_FORBIDDEN")
+        # The shared policy compares regions exactly; hand it the principal's own spelling once they match.
+        region = principal.region
+    port(AuthzPort).check(principal, action, ResourceRef("evc_expert", expert_id, region=region))
 
 
 def expert_row(uow: UnitOfWork, expert_id: UUID, action: str) -> Expert:
