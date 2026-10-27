@@ -121,7 +121,7 @@ def core_input(category: str, source: str, action: str):
     command = Command(application_id=application_id, action=action, expected_version=1, reason_code="DEMO_ACCEPTANCE", payload=payload, actor=actor)
     status = ApplicationStatus(source) if source in {"DRAFT", *RAW["terminal_states"]} else ApplicationStatus.IN_PROCESS
     state = State(application_id, category, R1, source if status == ApplicationStatus.IN_PROCESS else None, status, 1)
-    facts = GuardFacts(evc_request_status="QUEUED", missing_item_keys=(), dsc_present=True, dsc_required=True, checklist_complete=True,
+    facts = GuardFacts(evc_request_status="PUBLISHED", missing_item_keys=(), dsc_present=True, dsc_required=True, checklist_complete=True,
         open_item_count=0, has_assignment=True, reason_codes=frozenset({"DEMO_ACCEPTANCE"}),
         item_refs=frozenset({DEMO_REF}), response_refs=frozenset({DEMO_REF}), decision_refs=frozenset({DECISION_REF}),
         confirmed_letter=letter, applicability={"SHC": source == "SHC" or bool(chosen and chosen.target == "SHC")},

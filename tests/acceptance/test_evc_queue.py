@@ -1,12 +1,12 @@
 """EVC workflow/clock atomicity and role-scoped HTTP queue, with real P2/P3 ports."""
-from datetime import timedelta
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from types import SimpleNamespace
 from uuid import UUID, NAMESPACE_URL, uuid5
 
 import pytest
-from sqlalchemy import event, func, select
+from sqlalchemy import event, func, select, text
 
 from app.evc.models import EvcRequest
 from app.platform.db import new_session, unit_of_work
@@ -26,7 +26,32 @@ NORTH = UUID("00000000-0000-4000-8000-000000000002")
 def env(acceptance_env):
     acceptance_env.clock = LogicalClock()
     provide(ClockPort, acceptance_env.clock)
-    return acceptance_env
+    yield acceptance_env
+    with new_session() as session, session.begin():
+        session.execute(text("TRUNCATE evc.assignment_expert, evc.assignment, evc.availability, evc.coi, "
+                             "evc.slot, evc.schedule_run, evc.evc_request, evc.expert"))
+
+
+def schedule(env, app):
+    """complete_evc needs a published visit: register a fictional panel once, then propose and publish."""
+    bureau = headers("BUREAU_OFFICER")
+    if not getattr(env, "panel", None):
+        env.panel = []
+        for index in range(3):
+            created = env.client.post("/api/evc/experts", headers=bureau, json=dict(
+                user_ref=str(uuid5(NAMESPACE_URL, f"DEMO:queue-panel:{index}")), region="SOUTHERN", expertise_tags=["DEMO"]))
+            assert created.status_code == 201, created.text
+            items = [dict(date=(date(2026, 7, 1) + timedelta(days=d)).isoformat(), slot_part=p, available=True)
+                     for d in range(8) for p in ("AM", "PM")]
+            assert env.client.post(f"/api/evc/experts/{created.json()['id']}/availability", headers=bureau,
+                                   json=dict(items=items)).status_code == 200
+            env.panel.append(created.json()["id"])
+    proposed = env.client.post("/api/evc/schedule:propose", headers=bureau, json=dict(algorithm="EDF"))
+    assert proposed.status_code == 201 and proposed.json()["proposals"], proposed.text
+    published = env.client.post("/api/evc/schedule:publish", headers=bureau, json=dict(run_id=proposed.json()["run_id"]))
+    assert published.status_code == 200, published.text
+    with new_session() as session:
+        assert port(EvcPort).status(session, UUID(app)) == "PUBLISHED"
 
 
 def start(env, institution=SUNRISE):
@@ -93,6 +118,9 @@ def test_entry_once_retries_and_duplicate_port_dispatch(env, name):
 def test_completion_closes_clock_even_when_shc_is_skipped(env, shc):
     env.shc = shc
     app = enter(env)
+    unscheduled = action(env, app, "complete_evc", 3)
+    assert unscheduled.status_code == 422 and unscheduled.json()["detail"] == "EVC_SCHEDULE_NOT_PUBLISHED"
+    schedule(env, app)
     response = action(env, app, "complete_evc", 3)
     assert response.status_code == 200, response.text
     assert response.json()["stage"] == ("SHC" if shc else "EVC")
@@ -151,6 +179,8 @@ class FailingDeadline:
 @pytest.mark.parametrize("operation", ["open", "close"])
 def test_deadline_failure_rolls_back_request_state_visits_deadlines_and_ledger(env, operation):
     app = start(env) if operation == "open" else enter(env)
+    if operation == "close":
+        schedule(env, app)
     before = events(env, app)
     case_before = env.client.get(f"/api/cases/{app}", headers=headers("BUREAU_OFFICER")).json()
     clocks_before = deadlines(env, app)
@@ -162,7 +192,7 @@ def test_deadline_failure_rolls_back_request_state_visits_deadlines_and_ledger(e
     with new_session() as session:
         assert session.scalar(select(func.count()).select_from(EvcRequest)) == (0 if operation == "open" else 1)
     if operation == "close":
-        assert request_row(app).status == "QUEUED" and request_row(app).closed_at is None
+        assert request_row(app).status == "PUBLISHED" and request_row(app).closed_at is None
 
 
 def test_ledger_failure_after_evc_append_rolls_back_everything(env):
@@ -232,6 +262,7 @@ def test_concurrent_entry_has_one_request_and_one_clock(env):
 
 def test_completed_wait_stops_and_due_date_matches_real_clock(env):
     app = enter(env)
+    schedule(env, app)
     env.clock.tick(2 * 86400)
     assert action(env, app, "complete_evc", 3).status_code == 200
     env.clock.tick(4 * 86400)
@@ -273,6 +304,7 @@ def test_same_instant_reentry_completion_uses_latest_visit_not_uuid_order(env):
         event.remove(Application, "before_insert", fixed_id)
     assert action(env, app, "revert", 3, reason_code="DEMO_REASON", payload=dict(target_stage="SCRUTINY")).status_code == 200
     assert action(env, app, "advance_to_evc", 4).status_code == 200
+    schedule(env, app)
     assert action(env, app, "complete_evc", 5).status_code == 200
     with new_session() as session:
         assert port(EvcPort).status(session, app_id) == "DONE"

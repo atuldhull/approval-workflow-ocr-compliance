@@ -16,7 +16,7 @@ ACTIONS = frozenset({
 })
 ALIASES = {"scrutinise": "advance", "complete": "advance", "authorised_revert": "revert"}
 GUARDS = frozenset({
-    "evc_request_open",
+    "evc_request_open", "evc_schedule_published",
     "application_is_draft", "open_items_zero", "actor_has_assignment", "reason_code_present",
     "deficiency_items_present", "response_received", "at_last_applicable_stage",
     "decision_authorised", "letter_type_matches_decision", "previous_stage_visited",

@@ -309,7 +309,7 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
         letter_ref = _get_port(CompliancePort).register_letter(uow, LetterIn(
             application_id=row.application_id, institution_id=case_ref.institution_id, letter_type=letter.type,
             academic_year=letter.academic_year, issue_date=letter.issue_date, issue_date_source=letter.issue_date_source,
-            lists_deficiencies=letter.lists_deficiencies, issue_date_fact_id=letter.issue_date_fact_id,
+            lists_deficiencies=letter.lists_deficiencies, f_no=letter.f_no, issue_date_fact_id=letter.issue_date_fact_id,
             document_version_id=letter.document_version_id,
         ))
     common = dict(aggregate_type="application", aggregate_id=row.application_id, reason_code=command.reason_code,

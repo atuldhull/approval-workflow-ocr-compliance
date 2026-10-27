@@ -36,6 +36,8 @@ class LetterPayload(Record):
     lists_deficiencies: Annotated[bool, Field(strict=True)]
     issue_date_fact_id: UUID | None = None
     document_version_id: UUID | None = None
+    # Letter number; CompliancePort requires it as provenance for a PORTAL_EVENT issue date.
+    f_no: Annotated[str, Field(min_length=1, max_length=100)] | None = None
 
 
 class ItemResponse(Record):

@@ -43,6 +43,12 @@ deficiency:
   response_rule_id: INSTITUTION_RESPONSE
   source_status: DEMO_ASSUMPTION
   assumption_code: DEFICIENCY_RESPONSE_WINDOW_UNCONFIRMED
+# DEMO ASSUMPTION GF-006: no APH-confirmed rule says when a revert needs a second approver. Configurable;
+# other guard facts are derived from persisted records by app.workflow.facts (GF-001..GF-005).
+guard_facts:
+  revert_second_approval_required: false
+  source_status: DEMO_ASSUMPTION
+  assumption_code: GUARD_FACT_POLICY_UNCONFIRMED
 workflow_source:
   status: demo_assumption
   label: DEMO ASSUMPTION
@@ -179,6 +185,7 @@ templates:
     guards:
     - open_items_zero
     - actor_has_assignment
+    - evc_schedule_published
     reason_codes_required: false
     timers: []
     emits_event: wf.transition_applied
@@ -190,7 +197,7 @@ templates:
     from_stage: EVC
     to_stage: EVC
     allowed_roles: [SCRUTINY_COMMITTEE, BUREAU_OFFICER]
-    guards: [at_last_applicable_stage, actor_has_assignment, open_items_zero, evc_request_open]
+    guards: [at_last_applicable_stage, actor_has_assignment, open_items_zero, evc_schedule_published]
     reason_codes_required: false
     timers: []
     emits_event: wf.transition_applied

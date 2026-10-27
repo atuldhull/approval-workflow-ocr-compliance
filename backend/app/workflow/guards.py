@@ -19,6 +19,9 @@ class Context:
 
 REGISTRY: dict[str, Callable[[Context], None]] = {}
 _fact_loader: Callable[[UnitOfWork, object, Command], GuardFacts] | None = None
+# Trusted server loader installed by workflow wiring (app.workflow.facts.load). An explicitly registered
+# _fact_loader (tests, the logical-clock replay) takes precedence over it.
+_default_fact_loader: Callable[[UnitOfWork, object, Command], GuardFacts] | None = None
 
 
 def register(name: str):
@@ -36,8 +39,15 @@ def register_fact_loader(loader: Callable[[UnitOfWork, object, Command], GuardFa
     _fact_loader = loader
 
 
+def register_default_fact_loader(loader: Callable[[UnitOfWork, object, Command], GuardFacts] | None) -> None:
+    """Called once by workflow wiring with the trusted loader derived from persisted records."""
+    global _default_fact_loader
+    _default_fact_loader = loader
+
+
 def read_facts(uow: UnitOfWork, case, command: Command) -> GuardFacts:
-    facts = _fact_loader(uow, case, command) if _fact_loader else GuardFacts()
+    loader = _fact_loader or _default_fact_loader
+    facts = loader(uow, case, command) if loader else GuardFacts()
     if not isinstance(facts, GuardFacts):
         raise WorkflowValidationFailed("GUARD_CONTEXT_UNAVAILABLE")
     if case.current_stage == "EVC":
@@ -75,6 +85,14 @@ def require(value, reason: str) -> None:
 @register("evc_request_open")
 def evc_request_open(c: Context) -> None:
     require(c.case.facts.evc_request_status in {"QUEUED", "PROPOSED", "PUBLISHED"}, "EVC_REQUEST_NOT_ACTIVE")
+
+
+@register("evc_schedule_published")
+def evc_schedule_published(c: Context) -> None:
+    """complete_evc: the visit must have a published date, part and panel (EvcPort.status == PUBLISHED)."""
+    status = c.case.facts.evc_request_status
+    require(status in {"QUEUED", "PROPOSED", "PUBLISHED"}, "EVC_REQUEST_NOT_ACTIVE")
+    require(status == "PUBLISHED", "EVC_SCHEDULE_NOT_PUBLISHED")
 
 
 def applicable_stages(case: CaseContext) -> tuple[str, ...]:
