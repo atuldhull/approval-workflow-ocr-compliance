@@ -40,6 +40,6 @@ Re-checked for sprint P3-19..24: still no new published interface from Persons 1
 
 ## Time
 
-The notifier and the idempotency expiry read time from `ClockPort`. In the API process that includes demo time
-travel; the separate worker process has its own clock without the offset, so in a time-travel demo, run the worker
-with `--once` from the API container if delays must follow simulated time.
+The notifier, the deadline timer worker and the idempotency expiry read time from `ClockPort`. In demo mode the
+time-travel offset is stored in `dl.sim_clock` and re-read at most once a second, so separate worker processes
+follow simulated time as well; outside demo mode the stored offset is ignored.
