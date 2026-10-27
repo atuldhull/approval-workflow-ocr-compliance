@@ -24,7 +24,7 @@ from app.workflow.models import CaseState, RouteDefinition, Ruleset, TransitionD
 from app.workflow.storage import visits, applications
 from contracts.enums import ApplicationStatus, ClockKind, Stage
 from contracts.errors import ContractError, Forbidden, NotFound
-from contracts.ports import AuthzPort, CasePort, ClockPort, CompliancePort, DeadlinePort, LedgerPort, NotesPort, RulesetPort, UnitOfWork
+from contracts.ports import AuthzPort, CasePort, ClockPort, CompliancePort, DeadlinePort, EvcPort, LedgerPort, NotesPort, RulesetPort, UnitOfWork
 from contracts.types import Anchor, EventIn, LetterIn, Principal, ResourceRef, SubjectRef
 
 
@@ -286,6 +286,20 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
     deficiency_common = dict(aggregate_type="application", aggregate_id=row.application_id, reason_code=command.reason_code,
                              ruleset_rev=row.ruleset_key, note_ref=note_ref, note_hash=note_hash)
     deficiency_events = deficiency.apply(uow, row, command, now, deficiency_common)
+    evc_config = metadata.source_metadata.get("evc")
+    if evc_config is None and "EVC" in (context.state.current_stage, decision.current_stage):
+        raise WorkflowValidationFailed("EVC_CONFIG_UNAVAILABLE")
+    if evc_config is not None:
+        evc = _get_port(EvcPort)
+        kwargs = dict(ruleset_key=row.ruleset_key, rule_id=evc_config["rule_id"], action=decision.transition.action)
+        if context.state.current_stage != "EVC" and decision.current_stage == "EVC":
+            evc.enter(uow, case_ref, category=row.route_id, stage_visit_id=new_visit, anchor=Anchor(at=now), **kwargs)
+        elif context.state.current_stage == "EVC" and (decision.current_stage != "EVC" or decision.transition.action == "complete_evc"):
+            if evc.status(uow.session, row.application_id) != "DONE":
+                if decision.transition.action in {"reject", "withdraw", "revert"}:
+                    evc.cancel(uow, case_ref, reason_code=command.reason_code, **kwargs)
+                else:
+                    evc.complete(uow, case_ref, **kwargs)
     opened, closed = _timers(uow, context, decision, command, now)
     letter_ref = None
     if decision.transition.letter is not None:

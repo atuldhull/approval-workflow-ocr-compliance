@@ -68,6 +68,7 @@ class Command(Record):
 
 @dataclass(frozen=True)
 class GuardFacts:
+    evc_request_status: str | None = None
     deficiency_status: str | None = None
     missing_item_keys: tuple[str, ...] | None = None
     provided_item_keys: tuple[str, ...] = ()

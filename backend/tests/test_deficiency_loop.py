@@ -109,7 +109,7 @@ def test_deadline_fake_exact_pairing_and_order(api):
     assert review(api, case_id, data).status_code == 200
     assert [(op, rule) for op, subject, rule in fake.calls] == [
         ("pause", "AICTE_PROCESSING"), ("open", "INSTITUTION_RESPONSE"),
-        ("close", "INSTITUTION_RESPONSE"), ("resume", "AICTE_PROCESSING")] * 2
+        ("close", "INSTITUTION_RESPONSE"), ("resume", "AICTE_PROCESSING")] * 2 + [("open", "EVC_PROCESSING")]
     assert all(subject.id == UUID(case_id) for _, subject, _ in fake.calls)
 
 

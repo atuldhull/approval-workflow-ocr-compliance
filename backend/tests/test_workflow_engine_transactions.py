@@ -25,8 +25,8 @@ from app.workflow.storage import visits
 from conftest import SUNRISE
 from contracts.enums import ApplicationStatus, Role
 from contracts.errors import Conflict, Forbidden
-from contracts.fakes import AllowAllAuthz, FakeCases, FakeClock, FakeCompliance, FakeDeadlines, FakeDeadlineRuleParser, FakeLedger, FakeNotes
-from contracts.ports import AuthzPort, CasePort, ClockPort, CompliancePort, DeadlinePort, DeadlineRuleParserPort, LedgerPort, NotesPort, RulesetPort
+from contracts.fakes import AllowAllAuthz, FakeCases, FakeClock, FakeCompliance, FakeDeadlines, FakeDeadlineRuleParser, FakeEvc, FakeLedger, FakeNotes
+from contracts.ports import AuthzPort, CasePort, ClockPort, CompliancePort, DeadlinePort, DeadlineRuleParserPort, EvcPort, LedgerPort, NotesPort, RulesetPort
 from contracts.types import CaseRef, Principal
 from test_workflow_engine_core import DECISION, ITEM, RESPONSE, SECOND, letter
 
@@ -58,6 +58,21 @@ class TxCompliance(FakeCompliance):
     def register_letter(self, uow, value):
         journal(uow, self, ["letters"])
         return super().register_letter(uow, value)
+
+
+class TxEvc(FakeEvc):
+    """Isolate workflow tests; real EVC/clock atomicity is covered by queue tests."""
+    def enter(self, uow, case, **kwargs):
+        journal(uow, self, ["calls", "requests"])
+        return super().enter(uow, case, **kwargs)
+
+    def complete(self, uow, case, **kwargs):
+        journal(uow, self, ["calls", "requests"])
+        return super().complete(uow, case, **kwargs)
+
+    def cancel(self, uow, case, **kwargs):
+        journal(uow, self, ["calls", "requests"])
+        return super().cancel(uow, case, **kwargs)
 
 
 class TxDeadlines(FakeDeadlines):
@@ -115,6 +130,7 @@ class TxLedger(FakeLedger):
 @pytest.fixture
 def lab(client, monkeypatch):
     clock, ledger, notes, deadlines, compliance, cases = FakeClock(AT), TxLedger(), TxNotes(), TxDeadlines(), TxCompliance(), FakeCases()
+    evc = TxEvc()
     provide(ClockPort, clock)
     provide(DeadlineRuleParserPort, FakeDeadlineRuleParser())
     registry = RulesetRegistry(ROOT / "rulesets", R1, demo_mode=False)
@@ -122,10 +138,10 @@ def lab(client, monkeypatch):
     with new_session() as session, session.begin():
         sync_rulesets(session, registry)
     for kind, implementation in [(LedgerPort, ledger), (NotesPort, notes), (DeadlinePort, deadlines),
-                                 (CompliancePort, compliance), (CasePort, cases), (AuthzPort, AllowAllAuthz())]:
+                                 (CompliancePort, compliance), (CasePort, cases), (EvcPort, evc), (AuthzPort, AllowAllAuthz())]:
         provide(kind, implementation)
     data = SimpleNamespace(clock=clock, ledger=ledger, notes=notes, deadlines=deadlines, compliance=compliance, cases=cases,
-                           confirmed_letter=None, applicability={"SHC": True}, open_items=0, assignment=True)
+                           confirmed_letter=None, applicability={"SHC": True}, open_items=0, assignment=True, evc=evc)
 
     def facts(uow, row, command):
         return GuardFacts(open_item_count=data.open_items, checklist_complete=True, has_assignment=data.assignment,

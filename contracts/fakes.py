@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 from contracts.errors import NotFound
 from contracts.types import (
@@ -130,6 +130,37 @@ class FakeDeadlines:
 
     def resume_internal(self, uow, subject: SubjectRef, rule_id: str) -> None:
         self.calls.append(("resume", subject, rule_id))
+
+
+class FakeEvc:
+    """Nontransactional port fake; DB rollback tests must use real storage."""
+
+    def __init__(self):
+        self.calls = []
+        self.requests = {}
+
+    def enter(self, uow, case, *, category, ruleset_key, stage_visit_id, rule_id, action, anchor):
+        request_id = uuid5(NAMESPACE_URL, f"sih26262:evc:request:{stage_visit_id}")
+        self.calls.append(("enter", case.application_id, request_id, rule_id, ruleset_key))
+        if self.requests.get(case.application_id, (None,))[0] != request_id:
+            self.requests[case.application_id] = (request_id, "QUEUED")
+        return request_id
+
+    def complete(self, uow, case, *, ruleset_key, rule_id, action):
+        request_id, _ = self.requests[case.application_id]
+        self.calls.append(("complete", case.application_id, request_id, rule_id, ruleset_key))
+        self.requests[case.application_id] = (request_id, "DONE")
+        return request_id
+
+    def cancel(self, uow, case, *, ruleset_key, rule_id, action, reason_code):
+        request_id, _ = self.requests[case.application_id]
+        self.calls.append(("cancel", case.application_id, request_id, rule_id, ruleset_key))
+        self.requests[case.application_id] = (request_id, "CANCELLED")
+        return request_id
+
+    def status(self, session, application_id):
+        request = self.requests.get(application_id)
+        return request[1] if request else None
 
 
 class FakeCompliance:

@@ -1,5 +1,7 @@
 # DEMO category mix and scale-generator use
 
+EVC integration update: generator version 1.1.0 includes EVC_PROCESSING OPEN/CLOSE expectations on real stage boundaries, including cancellation of a final unscheduled EVC on reject/withdraw. The YAML value is a labelled configurable demo assumption. Historical 1.0.0 reports/hashes remain historical; do not compare them to 1.1.0 artifacts as identical inputs. P2/P3 extensions remain unchanged and empty.
+
 **DEMO ASSUMPTION SCALE-001:** Table 2.3 lists routes, not application frequencies. No frequency or institution/RO taxonomy is asserted to be APH-derived. All 21 Table 2.3 categories plus NEW_INSTITUTION have equal weight 1 (probability 1/22). The default allocation uses Hamilton/largest-remainder rounding: 27 per category, one extra for the first six alphabetically. Seeded shuffling assigns these counts to institutions; changing the seed changes identities, assignments and events, not the quota. Tolerance is strictly less than one application from the ideal quota, rather than a statistical sampling tolerance.
 
 | Category | Weight | Applications at 600 |

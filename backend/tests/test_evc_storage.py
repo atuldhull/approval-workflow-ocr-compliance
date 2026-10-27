@@ -39,6 +39,11 @@ def evc_env(client):
         json=dict(institution_id=str(INSTITUTIONS[0]), category="NEW_INSTITUTION", academic_year="2027-28"))
     assert response.status_code == 201, response.text
     application = UUID(response.json()["id"])
+    other = client.post("/api/applications", headers={"X-Demo-User": str(ref("actor")),
+        "X-Demo-Role": "INSTITUTION", "X-Demo-Institution": str(INSTITUTIONS[0])},
+        json=dict(institution_id=str(INSTITUTIONS[0]), category="NEW_INSTITUTION", academic_year="2027-28"))
+    assert other.status_code == 201
+    applications = [application, UUID(other.json()["id"])]
     with new_session() as session, session.begin():
         session.add_all([Expert(id=ref(i), user_ref=ref(f"user-{i}"), region="DEMO_REGION_01", expertise_tags=["DEMO"], active=True)
                          for i in range(3)])
@@ -48,7 +53,7 @@ def evc_env(client):
                          Slot(id=ref("slot-b"), date=DAY, slot_part="AM", capacity=3),
                          Slot(id=ref("slot-c"), date=DAY + timedelta(days=1), slot_part="AM", capacity=3),
                          Slot(id=ref("slot-pm"), date=DAY, slot_part="PM", capacity=3)])
-        session.add_all([EvcRequest(id=ref(f"request-{i}"), application_id=application, institution_ref=INSTITUTIONS[0],
+        session.add_all([EvcRequest(id=ref(f"request-{i}"), application_id=applications[i], institution_ref=INSTITUTIONS[0],
             region="Southern", category="NEW_INSTITUTION", requested_at=AT, earliest_date=DAY,
             due_by=DAY + timedelta(days=60), status="QUEUED", priority_key=f"DEMO_{i:03d}") for i in range(2)])
     return SimpleNamespace(application=application)

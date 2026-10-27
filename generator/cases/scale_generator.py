@@ -14,7 +14,7 @@ from generator.cases.answer_key_models import AnswerKey
 
 ROOT = Path(__file__).resolve().parents[2]
 RULESET = "aph-2024-27@r1"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 EPOCH = "2026-07-01T04:30:00Z"
 
 
@@ -159,6 +159,7 @@ def generate(seed: int, institutions: int = 300, applications: int = 600,
                     visited.append(plan[position + 1])  # final acceptance advances via YAML
                     continue
             if stage == "EVC":
+                clock_op(app_id, "OPEN", raw["evc"]["rule_id"], instant(clock.now()))
                 planned = instant(clock.now())
                 delay_seconds = rng.randint(1, 4) * 86400
                 clock.tick(delay_seconds)
@@ -167,9 +168,13 @@ def generate(seed: int, institutions: int = 300, applications: int = 600,
                 delays.append(dict(request_id=identity(seed, "evc", index), planned_at_clock=planned,
                                    actual_at_clock=actual, delay_seconds=delay_seconds + 1))
             if position + 1 < len(plan):
-                operation("action", "advance", payload={})
+                advanced = operation("action", "advance", payload={})
+                if stage == "EVC":
+                    clock_op(app_id, "CLOSE", raw["evc"]["rule_id"], advanced, outcome="MET")
                 visited.append(plan[position + 1])
         terminal = operation("action", "reject" if outcome == "REJECTED" else "withdraw", payload={})
+        if plan[-1] == "EVC":
+            clock_op(app_id, "CLOSE", raw["evc"]["rule_id"], terminal, outcome="WAIVED")
         clock_op(app_id, "CLOSE", "AICTE_PROCESSING", terminal, outcome="MET")
         workflows.append(dict(application_id=app_id, deficiency_loop_count=len(loops), deficiency_loops=loops,
             late_responses=late, evc_delays=delays, letters_to_issue=[], route_outcome=dict(at_clock=terminal,

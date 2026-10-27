@@ -16,6 +16,7 @@ ACTIONS = frozenset({
 })
 ALIASES = {"scrutinise": "advance", "complete": "advance", "authorised_revert": "revert"}
 GUARDS = frozenset({
+    "evc_request_open",
     "application_is_draft", "open_items_zero", "actor_has_assignment", "reason_code_present",
     "deficiency_items_present", "response_received", "at_last_applicable_stage",
     "decision_authorised", "letter_type_matches_decision", "previous_stage_visited",
@@ -177,6 +178,8 @@ def _expand(route: Route, refs: list[str], templates: dict[str, Transition], aux
         for token in raw_sources:
             sources = selectors.get(token, [token])
             for source in sources:
+                if t.to_stage == source and "at_last_applicable_stage" in t.guards and source not in last:
+                    continue
                 if source not in active + ["DRAFT"]:
                     _fail(f"{route.category}/{ref}: unknown stage {source} in this route")
                 if t.to_stage == "$first":

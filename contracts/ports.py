@@ -76,6 +76,18 @@ class CasePort(Protocol):
     def lookup(self, session: Session, application_id: UUID) -> CaseRef: ...
 
 
+@runtime_checkable
+class EvcPort(Protocol):
+    def enter(self, uow: UnitOfWork, case: CaseRef, *, category: str,
+              ruleset_key: str, stage_visit_id: UUID, rule_id: str,
+              action: str, anchor: Anchor) -> UUID: ...
+    def complete(self, uow: UnitOfWork, case: CaseRef, *, ruleset_key: str,
+                 rule_id: str, action: str) -> UUID: ...
+    def cancel(self, uow: UnitOfWork, case: CaseRef, *, ruleset_key: str,
+               rule_id: str, action: str, reason_code: str) -> UUID: ...
+    def status(self, session: Session, application_id: UUID) -> str | None: ...
+
+
 # ---- provided by the deadlines / compliance modules ----
 
 @runtime_checkable

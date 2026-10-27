@@ -20,6 +20,11 @@ class EvcRequest(Base):
         CheckConstraint("priority_key ~ '^[A-Za-z0-9_:-]+$'", name="ck_evc_request_priority"),
         Index("ix_evc_request_queue", "status", "due_by", "priority_key", "id"),
         Index("ix_evc_request_case", "application_id"),
+        UniqueConstraint("stage_visit_ref", name="uq_evc_request_visit"),
+        UniqueConstraint("application_id", "entry_no", name="uq_evc_request_entry"),
+        CheckConstraint("entry_no IS NULL OR entry_no > 0", name="ck_evc_request_entry"),
+        Index("uq_evc_request_active", "application_id", unique=True,
+              postgresql_where=text("status IN ('QUEUED', 'PROPOSED', 'PUBLISHED')")),
         {"schema": SCHEMA},
     )
     id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -32,6 +37,12 @@ class EvcRequest(Base):
     due_by: Mapped[DateValue] = mapped_column(Date)
     status: Mapped[str] = mapped_column(Text)
     priority_key: Mapped[str] = mapped_column(Text)
+    stage_visit_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.stage_visit.id"))
+    ruleset_key: Mapped[str | None] = mapped_column(Text)
+    rule_id: Mapped[str | None] = mapped_column(Text)
+    deadline_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entry_no: Mapped[int | None] = mapped_column(Integer)
 
 
 class Expert(Base):

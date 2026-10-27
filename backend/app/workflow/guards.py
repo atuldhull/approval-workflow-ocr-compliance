@@ -40,6 +40,10 @@ def read_facts(uow: UnitOfWork, case, command: Command) -> GuardFacts:
     facts = _fact_loader(uow, case, command) if _fact_loader else GuardFacts()
     if not isinstance(facts, GuardFacts):
         raise WorkflowValidationFailed("GUARD_CONTEXT_UNAVAILABLE")
+    if case.current_stage == "EVC":
+        from app.platform.registry import port
+        from contracts.ports import EvcPort
+        facts = replace(facts, evc_request_status=port(EvcPort).status(uow.session, case.application_id))
     if case.status == "DRAFT" and command.action in {"submit", "list_actions"}:
         metadata = uow.session.scalar(select(Ruleset.source_metadata).where(Ruleset.key == case.ruleset_key))
         config = (metadata or {}).get("intake", {}).get(case.route_id)
@@ -66,6 +70,11 @@ def require(value, reason: str) -> None:
         raise WorkflowValidationFailed("GUARD_CONTEXT_UNAVAILABLE")
     if not value:
         raise WorkflowValidationFailed(reason)
+
+
+@register("evc_request_open")
+def evc_request_open(c: Context) -> None:
+    require(c.case.facts.evc_request_status in {"QUEUED", "PROPOSED", "PUBLISHED"}, "EVC_REQUEST_NOT_ACTIVE")
 
 
 def applicable_stages(case: CaseContext) -> tuple[str, ...]:

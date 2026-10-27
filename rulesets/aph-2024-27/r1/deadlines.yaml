@@ -1,6 +1,14 @@
 # Deadline rules for aph-2024-27@r1.
 # source.status: verified | verified_letter_text | demo_assumption (no handbook figure found; configurable)
 rules:
+  # DEMO ASSUMPTION: no APH-confirmed EVC duration; configurable demonstration value.
+  - id: EVC_PROCESSING
+    clock_kind: INTERNAL
+    clock_owner: COMMITTEE
+    source: {status: demo_assumption}
+    anchor: evc.request_created
+    duration: {value: 7, unit: calendar_days}
+
   - id: AICTE_PROCESSING
     clock_kind: INTERNAL
     clock_owner: AICTE

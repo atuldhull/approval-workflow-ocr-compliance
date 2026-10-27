@@ -1294,6 +1294,159 @@
         "title": "Payload",
         "type": "object"
       },
+      "QueueItem": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assumption_code": {
+            "const": "EVC_DURATION_UNCONFIRMED",
+            "default": "EVC_DURATION_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "days_waiting": {
+            "title": "Days Waiting",
+            "type": "integer"
+          },
+          "deadline_ref": {
+            "format": "uuid",
+            "title": "Deadline Ref",
+            "type": "string"
+          },
+          "due_by": {
+            "format": "date",
+            "title": "Due By",
+            "type": "string"
+          },
+          "duration_days": {
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "earliest_date": {
+            "format": "date",
+            "title": "Earliest Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "institution_ref": {
+            "format": "uuid",
+            "title": "Institution Ref",
+            "type": "string"
+          },
+          "priority_key": {
+            "title": "Priority Key",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROPOSED",
+              "PUBLISHED",
+              "DONE",
+              "CANCELLED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "institution_ref",
+          "region",
+          "category",
+          "requested_at",
+          "earliest_date",
+          "due_by",
+          "status",
+          "priority_key",
+          "ruleset_key",
+          "rule_id",
+          "deadline_ref",
+          "closed_at",
+          "days_waiting",
+          "duration_days"
+        ],
+        "title": "QueueItem",
+        "type": "object"
+      },
+      "QueuePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueueItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "QueuePage",
+        "type": "object"
+      },
       "ReportDiff": {
         "properties": {
           "author_changed": {
@@ -5265,6 +5418,204 @@
         "summary": "Explain Deadline",
         "tags": [
           "deadlines"
+        ]
+      }
+    },
+    "/api/evc/queue": {
+      "get": {
+        "description": "Role-scoped queue/history. from/to inclusively filter due_by dates. days_waiting counts whole elapsed 24-hour periods, stopped at completion/cancellation. EVC duration is a DEMO ASSUMPTION.",
+        "operationId": "queue_api_evc_queue_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "QUEUED",
+                    "PROPOSED",
+                    "PUBLISHED",
+                    "DONE",
+                    "CANCELLED"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue",
+        "tags": [
+          "evc"
         ]
       }
     },

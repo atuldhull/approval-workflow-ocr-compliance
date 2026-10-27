@@ -96,16 +96,18 @@ def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
                   "wf.transition_applied", "wf.deficiency_item_responded", "wf.compliance_submitted", "wf.stage_exited", "wf.stage_entered",
                   "wf.deficiency_item_decided", "wf.deficiency_closed",
                   "wf.transition_applied", "wf.stage_exited", "wf.stage_entered"]
-    assert [r["event_type"] for r in rows if r["event_type"].startswith("dl.")] == ["dl.deadline_opened", "dl.deadline_opened"]
+    assert [r["event_type"] for r in rows if r["event_type"].startswith("dl.")] == ["dl.deadline_opened"] * 3
     assert [r["event_type"] for r in rows] == [
         "wf.application_created", "dl.deadline_opened", "wf.application_submitted", "wf.stage_entered",
         "dl.deadline_opened", "wf.transition_applied", "wf.deficiency_recorded", "wf.stage_exited", "wf.stage_entered",
         "wf.transition_applied", "wf.deficiency_item_responded", "wf.compliance_submitted", "wf.stage_exited", "wf.stage_entered",
         "wf.deficiency_item_decided", "wf.deficiency_closed",
+        "dl.deadline_opened", "evc.request_created",
         "wf.transition_applied", "wf.stage_exited", "wf.stage_entered"]
     assert "Fictional DEMO private note" not in json.dumps(rows)
     deadlines = api.get("/api/deadlines", params={"subject_id": case_id}, headers=headers("INSTITUTION", SUNRISE)).json()
-    assert {d["rule_id"]: d["status"] for d in deadlines} == {"AICTE_PROCESSING": "RUNNING", "INSTITUTION_RESPONSE": "MET"}
+    assert {d["rule_id"]: d["status"] for d in deadlines} == {
+        "AICTE_PROCESSING": "RUNNING", "INSTITUTION_RESPONSE": "MET", "EVC_PROCESSING": "RUNNING"}
     verify = api.get("/api/ledger/verify", headers=headers("AUDITOR"))
     assert verify.status_code == 200 and verify.json()["ok"]
 
@@ -192,7 +194,8 @@ def test_legacy_submit_is_adopted_without_duplicate_clocks_or_visits(api):
     assert advanced.status_code == 200 and advanced.json()["version"] == 2, advanced.text
     events = api.get(f"/api/cases/{case_id}/timeline", headers=headers("INSTITUTION", SUNRISE)).json()
     assert sum(e["event_type"] == "wf.application_submitted" for e in events) == 1
-    assert sum(e["event_type"] == "dl.deadline_opened" for e in events) == 1
+    opened = [e for e in events if e["event_type"] == "dl.deadline_opened"]
+    assert [e["payload"]["rule_id"] for e in opened] == ["AICTE_PROCESSING", "EVC_PROCESSING"]
 
 
 def test_unknown_guard_facts_reject_without_leaving_partial_adoption(api, monkeypatch):

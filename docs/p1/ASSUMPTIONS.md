@@ -1,5 +1,12 @@
 # P1 assumptions
 
+## EVC queue 3.2 (27 October 2026)
+
+- EVC_DURATION_UNCONFIRMED — DEMO ASSUMPTION: the user approved a P2-rule addition with 7 calendar days for EVC_PROCESSING, INTERNAL/COMMITTEE. The value is configurable in YAML and is not APH-confirmed. P1 validates this supported calendar-day policy; earliest_date is the logical IST date and due_by agrees with P2's calendar-day arithmetic. Queue output labels the assumption and shows the pinned rule/duration. No P2 overdue/escalation implementation or direct dl write is added.
+- EVC-Q-001 — per-source-visit UUID identities and unique active requests define exactly-once entry for a visit, with fresh requests for later authorized re-entry. Generic actions/aliases/review advancement participate in stage boundaries. Completion at last-applicable EVC is a guarded self-transition without changing route stage lists. Unscheduled QUEUED requests can cancel on reject/withdraw/revert; cancellation requiring assignment changes fails closed until that separate lifecycle exists.
+- EVC-Q-002 — queue from/to are inclusive due_by date bounds; all statuses are readable when status is omitted. Stable order is due_by/priority_key/requested_at/id. Waiting days are elapsed whole 24-hour periods from requested_at, stopped at closed_at for historical DONE/CANCELLED rows. Missing legacy provenance and backwards clocks are explicit conflicts, not fabricated dates or negative waits.
+- Approved r1 source changes require fresh disposable demo databases and preserve rejection of old checksums; no existing pin/cache rewrite occurs. User refs/personal data remain opaque. The user explicitly approved P3's one-line static port/fake checker registration; no P3 auth change is needed because CasePort/AuthzPort application.read and existing case actions provide authoritative scope. A positive per-case entry_no orders successive visits even when logical timestamps are identical; no legacy sequence is fabricated.
+
 ## EVC storage 3.1 (26 October 2026)
 
 - EVC-DB-001 — DEMO ASSUMPTION: AM/PM are synthetic slot-part codes; the 60-day availability pattern and nine DEMO_REGION codes are fictional. No official EVC duration, academic calendar, panel size/composition or regional taxonomy is inferred. Only the work-pack/team extracts are present; their section 23 reference is not the underlying report section.

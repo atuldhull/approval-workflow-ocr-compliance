@@ -149,6 +149,8 @@ class RulesetRegistry:
                 raise ValidationFailed("intake submit requires checklist_complete and dsc_required guards")
         validate_workflow(routes_raw, routes, rules)
         validate_config(routes_raw, rules)
+        from app.workflow.evc_config import validate_config as validate_evc
+        validate_evc(routes_raw, rules)
         return RuleSet(
             key=key, ruleset=ruleset, revision=revision, status=routes_raw.get("status", "unknown"),
             routes=routes, deadline_rules=rules,

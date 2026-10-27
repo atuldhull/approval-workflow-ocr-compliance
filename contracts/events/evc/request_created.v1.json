@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "request_id",
+    "institution_ref",
+    "stage_visit_id",
+    "ruleset_key",
+    "rule_id",
+    "deadline_ref",
+    "earliest_date",
+    "due_by",
+    "source_status",
+    "assumption_code"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "institution_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "stage_visit_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ruleset_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "deadline_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "earliest_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "due_by": {
+      "type": "string",
+      "format": "date"
+    },
+    "source_status": {
+      "const": "DEMO_ASSUMPTION"
+    },
+    "assumption_code": {
+      "const": "EVC_DURATION_UNCONFIRMED"
+    }
+  }
+}

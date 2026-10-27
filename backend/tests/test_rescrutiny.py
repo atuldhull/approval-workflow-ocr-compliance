@@ -111,6 +111,7 @@ def test_five_items_three_accepted_two_carried_and_response_lineage(api):
     assert api.get(f"/api/cases/{case_id}", headers=INST).json()["stage"] == "EVC"
     assert [e["event_type"] for e in timeline(api, case_id)[len(before_accept):]] == [
         "wf.deficiency_item_decided", "wf.deficiency_item_decided", "wf.deficiency_closed",
+        "dl.deadline_opened", "evc.request_created",
         "wf.transition_applied", "wf.stage_exited", "wf.stage_entered"]
     rounds = read(api, case_id)["rounds"]
     assert [(r["status"], r["closure_kind"], len(r["items"])) for r in rounds] == [

@@ -14,6 +14,10 @@ clocks:
 
 # Table 2.3: SHC is "as applicable" exactly where an EVC is required.
 grammar_version: 1
+evc:
+  rule_id: EVC_PROCESSING
+  source_status: DEMO_ASSUMPTION
+  assumption_code: EVC_DURATION_UNCONFIRMED
 intake: {checklist_file: checklists.yaml}
 # DEMO ASSUMPTION: controlled demonstration requirements and response-window policy.
 # Duration is configurable in P2's deadlines.yaml under response_rule_id, not APH-confirmed.
@@ -165,6 +169,17 @@ templates:
     letter: null
     requires_stages:
     - EVC
+  evc_complete_last:
+    action: complete_evc
+    from_stage: EVC
+    to_stage: EVC
+    allowed_roles: [SCRUTINY_COMMITTEE, BUREAU_OFFICER]
+    guards: [at_last_applicable_stage, actor_has_assignment, open_items_zero, evc_request_open]
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages: [EVC]
   to_shc:
     action: advance_to_shc
     from_stage: $route
@@ -324,7 +339,7 @@ templates:
     aliases:
     - authorised_revert
 
-transitions: &standard [submit, advance, deficiency, compliance, rescrutiny, to_evc, evc_complete, to_shc, loa, eoa, lod, reject, withdraw, revert]
+transitions: &standard [submit, advance, deficiency, compliance, rescrutiny, to_evc, evc_complete, evc_complete_last, to_shc, loa, eoa, lod, reject, withdraw, revert]
 
 routes:
   EOA_SELF_DISCLOSURE:
