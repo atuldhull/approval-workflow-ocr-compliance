@@ -1,8 +1,8 @@
-import World from "../operations/World.jsx";
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
 import ViewDocument from "../components/ViewDocument.jsx";
+import DocumentPreview from "../components/DocumentPreview.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import { sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
@@ -32,17 +32,11 @@ export default function DocumentsView({ who, me }) {
   return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} /> : <ScopeDocuments who={who} canScan={RESCANNERS.has(me.role)} />;
 }
 
-function documentRecords(docs) {
-  return (docs ?? []).map((d) => {
-    const newest = d.versions[0];
-    return {
-      id: d.document_id, label: checklistLabel(d.doc_type),
-      state: newest?.status === "REJECTED" ? "broken" : newest?.status === "QUARANTINED" ? "active" : "checked",
-      detail: newest ? `Version ${newest.version_no} · ${versionStateOf(newest).label}` : "No versions",
-      facts: [["Checklist item", d.doc_type || "Not supplied"], ["Case", internalRef(d.application_id)],
-        ["Versions", d.versions.length], ["Usable version", d.current_version_id ? "Yes, scanned clean" : "None scanned clean yet"]],
-    };
-  });
+// The version shown on the reading surface: the one chosen, else the first version that passed the scan.
+function previewVersion(docs, id) {
+  const all = (docs ?? []).flatMap((d) => d.versions.map((v) => ({ ...v, doc_type: d.doc_type })));
+  return all.find((v) => v.version_id === id)
+    ?? all.find((v) => isAvailable(v) && String(v.media_type).startsWith("image/")) ?? all.find(isAvailable) ?? null;
 }
 
 // ---- institution: its own applications, upload, versions and confirmed facts ----
@@ -50,6 +44,7 @@ function documentRecords(docs) {
 function InstitutionDocuments({ who }) {
   const apps = useApi(who, "/applications");
   const [appId, setAppId] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
   const chosen = appId ?? apps.data?.[0]?.id ?? null;
   const docs = useApi(who, chosen ? `/applications/${chosen}/documents` : null);
   const polls = useRef(0);
@@ -67,25 +62,34 @@ function InstitutionDocuments({ who }) {
   if (apps.error) return <ErrorBox error={apps.error} onRetry={apps.reload} />;
   if (!apps.data?.length) return <Empty>You have no applications yet. Create one under My applications, then add its documents here.</Empty>;
 
+  const shown = previewVersion(docs.data, previewId);
   return (
-    <div>
-      <World kind="documents" records={documentRecords(docs.data)} />
-      <div className="grid two">
-        <Card title="Add a document">
-          <label>
-            Application
-            <select value={chosen ?? ""} onChange={(e) => setAppId(e.target.value)}>
-              {apps.data.map((a) => (
-                <option key={a.id} value={a.id}>{sentence(a.category)} · {a.academic_year} · ref {internalRef(a.id)}</option>
-              ))}
-            </select>
-          </label>
-          <UploadForm key={chosen} who={who} appId={chosen} onUploaded={changed} />
-        </Card>
-        <Card title="Documents for this application"
-          actions={<button className="secondary small" onClick={changed}><Icon name="refresh" /> Refresh</button>}>
-          <DocumentList who={who} state={docs} canScan onChanged={changed} showFacts />
-        </Card>
+    <div className="documents">
+      <div className="toolbar">
+        <label className="inline">
+          Application
+          <select value={chosen ?? ""} onChange={(e) => { setAppId(e.target.value); setPreviewId(null); }}>
+            {apps.data.map((a) => (
+              <option key={a.id} value={a.id}>{sentence(a.category)} · {a.academic_year} · ref {internalRef(a.id)}</option>
+            ))}
+          </select>
+        </label>
+        <button className="ghost small" onClick={changed}><Icon name="refresh" /> Refresh</button>
+      </div>
+      <div className="workbench">
+        <div className="workbench-index">
+          <Card title="Documents for this application">
+            <DocumentList who={who} state={docs} canScan onChanged={changed} showFacts
+              previewId={shown?.version_id} onPreview={setPreviewId} />
+          </Card>
+          <Card title="Add a document" className="upload-card">
+            <UploadForm key={chosen} who={who} appId={chosen} onUploaded={changed} />
+          </Card>
+        </div>
+        <section className="workbench-reader" aria-label="Document reader">
+          <DocumentPreview who={who} version={shown}
+            caption={shown && <span className="muted small">{checklistLabel(shown.doc_type)} · v{shown.version_no} · {versionStateOf(shown).label}</span>} />
+        </section>
       </div>
     </div>
   );
@@ -168,7 +172,7 @@ export function UploadForm({ who, appId, onUploaded }) {
   );
 }
 
-export function DocumentList({ who, state, canScan, onChanged, showFacts, showCase }) {
+export function DocumentList({ who, state, canScan, onChanged, showFacts, showCase, previewId, onPreview }) {
   const [scanError, setScanError] = useState(null);
   const [scanning, setScanning] = useState(null);
   const [factsFor, setFactsFor] = useState(null);
@@ -208,7 +212,7 @@ export function DocumentList({ who, state, canScan, onChanged, showFacts, showCa
             {d.versions.map((v) => {
               const s = versionStateOf(v);
               return (
-                <li key={v.version_id} className="version">
+                <li key={v.version_id} className={`version${previewId === v.version_id ? " is-previewed" : ""}`}>
                   <div className="version-main">
                     <span className="version-no num">v{v.version_no}</span>
                     <span className="version-name">{v.original_filename}</span>
@@ -225,6 +229,12 @@ export function DocumentList({ who, state, canScan, onChanged, showFacts, showCa
                       <button className="secondary small" disabled={scanning !== null} onClick={() => scan(v.version_id)}
                         aria-label={`Run the malware scan again for version ${v.version_no} of ${checklistLabel(d.doc_type)}`}>
                         {scanning === v.version_id ? "Scanning…" : "Scan again"}
+                      </button>
+                    )}
+                    {onPreview && isAvailable(v) && String(v.media_type).startsWith("image/") && (
+                      <button className="ghost small" aria-pressed={previewId === v.version_id} onClick={() => onPreview(v.version_id)}
+                        aria-label={`Show version ${v.version_no} of ${checklistLabel(d.doc_type)} in the reader`}>
+                        Read here
                       </button>
                     )}
                     {isAvailable(v) && <ViewDocument who={who} versionId={v.version_id} filename={v.original_filename} />}
@@ -285,24 +295,36 @@ function ScopeDocuments({ who, canScan }) {
   const [docType, setDocType] = useState("");
   const path = docType ? `/documents?doc_type=${encodeURIComponent(docType)}` : "/documents";
   const docs = useApi(who, path);
+  const [previewId, setPreviewId] = useState(null);
+  const shown = previewVersion(docs.data, previewId);
   return (
-    <div>
-      <World kind="documents" records={documentRecords(docs.data)} />
-      <Card title="Documents in your scope"
-        actions={<button className="secondary small" onClick={docs.reload}><Icon name="refresh" /> Refresh</button>}>
+    <div className="documents">
+      <div className="toolbar">
         <label className="inline">
           Checklist item
-          <select value={docType} onChange={(e) => setDocType(e.target.value)}>
+          <select value={docType} onChange={(e) => { setDocType(e.target.value); setPreviewId(null); }}>
             <option value="">All items</option>
             {CHECKLIST.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
         </label>
-        <p className="muted small">
-          Each version and its scan result. Only versions that passed the malware scan can be opened; quarantined and
-          blocked files are never served.
-        </p>
-        <DocumentList who={who} state={docs} canScan={canScan} onChanged={docs.reload} showCase />
-      </Card>
+        <button className="ghost small" onClick={docs.reload}><Icon name="refresh" /> Refresh</button>
+      </div>
+      <div className="workbench">
+        <div className="workbench-index">
+          <Card title="Documents in your scope">
+            <p className="muted small">
+              Each version and its scan result. Only versions that passed the malware scan can be opened; quarantined and
+              blocked files are never served.
+            </p>
+            <DocumentList who={who} state={docs} canScan={canScan} onChanged={docs.reload} showCase
+              previewId={shown?.version_id} onPreview={setPreviewId} />
+          </Card>
+        </div>
+        <section className="workbench-reader" aria-label="Document reader">
+          <DocumentPreview who={who} version={shown}
+            caption={shown && <span className="muted small">{checklistLabel(shown.doc_type)} · v{shown.version_no} · {versionStateOf(shown).label}</span>} />
+        </section>
+      </div>
     </div>
   );
 }
