@@ -7,24 +7,16 @@ state, rejected input, not configured). The document, compliance and alert recor
 which passes authorisation gets a fixed answer, whatever order the roles are tried in.
 Uses demo sign-in with the local engine; Cerbos is held to the same decisions by test_cerbos_parity.py.
 """
-import io
 from dataclasses import replace
-from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from pypdf import PdfWriter
 
 from app.deadlines.wiring import clock
-from app.documents import service as documents
-from app.documents.config import DocumentLimits
-from app.documents.extraction import PageText
-from app.documents.ocr import OcrToken, Script
-from app.documents.scanning import ScanResult, ScanVerdict
-from app.documents.storage import LocalQuarantineStorage
 from app.platform import auth
 from app.platform.demo_seed import seed_directory
 from conftest import NORTHFIELD, SUNRISE, headers
+from document_fakes import configure_documents, pdf
 
 U = lambda n: f"00000000-0000-4000-9000-{n:012d}"  # noqa: E731
 ROLES = {
@@ -149,39 +141,6 @@ MATRIX = [
 ]
 
 
-PAGE = "lease_end_date: 2030-03-31\nletter_issue_date: 2025-03-12\nletter_file_number: F.No.42/2025"
-
-
-class CleanScanner:
-    scanner_key = "clamav"
-
-    def scan(self, source):
-        return ScanResult(ScanVerdict.CLEAN)
-
-
-class PageEngine:
-    """Reads every file as PAGE: one candidate each for the three catalogued fields."""
-    adapter_key = "test.matrix"
-    model_version = "matrix-1"
-
-    def read(self, content, *, media_type):
-        tokens, offset = [], 0
-        for word in PAGE.replace("\n", " ").split(" "):
-            start = PAGE.index(word, offset)
-            tokens.append(OcrToken(word, 1, start, start + len(word), Decimal("0.9"), Script.LATIN))
-            offset = start + len(word)
-        return [PageText(1, PAGE, tuple(tokens))]
-
-
-def pdf(marker: str) -> bytes:
-    writer = PdfWriter()
-    writer.add_blank_page(width=72, height=72)
-    writer.add_metadata({"/Title": marker})
-    out = io.BytesIO()
-    writer.write(out)
-    return out.getvalue()
-
-
 def letter_body(app_id: str, year: str = "2025-26") -> dict:
     return {"application_id": app_id, "institution_id": str(SUNRISE), "letter_type": "LOA", "academic_year": year,
             "issue_date": "2025-08-31", "issue_date_source": "PORTAL_EVENT", "lists_deficiencies": False,
@@ -261,14 +220,13 @@ class World(dict):
 
 @pytest.fixture
 def case(client, tmp_path):
-    documents.configure(storage=LocalQuarantineStorage(tmp_path / "store", limits=DocumentLimits(
-        10 * 1024 * 1024, 20, 4_000_000)), scanner=CleanScanner(), engine=PageEngine())
+    reset = configure_documents(tmp_path)
     h = ROLES["inst_sunrise"]
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
     client.post(f"/api/applications/{app_id}/submit", headers=h)
     yield World(client, app_id)
-    documents.configure(storage=None, scanner=None, engine=None)
+    reset()
 
 
 def _request(client, method, url, h, body, world):
