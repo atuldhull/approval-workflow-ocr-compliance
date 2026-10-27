@@ -208,7 +208,8 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
     # only this module's own chains; other modules add heads of their own. The deadlines head moves as the
     # chain grows, so read it from the scripts rather than naming it.
     dl_head = next(h for h in ScriptDirectory.from_config(config).get_heads() if h.startswith("dl_"))
-    expected_heads = {dl_head, "doc_0004_document_api_lifecycle"}
+    doc_head = next(h for h in ScriptDirectory.from_config(config).get_heads() if h.startswith("doc_"))
+    expected_heads = {dl_head, doc_head}
     assert set(pg_session.scalars(protected_triggers).all()) == {
         "trg_dl_calendar_version_no_truncate",
         "trg_dl_holiday_no_truncate",
@@ -220,7 +221,7 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
         command.downgrade(config, "deadlines@dl_0003_immutable_calendars")
         pg_session.expire_all()
         downgraded_versions = set(pg_session.scalars(migration_versions).all())
-        assert {"dl_0003_immutable_calendars", "doc_0004_document_api_lifecycle"} <= downgraded_versions
+        assert {"dl_0003_immutable_calendars", doc_head} <= downgraded_versions
         assert "dl_0004_calendar_truncate_guards" not in downgraded_versions
         assert set(pg_session.scalars(protected_triggers).all()) == set()
         pg_session.commit()
