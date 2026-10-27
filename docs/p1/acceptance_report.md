@@ -1,4 +1,16 @@
-# P1 acceptance evidence — 26 October 2026
+# P1 acceptance evidence
+
+## Runtime guard facts, idempotency, checklists, routing key (4.1–4.4) — 27 October 2026 — PASS
+
+Run on integration/person-1 with Python 3.12 against the disposable PostgreSQL database awoc_test_p1.
+
+- Full suite: **7,005 passed, 1 skipped, 0 failed** in 2,311 s (38 min). The skip is pre-existing. The three EVC tests that failed before the scheduling merge pass.
+- `scripts/check_contracts.py` (after `--write`): contracts ok. `scripts/gen_cerbos_policies.py --check`: ok. `scripts/check_migration_heads.py`: 6 chains checked, one head each. `python -m generator.cases.routing_answer_key --check`: ok.
+- End-to-end through the real app with **no injected fact loader** (test_guard_facts_runtime): NEW_PROGRAMME intake submit → SCRUTINY (refused ASSIGNMENT_REQUIRED until a scrutiny workspace exists) → deficiency → compliance → start_rescrutiny → acceptance auto-advance to EVC → complete_evc refused ASSIGNMENT_REQUIRED, then EVC_SCHEDULE_NOT_PUBLISHED → experts, EDF propose, publish → complete_evc (EVC DONE, EVC_PROCESSING MET) → LOA through the real CompliancePort (APPROVED, AICTE_PROCESSING MET, ledger verifies). Run for both the skipped-SHC and SHC-committee paths. Refusals checked with their codes: DECISION_NOT_AUTHORISED, LETTER_DATA_NOT_CONFIRMED (academic year, back-dated date), LETTER_DECISION_MISMATCH, APPROVAL_POLICY_UNAVAILABLE, APPROVAL_CONTEXT_UNAVAILABLE.
+- Idempotency (test_p1_idempotency): replay/422 per endpoint group (intake, case actions, committees, deficiency review, EVC pool), one ledger event per keyed command, 409 behind a held key, 409 VERSION_CONFLICT for a consumed version under a new key.
+- Scorecard routing line: EVALUATED_ON_ANSWER_KEY, 22/22, PASS — agreement with the frozen CSV transcription only (0/22 rows verified against the original handbook).
+- Contracts: generated OpenAPI only, pending three-way approval (contract_requests/2026-10-27_runtime_guard_facts.md). No new event schema.
+
 
 ## Re-Scrutiny 2.2 — PASS
 
