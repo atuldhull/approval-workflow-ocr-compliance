@@ -11,6 +11,8 @@ resourcePolicy:
     - application.submit
     - auth.me
     - case.timeline
+    - compliance.evidence.submit
+    - compliance.read
     - deadline.read
     - document.facts.read
     - document.upload
@@ -31,6 +33,8 @@ resourcePolicy:
     - application.read
     - auth.me
     - case.timeline
+    - compliance.evidence.verify
+    - compliance.read
     - deadline.read
     - document.fact.confirm
     - document.fact.review
@@ -49,6 +53,8 @@ resourcePolicy:
     - application.read
     - auth.me
     - case.timeline
+    - compliance.evidence.verify
+    - compliance.read
     - deadline.read
     - document.fact.confirm
     - document.fact.review
@@ -73,6 +79,9 @@ resourcePolicy:
     - audit.checkpoint.read
     - auth.me
     - case.timeline
+    - compliance.evidence.verify
+    - compliance.letter.register
+    - compliance.read
     - deadline.read
     - document.fact.confirm
     - document.facts.read
@@ -97,6 +106,9 @@ resourcePolicy:
     - audit.replay
     - auth.me
     - case.timeline
+    - compliance.evidence.verify
+    - compliance.letter.register
+    - compliance.read
     - deadline.read
     - document.fact.confirm
     - document.facts.read
@@ -122,6 +134,7 @@ resourcePolicy:
     - audit.replay
     - auth.me
     - case.timeline
+    - compliance.read
     - deadline.read
     - document.facts.read
     - institution.list
