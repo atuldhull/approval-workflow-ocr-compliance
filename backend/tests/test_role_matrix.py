@@ -2,7 +2,9 @@
 
 Pins the status every role gets from every Person 3 endpoint, and from the Person 1/2 endpoints whose access
 Person 3's policy decides. When a new API is added or the policy changes, this table shows exactly which cell moved.
-Codes: 200/201 allowed; 403 refused by policy; 404/503 = got past authorisation (nothing to act on / not configured).
+Codes: 200/201 allowed; 403 refused by policy; 404/409/422/503 = got past authorisation (nothing to act on, wrong
+state, rejected input, not configured). The document, compliance and alert records are prepared so that every role
+which passes authorisation gets a fixed answer, whatever order the roles are tried in.
 Uses demo sign-in with the local engine; Cerbos is held to the same decisions by test_cerbos_parity.py.
 """
 from dataclasses import replace
@@ -10,8 +12,11 @@ from uuid import uuid4
 
 import pytest
 
+from app.deadlines.wiring import clock
 from app.platform import auth
+from app.platform.demo_seed import seed_directory
 from conftest import NORTHFIELD, SUNRISE, headers
+from document_fakes import configure_documents, pdf
 
 U = lambda n: f"00000000-0000-4000-9000-{n:012d}"  # noqa: E731
 ROLES = {
@@ -26,6 +31,13 @@ ROLES = {
 }
 ALL = list(ROLES)
 OVERSIGHT = ("bureau_officer", "bureau_head", "auditor")
+# who may see Sunrise's (Southern) case records: the institution itself, officers in scope, oversight
+CASE_READERS = ("inst_sunrise", "committee", "ro_south") + OVERSIGHT
+# officers in scope of Sunrise's case who may confirm a fact or verify evidence
+CASE_OFFICERS = ("committee", "ro_south", "bureau_officer", "bureau_head")
+# users outside ROLES prepare records, so no role in the matrix is the extractor, first reviewer or registrar
+EXTRACTOR = headers("SCRUTINY_COMMITTEE", user=U(90))
+REGISTRAR = headers("BUREAU_OFFICER", user=U(91))
 
 
 def expect(allowed: dict | tuple, default=403, code=200):
@@ -72,22 +84,160 @@ MATRIX = [
     ("report by type", "GET", "/api/reports/pendency", None,
      expect(("committee", "ro_south", "ro_north") + OVERSIGHT)),
     ("event-log export", "POST", "/api/exports", {"format": "ocel2"}, expect(OVERSIGHT)),
+
+    # ---- Person 2: documents. {version} is a clean, extracted upload on Sunrise's case. ----
+    ("upload a document", "POST", "/api/applications/{app}/documents", lambda w: {
+        "data": {"doc_type": "LAND_DEED"}, "files": {"file": ("deed.pdf", pdf("matrix-upload"), "application/pdf")},
+        "headers": {"Idempotency-Key": "matrix-upload-0001"}}, expect({"inst_sunrise": 201})),
+    ("a case's documents", "GET", "/api/applications/{app}/documents", None, expect(CASE_READERS)),
+    # institutions get only their own, a regional officer only their region
+    ("documents across cases", "GET", "/api/documents", None, expect(ALL)),
+    ("another region's documents", "GET", "/api/documents?region=Northern", None,
+     expect(tuple(r for r in ALL if r != "ro_south"))),
+    # a rescan is the uploader's action (document.upload); the version is already clean, so nothing changes
+    ("rescan a version", "POST", "/api/document-versions/{version}/scan", None, expect({"inst_sunrise": 200})),
+    ("extract facts again", "POST", "/api/document-versions/{version}/extract", None,
+     expect(("committee", "ro_south"))),
+    # institutions see confirmed values only (none yet); officers and oversight see the proposals
+    ("a version's facts", "GET", "/api/document-versions/{version}/facts", None, expect(CASE_READERS)),
+    # another reviewer already typed a value for {fact_open}: allowed reviewers get 409, never the suggestion
+    ("type a value", "POST", "/api/document-facts/{fact_open}/entry", {"value": "2025-03-12"},
+     expect(("committee", "ro_south"), code=409)),
+    # only the reviewer who typed first sees the suggestion again; {fact_mine} was typed by "committee"
+    ("reveal the suggestion", "POST", "/api/document-facts/{fact_mine}/reveal", None, expect(("committee",))),
+    ("review someone else's entry", "POST", "/api/document-facts/{fact_open}/review", {"decision": "ACCEPTED"},
+     expect(("committee", "ro_south"), code=409)),
+    ("confirm an unreviewed fact", "POST", "/api/document-facts/{fact_proposed}/confirm", None,
+     expect(CASE_OFFICERS, code=409)),
+
+    # ---- Person 2: compliance. {letter} is an LoA for Sunrise's case with two obligations. ----
+    # the second bureau role finds the same LoA already registered
+    ("register an LoA", "POST", "/api/compliance/letters", lambda w: {"json": letter_body(w["app"], "2026-27")},
+     expect({"bureau_officer": 201, "bureau_head": 409})),
+    ("letters", "GET", "/api/compliance/letters", None, expect(ALL)),
+    ("another region's letters", "GET", "/api/compliance/letters?region=Northern", None,
+     expect(tuple(r for r in ALL if r != "ro_south"))),
+    ("a case's letters", "GET", "/api/compliance/letters?application_id={app}", None, expect(CASE_READERS)),
+    ("one letter", "GET", "/api/compliance/letters/{letter}", None, expect(CASE_READERS)),
+    ("obligations", "GET", "/api/compliance/obligations", None, expect(ALL)),
+    ("one obligation", "GET", "/api/compliance/obligations/{obligation}", None, expect(CASE_READERS)),
+    ("submit evidence", "POST", "/api/compliance/obligations/{obligation_open}/evidence",
+     lambda w: {"json": {"document_version_id": w["version"]}}, expect({"inst_sunrise": 201})),
+    # a rejection without a reason code is refused after authorisation, so nothing is decided
+    ("verify evidence", "POST", "/api/compliance/evidence/{evidence}/verify", {"decision": "REJECTED"},
+     expect(CASE_OFFICERS, code=422)),
+
+    # ---- Person 2: alerts and demo timers. {alert} is the level-0 reminder to the Southern regional office. ----
+    ("alerts", "GET", "/api/alerts", None, expect(ALL)),
+    # a regional officer's region filter is replaced by their own region rather than refused
+    ("another region's alerts", "GET", "/api/alerts?region=Northern", None, expect(ALL)),
+    # policy lets officers and institutions acknowledge; the deadlines module then requires the addressed role
+    ("acknowledge an alert", "POST", "/api/alerts/{alert}/ack", None, expect(("ro_south",))),
+    ("time travel", "POST", "/api/sim/clock", {"days": 1}, expect(ALL)),
+    ("run the timers", "POST", "/api/sim/timers/run", None, expect(ALL)),
+    # the deadline is checked as an "application" record without its region, so no regional officer passes
+    ("explain a deadline", "GET", "/api/deadlines/{deadline}/explain", None,
+     expect(("inst_sunrise", "committee") + OVERSIGHT)),
 ]
 
 
+def letter_body(app_id: str, year: str = "2025-26") -> dict:
+    return {"application_id": app_id, "institution_id": str(SUNRISE), "letter_type": "LOA", "academic_year": year,
+            "issue_date": "2025-08-31", "issue_date_source": "PORTAL_EVENT", "lists_deficiencies": False,
+            "f_no": "F.No. DEMO/SOUTH/2025/00099"}
+
+
+class World(dict):
+    """The records a row names, built the first time a row asks for one."""
+
+    def __init__(self, client, app_id):
+        super().__init__(app=app_id, random=str(uuid4()))
+        self.client = client
+
+    @staticmethod
+    def ok(response):
+        assert response.status_code in (200, 201), response.text
+        return response.json()
+
+    def __missing__(self, key):
+        build = getattr(self, f"_{key}", None)
+        if build is None:
+            raise KeyError(key)
+        build()
+        return self[key]
+
+    def _version(self):
+        c = self.client
+        up = self.ok(c.post(f"/api/applications/{self['app']}/documents",
+                            headers={**ROLES["inst_sunrise"], "Idempotency-Key": "matrix-world-0001"},
+                            data={"doc_type": "LEASE_DEED"},
+                            files={"file": ("lease.pdf", pdf("matrix-world"), "application/pdf")}))
+        version = up["version"]["version_id"]
+        # the scan runs as a background task after the upload response
+        listed = self.ok(c.get(f"/api/applications/{self['app']}/documents", headers=ROLES["auditor"]))
+        assert listed[0]["versions"][0]["scan_status"] == "clean", listed
+        self.ok(c.post(f"/api/document-versions/{version}/extract", headers=EXTRACTOR))
+        self["version"] = version
+
+    def _facts(self):
+        facts = self.ok(self.client.get(f"/api/document-versions/{self['version']}/facts",
+                                        headers=ROLES["auditor"]))["facts"]
+        by_field = {f["field_key"]: f["fact_id"] for f in facts}
+        self["fact_proposed"] = by_field["letter_file_number"]
+        self["fact_open"] = by_field["letter_issue_date"]
+        self["fact_mine"] = by_field["lease_end_date"]
+        self.ok(self.client.post(f"/api/document-facts/{self['fact_open']}/entry", headers=EXTRACTOR,
+                                 json={"value": "2025-03-12"}))
+        self.ok(self.client.post(f"/api/document-facts/{self['fact_mine']}/entry", headers=ROLES["committee"],
+                                 json={"value": "2030-03-31"}))
+
+    _fact_proposed = _fact_open = _fact_mine = _facts
+
+    def _letter(self):
+        letter = self.ok(self.client.post("/api/compliance/letters", headers=REGISTRAR,
+                                          json=letter_body(self["app"])))
+        self["letter"] = letter["id"]
+        self["obligation"], self["obligation_open"] = letter["obligation_ids"]
+
+    _obligation = _obligation_open = _letter
+
+    def _evidence(self):
+        self["evidence"] = self.ok(self.client.post(
+            f"/api/compliance/obligations/{self['obligation']}/evidence", headers=ROLES["inst_sunrise"],
+            json={"document_version_id": self["version"]}))["id"]
+
+    def _deadline(self):
+        mine = self.ok(self.client.get(f"/api/deadlines?subject_id={self['app']}", headers=ROLES["auditor"]))
+        self["deadline"] = next(d["id"] for d in mine if d["rule_id"] == "AICTE_PROCESSING")
+
+    def _alert(self):
+        seed_directory()
+        clock.advance(29)   # two days before the 30-day processing clock is due: the level-0 reminder
+        self.ok(self.client.post("/api/sim/timers/run", headers=ROLES["auditor"]))
+        alerts = self.ok(self.client.get(f"/api/alerts?deadline_id={self['deadline']}", headers=ROLES["auditor"]))
+        self["alert"] = next(a["id"] for a in alerts if a["level"] == 0 and a["role"] == "RO_OFFICER")
+
+
 @pytest.fixture
-def case(client):
+def case(client, tmp_path):
+    reset = configure_documents(tmp_path)
     h = ROLES["inst_sunrise"]
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
     client.post(f"/api/applications/{app_id}/submit", headers=h)
-    return {"app": app_id, "random": str(uuid4())}
+    yield World(client, app_id)
+    reset()
+
+
+def _request(client, method, url, h, body, world):
+    kw = body(world) if callable(body) else {"json": body}
+    return client.request(method, url, **{**kw, "headers": {**h, **kw.get("headers", {})}})
 
 
 @pytest.mark.parametrize("name, method, path, body, expected", MATRIX, ids=[m[0] for m in MATRIX])
 def test_role_matrix(client, case, name, method, path, body, expected):
-    url = path.format(**case)
-    got = {role: client.request(method, url, headers=h, json=body).status_code for role, h in ROLES.items()}
+    url = path.format_map(case)
+    got = {role: _request(client, method, url, h, body, case).status_code for role, h in ROLES.items()}
     assert got == expected, f"{name}: {[(r, got[r], expected[r]) for r in ALL if got[r] != expected[r]]}"
 
 

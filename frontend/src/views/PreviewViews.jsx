@@ -1,6 +1,6 @@
 import World from '../nebula/World.jsx';
 import { Badge, Card, PreviewBanner } from "../components/ui.jsx";
-import { EVC_SAMPLE, OBLIGATION_SAMPLE } from "../fixtures/previews.js";
+import { EVC_SAMPLE } from "../fixtures/previews.js";
 
 export function EvcView() {
   return (
@@ -30,45 +30,6 @@ export function EvcView() {
                 <td>
                   <button className="small" disabled title="Needs the EVC scheduling API from Person 1">
                     Approve slot
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  );
-}
-
-export function ComplianceView() {
-  return (
-    <div>
-      <PreviewBanner owner="Person 2" api="obligations and evidence API" />
-      <World kind="compliance" preview records={OBLIGATION_SAMPLE.map(o=>({id:o.title,label:o.title,evidence:o.evidence,state:o.state,date:o.due,detail:o.due+" · "+o.state.replaceAll("_"," ")+" · SAMPLE",facts:[["Category",o.kind],["Due",o.due],["Evidence",o.evidence||"Not supplied"],["Status",o.state],["Authority","Sample only; no approval implied"]]}))} />
-      <Card title="Compliance items (sample)">
-        <table className="table" tabIndex={0}>
-          <thead>
-            <tr>
-              <th scope="col">Kind</th>
-              <th scope="col">Item</th>
-              <th scope="col">Due</th>
-              <th scope="col">Evidence</th>
-              <th scope="col">State</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {OBLIGATION_SAMPLE.map((o) => (
-              <tr key={o.title}>
-                <td>{o.kind}</td>
-                <td>{o.title}</td>
-                <td>{o.due}</td>
-                <td>{o.evidence ?? "—"}</td>
-                <td>{o.state.replaceAll("_", " ")}</td>
-                <td>
-                  <button className="small" disabled title="Needs the evidence review API from Person 2">
-                    Review evidence
                   </button>
                 </td>
               </tr>
