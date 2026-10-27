@@ -23,6 +23,8 @@ rules:
     # calendar vs working days is not confirmed; configurable
     duration: {value: 7, unit: calendar_days}
     on_expiry: close_appeal_window
+    # not appealing is the institution's choice, not a breach: remind only, never escalate
+    alert_ladder: reminder_only
 
   - id: DEPOSIT_15D
     clock_kind: LEGAL
@@ -32,6 +34,7 @@ rules:
     duration: {value: 15, unit: calendar_days}
     # reminders and escalation are demo assumptions; penalty tiers are a suggestion only
     reminders: [-7d, -2d, -1d]
+    # (the escalation list below is not read yet; the timer worker uses alerts.ladders)
     escalation: [{after: 0d, to: RO_OFFICER}, {after: 5d, to: BUREAU_HEAD}]
     penalty_tiers: [{until: "05-31", pct: 10}, {until: "07-31", pct: 20}]
 
@@ -56,5 +59,34 @@ rules:
     source: {clause: "2.1(e)", status: verified}
     computed: lease_eoa_stop_year
     inputs: [lease_end_date, max_course_duration_years, ay_start_rule]
+    # ay_start_rule comes from academic_year.starts below
     # relative to the start of the stop academic year; demo assumption
     reminders: [-18mo, -12mo, -6mo]
+
+# Academic-year boundary used by LEASE_EOA_STOP (ay_start_rule).
+# demo_assumption: the APH text read so far does not fix the start day; configurable.
+academic_year:
+  source: {status: demo_assumption}
+  starts: "07-01"
+
+# Alerts and escalation, read by the deadline timer worker (python -m app.deadlines.worker).
+# demo_assumption: the APH sets no reminder or escalation schedule. Every offset, role and channel here is a
+# configurable placeholder until the team confirms one.
+# Offsets are relative to the deadline's due instant (end of the due date, IST). A level is raised when its
+# offset passes; the next level is raised when that time passes with no acknowledgement, or at once when the
+# addressed role group has no members (explicit vacancy). An acknowledgement stops the ladder for that
+# due_version. Rules pick a ladder with alert_ladder (default below, or "none").
+alerts:
+  source: {status: demo_assumption}
+  channels: [in_app, email]
+  owner_roles: {AICTE: RO_OFFICER, INSTITUTION: INSTITUTION, COMMITTEE: SCRUTINY_COMMITTEE}
+  retry_after_minutes: 15
+  default_ladder: standard
+  ladders:
+    standard:
+      - {level: 0, to: owner, at: -2d, template: deadline.reminder}
+      - {level: 1, to: RO_OFFICER, at: 0d, template: deadline.breached}
+      - {level: 2, to: BUREAU_OFFICER, at: 3d, template: deadline.escalated}
+      - {level: 3, to: BUREAU_HEAD, at: 7d, template: deadline.escalated}
+    reminder_only:
+      - {level: 0, to: owner, at: -2d, template: deadline.reminder}
