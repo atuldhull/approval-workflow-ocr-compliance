@@ -387,6 +387,41 @@ def test_no_note_redacted_note_and_tampered_note(client, loa):
     assert r["has_note"] is True and r["note"] is None and r["redacted"] is True
 
 
+# ---- demo seed ----
+
+def test_demo_letters_are_dated_from_the_demo_clock_with_one_overdue(client):
+    from app.compliance import demo_seed
+    from app.deadlines.wiring import clock
+
+    clock.advance(40)  # the seed follows the demo clock, not the calendar
+    today = clock.now().astimezone(service.IST).date()
+    created = demo_seed.seed_letters()
+    assert len(created) == 3 and demo_seed.seed_letters() == []  # rerunning adds nothing
+    with new_session() as s:
+        letters = {a.f_no: a for a in s.scalars(select(ApprovalLetter)).all()}
+        assert len(letters) == 3 and all(f.startswith("F.No. DEMO-SEED/") for f in letters)
+        overdue = 0
+        for f_no, a in letters.items():
+            due = {o.due_date for o in s.scalars(select(Obligation).where(Obligation.source_letter_id == a.id))}
+            assert len(due) == 1 and a.issue_date <= today
+            if "OVERDUE" in f_no:
+                overdue += 1
+                assert due == {today - timedelta(days=demo_seed.OVERDUE_BY_DAYS)}
+            else:
+                assert min(due) > today and a.valid_until > today
+        assert overdue == 1
+
+
+def test_the_demo_seed_refuses_outside_demo_mode(monkeypatch):
+    from dataclasses import replace
+
+    from app.compliance import demo_seed
+    from app.platform import settings as settings_module
+
+    monkeypatch.setattr(settings_module, "settings", replace(settings_module.settings, demo_mode=False))
+    assert demo_seed.main() == 1
+
+
 # ---- transactions and events ----
 
 def test_caller_rollback_removes_letter_obligations_clocks_and_events_together(client):

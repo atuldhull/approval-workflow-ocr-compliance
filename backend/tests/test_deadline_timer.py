@@ -484,3 +484,24 @@ def test_alerts_carry_the_rule_due_date_and_case(env):
         "application", str(app_id), str(app_id))
     acked = env.post(f"/api/alerts/{listed['id']}/ack", headers=SOUTH_RO).json()
     assert acked["rule_id"] == "AICTE_PROCESSING" and acked["application_id"] == str(app_id)
+
+
+def test_an_obligation_alert_names_the_application_it_belongs_to(env):
+    from app.compliance.demo_seed import seed_letters
+    from app.compliance.models import Obligation
+
+    seed_letters()  # one of the demo letters is already overdue
+    worker().run_once()
+    with new_session() as s:
+        obligations = {o.id: o for o in s.scalars(select(Obligation)).all()}
+    traced = [a for a in env.get("/api/alerts", headers=AUDITOR).json() if a["subject_type"] == "obligation"]
+    assert traced, "the overdue demo obligation raised no alert"
+    # five days overdue: reminder, breach and the first escalation have all been raised for the demo
+    assert {a["level"] for a in traced} == {0, 1, 2}
+    assert {a["role"] for a in traced} == {"INSTITUTION", "RO_OFFICER", "BUREAU_OFFICER"}
+    for a in traced:
+        o = obligations[UUID(a["subject_id"])]
+        assert a["application_id"] == str(o.application_id) and a["deadline_id"] == str(o.deadline_id)
+        assert a["rule_id"] == o.rule_id and a["due_date"] == o.due_date.isoformat()
+    inst = env.get("/api/alerts", headers=INST).json()
+    assert all(a["application_id"] is not None for a in inst if a["subject_type"] == "obligation")
