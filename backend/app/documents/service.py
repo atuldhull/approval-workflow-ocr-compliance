@@ -31,6 +31,7 @@ from app.documents.scanning import (SIGNATURE_PATTERN, ClamdScanner, MalwareScan
                                     ScanVerdict)
 from app.documents.states import OcrErrorCode, OcrRunStatus
 from app.documents.text_engine import text_engine_from_environment
+from app.documents.validation import UploadValidationError, detect_media_type
 from app.documents.storage import (DocumentStorage, LocalQuarantineStorage, StagedObject,
                                    StorageConfigurationError, StorageError)
 from app.platform.db import new_session, unit_of_work
@@ -52,6 +53,14 @@ DECISION_OF_STATE = {state.value: name for name, state in DECISIONS.items()}
 
 class FourEyesViolation(Conflict):
     """The officer who reviewed a fact may not also confirm it."""
+
+
+class DocumentNotViewable(Conflict):
+    """Only a version the malware scan found clean (AVAILABLE) is ever served."""
+
+
+class StoredContentMismatch(Conflict):
+    """The stored bytes no longer match the hash, size or type recorded at upload; they are not served."""
 
 
 # ---- replaceable adapters (tests and deployments call configure()) ----
@@ -417,6 +426,7 @@ def list_facts(principal: Principal, version_id: UUID) -> dict[str, Any]:
             summary[fact_status(fact)] += 1
         shown = [f for f in facts if principal.role != Role.INSTITUTION or f.confirmed_at is not None]
         return {"document_version_id": str(version_id), "document_id": str(version.document_id),
+                "version_status": version.status, "scan_status": version.scan_status,
                 "review_status": summary, "facts": [fact_view(f, principal) for f in shown]}
 
 
@@ -512,13 +522,59 @@ def confirm_fact(uow: UnitOfWork, fact_id: UUID) -> Fact:
     return fact
 
 
+# ---- viewing the stored file ----
+
+VIEWABLE_MEDIA_TYPES = frozenset({"application/pdf", "image/png", "image/jpeg"})
+
+
+@dataclass(frozen=True)
+class VersionContent:
+    content: bytes
+    media_type: str
+    filename: str
+
+
+def version_content(principal: Principal, version_id: UUID) -> VersionContent:
+    """The bytes of a version scanned clean, for whoever may read its facts. Nothing else is ever served.
+
+    Quarantined (scan_pending) and rejected (infected) versions are refused with
+    DocumentNotViewable. The bytes are re-checked against the size, sha256 and
+    file signature recorded at upload before they leave the server.
+    """
+    with new_session() as session:
+        version = session.get(DocumentVersion, version_id)
+        if version is None:
+            raise NotFound("document version not found")
+        authorize(session, principal, "document.facts.read", version.application_id, version.document_id)
+        if version.status != "AVAILABLE" or version.scan_status != "clean":
+            state = "is waiting for its malware scan" if version.scan_status == "scan_pending" else "was rejected"
+            raise DocumentNotViewable(f"this version {state}; only versions scanned clean can be viewed")
+        if version.media_type not in VIEWABLE_MEDIA_TYPES:
+            raise DocumentNotViewable("this version's file type cannot be viewed")
+        storage_ref, expected = version.storage_ref, (version.size_bytes, version.sha256, version.media_type)
+        filename = version.original_filename
+    try:
+        with storage().open_private(storage_ref) as source:
+            content = source.read(expected[0] + 1)
+    except StorageError as exc:
+        raise ServiceUnavailable("document storage is unavailable") from exc
+    try:
+        detected = detect_media_type(content[:16])
+    except UploadValidationError:
+        detected = None
+    if (len(content), sha256(content).hexdigest(), detected) != expected:
+        raise StoredContentMismatch("the stored file does not match what was uploaded, so it is not served")
+    return VersionContent(content, expected[2], filename)
+
+
 # ---- listing ----
 
 def version_view(version: DocumentVersion) -> dict[str, Any]:
     return {"version_id": str(version.document_version_id), "document_id": str(version.document_id),
             "version_no": version.version_no, "original_filename": version.original_filename,
             "media_type": version.media_type, "size_bytes": version.size_bytes, "sha256": version.sha256,
-            "scan_status": version.scan_status, "uploaded_at": version.created_at.isoformat(),
+            "status": version.status, "scan_status": version.scan_status,
+            "uploaded_at": version.created_at.isoformat(),
             "scanned_at": version.scanned_at.isoformat() if version.scanned_at else None}
 
 

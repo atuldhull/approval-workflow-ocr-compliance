@@ -650,11 +650,11 @@ def test_case_owner_fails_closed_on_mismatched_caseport_result(monkeypatch):
         resolve_document_owner(object(), application_id)
 
 
-def test_no_document_download_route_is_exposed_yet():
+def test_the_only_route_returning_file_bytes_is_the_clean_version_content():
     from app.main import create_app
 
     reads = {route.path for route in create_app().routes
              if "/document" in route.path and "GET" in getattr(route, "methods", set())}
-    # listings and facts only; nothing returns stored file bytes
+    # listings, facts, and the content of a version scanned clean (tested in test_documents_api.py)
     assert reads == {"/api/applications/{application_id}/documents", "/api/documents",
-                     "/api/document-versions/{version_id}/facts"}
+                     "/api/document-versions/{version_id}/facts", "/api/document-versions/{version_id}/content"}

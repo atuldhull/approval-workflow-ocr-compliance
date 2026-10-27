@@ -1,14 +1,17 @@
 """Document endpoints: upload, scan, extraction, fact listing, review and confirmation.
 
 Authorization and visibility live in service.py. Uploads need an
-Idempotency-Key; review and confirm honour one when given. Nothing here ever
-returns file bytes: there is no download endpoint yet.
+Idempotency-Key; review and confirm honour one when given. The only route that
+returns file bytes is GET /document-versions/{id}/content, and only for a
+version scanned clean.
 """
+import re
 from typing import Literal
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from app.documents import service
@@ -36,6 +39,7 @@ class VersionOut(BaseModel):
     media_type: str
     size_bytes: int
     sha256: str
+    status: Literal["QUARANTINED", "AVAILABLE", "REJECTED"]  # lifecycle; only AVAILABLE is ever served
     scan_status: Literal["scan_pending", "clean", "infected"]
     uploaded_at: str
     scanned_at: str | None
@@ -152,6 +156,32 @@ def list_documents(region: str | None = None, doc_type: str | None = None,
 def scan_version(version_id: UUID, principal: Principal = Depends(current_principal)):
     """Scan (or rescan) a scan_pending version. 503 if the scanner cannot answer; nothing changes then."""
     return service.version_view(service.scan_version(principal, version_id))
+
+
+# A served file can never run script, load anything or be framed by another site, and is never cached.
+CONTENT_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store",
+    "Content-Security-Policy": "default-src 'none'; sandbox",
+}
+
+
+def content_disposition(filename: str) -> str:
+    """inline, with an ASCII fallback and the RFC 5987 UTF-8 form. Quotes, separators and controls never pass."""
+    name = safe_display_filename(filename)
+    ascii_name = re.sub(r'[^A-Za-z0-9._ -]', "_", name).strip() or "document"
+    return f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"
+
+
+@router.get("/document-versions/{version_id}/content", response_class=Response,
+            responses={200: {"content": {"application/pdf": {}, "image/png": {}, "image/jpeg": {}},
+                             "description": "the stored file, for a version scanned clean"},
+                       409: {"description": "DocumentNotViewable: quarantined or rejected version"}})
+def version_content(version_id: UUID, principal: Principal = Depends(current_principal)):
+    """The uploaded file, for anyone who may read this version's facts. Quarantined and rejected versions: 409."""
+    result = service.version_content(principal, version_id)
+    return Response(result.content, media_type=result.media_type,
+                    headers={**CONTENT_HEADERS, "Content-Disposition": content_disposition(result.filename)})
 
 
 @router.post("/document-versions/{version_id}/extract", response_model=ExtractionOut, status_code=201,

@@ -521,3 +521,92 @@ def test_real_clamd_detects_the_standard_test_file():
     assert scanner.scan(io.BytesIO(pdf())).verdict is ScanVerdict.CLEAN
     result = scanner.scan(io.BytesIO(eicar))
     assert result.verdict is ScanVerdict.INFECTED and "Eicar" in result.signature
+
+
+# ---- viewing the stored file ----
+
+CONTENT = "/api/document-versions/{}/content"
+
+
+def test_a_clean_version_is_served_inline_with_locked_down_headers(docs):
+    app_id = new_application(docs.client)
+    body = pdf("viewable")
+    r = upload(docs.client, app_id, body, key="view-key-1", name="lease deedé;x.pdf")
+    version_id = r.json()["version"]["version_id"]
+    assert r.json()["version"]["status"] == "QUARANTINED"  # until the scan that runs after the upload commits
+
+    got = docs.client.get(CONTENT.format(version_id), headers=COMMITTEE)
+    assert got.status_code == 200 and got.content == body
+    assert got.headers["content-type"] == "application/pdf"
+    assert got.headers["x-content-type-options"] == "nosniff"
+    assert got.headers["cache-control"] == "private, no-store"
+    assert got.headers["content-security-policy"] == "default-src 'none'; sandbox"
+    disposition = got.headers["content-disposition"]
+    assert disposition == "inline; filename=\"lease deed__x.pdf\"; filename*=UTF-8''lease%20deed%C3%A9%3Bx.pdf"
+
+
+def test_content_disposition_never_lets_a_filename_break_out():
+    from app.documents.api import content_disposition
+
+    value = content_disposition('x"y\r\nSet-Cookie: z.pdf')
+    assert value == "inline; filename=\"x_ySet-Cookie_ z.pdf\"; filename*=UTF-8''x%22ySet-Cookie%3A%20z.pdf"
+    assert content_disposition("..\\..\\secret/c.pdf").startswith('inline; filename="c.pdf"')
+    assert content_disposition("").startswith('inline; filename="upload"')
+
+
+@pytest.mark.parametrize("h,code", [(INST, 200), (NORTH_INST, 403), (COMMITTEE, 200), (RO_SOUTH, 200),
+                                    (RO_NORTH, 403), (BUREAU, 200), (AUDITOR, 200)])
+def test_who_may_view_a_version(docs, h, code):
+    _, version_id = clean_version(docs, marker="who-views")
+    assert docs.client.get(CONTENT.format(version_id), headers=h).status_code == code
+
+
+def test_committee_viewing_follows_the_assignment_rule(docs, monkeypatch):
+    from dataclasses import replace
+
+    from app.platform import auth
+
+    _, version_id = clean_version(docs, marker="assigned")
+    monkeypatch.setattr(auth, "settings", replace(auth.settings, authz_require_assignment=True))
+    assert docs.client.get(CONTENT.format(version_id), headers=COMMITTEE).status_code == 403
+    assert docs.client.get(CONTENT.format(version_id), headers=RO_SOUTH).status_code == 200
+
+
+def test_quarantined_and_rejected_versions_are_never_served(docs):
+    app_id = new_application(docs.client)
+    docs.scanner.down = True
+    pending = upload(docs.client, app_id, pdf("pending"), key="view-key-p").json()["version"]
+    assert pending["status"] == "QUARANTINED" and pending["scan_status"] == "scan_pending"
+    docs.scanner.down = False
+    docs.scanner.infected.add(pdf("bad"))
+    infected = upload(docs.client, app_id, pdf("bad"), key="view-key-i", doc_type="FIRE_NOC").json()["version"]
+    listed = docs.client.get(f"/api/applications/{app_id}/documents", headers=INST).json()
+    assert {v["status"] for d in listed for v in d["versions"]} == {"QUARANTINED", "REJECTED"}
+    for version, word in ((pending, "malware scan"), (infected, "rejected")):
+        for h in (INST, BUREAU):
+            r = docs.client.get(CONTENT.format(version["version_id"]), headers=h)
+            assert r.status_code == 409 and r.json()["error"] == "DocumentNotViewable"
+            assert word in r.json()["detail"] and "%PDF" not in r.text
+    # authorization still comes first: another institution learns nothing about the version
+    assert docs.client.get(CONTENT.format(pending["version_id"]), headers=NORTH_INST).status_code == 403
+    assert docs.client.get(CONTENT.format("00000000-0000-4000-8000-00000000dead"), headers=BUREAU).status_code == 404
+
+
+def test_stored_bytes_that_no_longer_match_the_upload_are_not_served(docs):
+    _, version_id = clean_version(docs, marker="tampered")
+    with new_session() as s:
+        ref = s.get(DocumentVersion, UUID(version_id)).storage_ref
+    path = docs.store.joinpath(*ref.split("/"))
+    path.write_bytes(path.read_bytes() + b"appended")
+    r = docs.client.get(CONTENT.format(version_id), headers=BUREAU)
+    assert r.status_code == 409 and r.json()["error"] == "StoredContentMismatch"
+
+
+def test_document_listings_show_the_version_lifecycle_status(docs):
+    app_id, version_id = clean_version(docs, marker="status")
+    doc = docs.client.get(f"/api/applications/{app_id}/documents", headers=INST).json()[0]
+    assert doc["versions"][0]["status"] == "AVAILABLE" and doc["versions"][0]["scan_status"] == "clean"
+    listed = docs.client.get("/api/documents", headers=BUREAU).json()
+    assert {v["status"] for d in listed for v in d["versions"]} == {"AVAILABLE"}
+    facts = docs.client.get(f"/api/document-versions/{version_id}/facts", headers=BUREAU).json()
+    assert facts["version_status"] == "AVAILABLE" and facts["scan_status"] == "clean"
