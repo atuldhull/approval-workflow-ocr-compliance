@@ -16,6 +16,7 @@ from app.deadlines.models import Deadline
 from app.platform.db import get_engine, new_session, unit_of_work
 from app.platform.models import CaseNote, DomainEvent
 from app.platform.registry import port
+from backend.tests.intake_test_helpers import ensure_intake_rules
 from conftest import NORTHFIELD, SUNRISE, headers
 from contracts.enums import LetterType, Role
 from contracts.errors import Forbidden
@@ -393,6 +394,7 @@ def test_demo_letters_are_dated_from_the_demo_clock_with_one_overdue(client):
     from app.compliance import demo_seed
     from app.deadlines.wiring import clock
 
+    ensure_intake_rules(client)  # the seed submits through intake, whose rules startup imports
     clock.advance(40)  # the seed follows the demo clock, not the calendar
     today = clock.now().astimezone(service.IST).date()
     created = demo_seed.seed_letters()

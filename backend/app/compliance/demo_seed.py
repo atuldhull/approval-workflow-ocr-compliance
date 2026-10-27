@@ -11,7 +11,7 @@ the letter's issue date. Every letter is labelled DEMO in its letter number.
 import sys
 from dataclasses import dataclass
 from datetime import date, timedelta
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import select
 
@@ -69,7 +69,9 @@ def issue_date_for(letter: DemoLetter, today: date) -> date:
 
 def seed_letters() -> list[UUID]:
     """Registers the demo letters that do not exist yet. Returns the ids of the letters created now."""
-    from app.intake.service import create_application, submit_application
+    from app.intake.rules import plan
+    from app.intake.service import create_application, mark_items, submit_application
+    from app.intake.shapes import ItemIn
     from app.platform.db import new_session, unit_of_work
 
     today = port(ClockPort).now().astimezone(IST).date()
@@ -85,7 +87,14 @@ def seed_letters() -> list[UUID]:
         with unit_of_work(institution) as uow:
             app_id = create_application(uow, letter.institution_id, "NEW_PROGRAMME", year).id
         with unit_of_work(institution) as uow:
-            submit_application(uow, app_id)
+            # submission goes through intake: every mandatory checklist item provided (fictional DEMO document
+            # references) and the DSC present
+            checklist = plan(uow.session, "NEW_PROGRAMME", port(RulesetPort).default_key()).checklist
+            mark_items(uow, app_id, [
+                ItemIn(item_key=item["item_key"],
+                       document_ref=uuid5(NAMESPACE_URL, f"DEMO:seed-document:{app_id}:{item['item_key']}"))
+                for item in checklist["items"] if item["mandatory"]])
+            submit_application(uow, app_id, dsc_present=True)
         with unit_of_work(BUREAU) as uow:
             row = register_letter(uow, LetterIn(
                 application_id=app_id, institution_id=letter.institution_id, letter_type=LetterType.LOA,
