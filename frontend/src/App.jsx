@@ -5,6 +5,7 @@ import { Sidebar, TopBar } from "./components/Layout.jsx";
 import { ErrorBox, Loading } from "./components/ui.jsx";
 import { navFor } from "./nav.js";
 import { WORLDS, useMotionRoot, useReveal, useScrollVar } from "./motion.js";
+import { ShowcaseLink } from "./showcase/entry.jsx"; // public walk-through at #showcase (see SHOWCASE_REPORT.md)
 import OverviewView from "./views/OverviewView.jsx";
 import ApplicationsView from "./views/ApplicationsView.jsx";
 import AuditView from "./views/AuditView.jsx";
@@ -168,7 +169,7 @@ export function Workspace({ who, me, config, identityControl }) {
       <Sidebar items={items} current={view} onNavigate={navigate} collapsed={collapsed}
         onToggleCollapse={toggleCollapse} title={navTitle} />
       <div className="main">
-        <TopBar me={me} who={who} config={config} identityControl={identityControl} title={navTitle} view={view} />
+        <TopBar me={me} who={who} config={config} identityControl={<>{identityControl}<ShowcaseLink /></>} title={navTitle} view={view} />
         <main className={`content world-${world.motion} phase-${phase}`} id="content" tabIndex={-1} ref={contentRef}>
           <header className="page-head" key={`head-${shown}`}>
             <p className="page-eyebrow">AICTE / APPROVAL OPERATIONS</p><h1>{title}</h1>
@@ -249,6 +250,7 @@ export function SignIn({ config, message }) {
         {message && <div className="alert error" role="alert">{message}</div>}
         <button onClick={() => signIn(config)}>Sign in</button>
         <p className="muted small">You will be sent to the identity provider and returned here.</p>
+        <ShowcaseLink className="showcase-link on-card" />
       </div>
     </div>
   );
@@ -293,7 +295,7 @@ export default function App() {
   useEffect(() => {
     publicApi("/auth/config").then(setConfig).catch(setError);
   }, []);
-  if (error) return <div className="sign-in"><div className="card"><h1>Connection interrupted.</h1><p>The server cannot be reached. Your work has not been replaced with demo results.</p><ErrorBox error={new Error("Check the configured API service, then reconnect.")} onRetry={() => window.location.reload()} /></div></div>;
+  if (error) return <div className="sign-in"><div className="card"><h1>Connection interrupted.</h1><p>The server cannot be reached. Your work has not been replaced with demo results.</p><ErrorBox error={new Error("Check the configured API service, then reconnect.")} onRetry={() => window.location.reload()} /><ShowcaseLink className="showcase-link on-card" /></div></div>;
   if (!config) return <Loading />;
   return config.mode === "oidc" ? <OidcApp config={config} /> : <DemoApp config={config} />;
 }
