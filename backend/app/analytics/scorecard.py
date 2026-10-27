@@ -113,15 +113,16 @@ def _delivery(now: datetime) -> dict:
 
 # ---- alert timeliness (deadline tables) ----
 
-def _due_levels(d: Deadline, ladder, config, raised: dict[int, Alert], now: datetime) -> list[tuple[int, datetime]]:
+def _due_levels(d: Deadline, ladder, config, raised: dict[int, Alert], cutoff: datetime) -> list[tuple[int, datetime]]:
     """The ladder levels that should exist by now for the deadline's current due_version, with when each fell due.
-    A level after a vacant one is due at once (the vacancy rule); levels stop where the ladder is not yet due."""
+    A level after a vacant one is due at once (the vacancy rule); levels stop where the ladder is not yet due.
+    cutoff is the instant by which a level must exist (now less the worker's grace, or the acknowledgement)."""
     due, previous = [], None
     for step in ladder:
         fire_at = config.fire_at(step, d.due_at)
         if previous is not None and previous.status == "VACANT":
             fire_at = min(fire_at, previous.raised_at)
-        if fire_at > now - ALERT_GRACE:
+        if fire_at > cutoff:
             break
         due.append((step.level, fire_at))
         previous = raised.get(step.level)
@@ -133,7 +134,8 @@ def _due_levels(d: Deadline, ladder, config, raised: dict[int, Alert], now: date
 def _alert_timeliness(session, now: datetime) -> dict:
     key, title = "alerts", "Deadline alerts raised when due (missed / duplicate / early)"
     method = ("For every running deadline, works out from its alert ladder which levels have fallen due "
-              f"(allowing {int(ALERT_GRACE.total_seconds() // 60)} minutes for the timer worker) and compares them with "
+              f"(allowing {int(ALERT_GRACE.total_seconds() // 60)} minutes for the timer worker) and compares them "
+              "with "
               "the alerts actually raised for the current due date. Acknowledged deadlines stop their ladder.")
     alerts = session.scalars(select(Alert)).all()
     by_deadline: dict = defaultdict(list)
@@ -146,15 +148,16 @@ def _alert_timeliness(session, now: datetime) -> dict:
     missed_by_subject: Counter = Counter()
     for d in session.scalars(select(Deadline).where(Deadline.status == DeadlineStatus.RUNNING)).all():
         current = {a.level: a for a in by_deadline.get(d.id, ()) if a.due_version == d.due_version}
-        if any(a.status == "ACKNOWLEDGED" for a in current.values()):
-            continue
+        acked = [a.acknowledged_at for a in current.values() if a.status == "ACKNOWLEDGED" and a.acknowledged_at]
+        # an acknowledgement stops the ladder: only levels that fell due before it should exist
+        until = min(acked) if acked else now - ALERT_GRACE
         try:
             config, ladder = alert_config(d)
         except ContractError:
             continue
         if not ladder:
             continue
-        for level, fire_at in _due_levels(d, ladder, config, current, now):
+        for level, fire_at in _due_levels(d, ladder, config, current, until):
             expected += 1
             a = current.get(level)
             if a is None:

@@ -50,7 +50,8 @@ def upload(client, app_id, marker="score") -> str:
 
 
 def review(client, fact_id, typed, decision, value=None):
-    assert client.post(f"/api/document-facts/{fact_id}/entry", headers=REVIEWER, json={"value": typed}).status_code == 200
+    entry = client.post(f"/api/document-facts/{fact_id}/entry", headers=REVIEWER, json={"value": typed})
+    assert entry.status_code == 200, entry.text
     body = {"decision": decision, **({"value": value} if value else {})}
     r = client.post(f"/api/document-facts/{fact_id}/review", headers=REVIEWER, json=body)
     assert r.status_code == 200, r.text
@@ -113,6 +114,13 @@ def test_alert_levels_that_fell_due_are_compared_with_alerts_raised(client):
     alerts = items(client)["alerts"]
     assert alerts["outcome"] == "PASS", alerts["finding"]
     assert alerts["result"]["missed"] == 0 and alerts["result"]["raised"] == alerts["result"]["levels_due"] >= 1
+    # after an acknowledgement, the levels raised before it still count as due and raised
+    ro = {**headers("RO_OFFICER", user="00000000-0000-4000-9000-000000000005"), "X-Demo-Region": "Southern"}
+    for alert in client.get("/api/alerts?status=OPEN", headers=ro).json():
+        assert client.post(f"/api/alerts/{alert['id']}/ack", headers=ro).status_code == 200
+    acked = items(client)["alerts"]
+    assert acked["outcome"] == "PASS", acked["finding"]
+    assert acked["result"]["raised"] == alerts["result"]["raised"]
 
 
 def test_alert_raised_before_its_level_was_due_is_reported(client):
