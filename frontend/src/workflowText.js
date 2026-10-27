@@ -150,6 +150,8 @@ export function refusalText(error) {
     return keys.length ? `Not submitted. ${keys.map(missingText).join(" ")}` : REASONS.MANDATORY_ITEMS_MISSING;
   }
   if (error.reason && REASONS[error.reason]) return REASONS[error.reason];
+  // An unlisted code is shown in readable words; a 403 keeps the client's "Not permitted" wording.
+  if (error.reason && error.status !== 403) return reasonText(error.reason);
   return error.message;
 }
 

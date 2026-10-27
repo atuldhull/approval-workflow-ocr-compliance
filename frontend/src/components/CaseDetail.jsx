@@ -54,7 +54,7 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
 
   const { caseRec, app, deadlines, timeline, deficiencies, docs } = data;
   const committeeIds = committeeIdsFrom(timeline);
-  const stage = caseRec.stage ? stageLabel(caseRec.stage) : caseRec.status === "DRAFT" ? "Not submitted" : STATUS_TEXT[caseRec.status];
+  const stage = caseRec.stage ? stageLabel(caseRec.stage) : caseRec.status === "DRAFT" ? "Not submitted" : "Route finished";
   const sorted = [...deadlines].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
   return (
     <article className="card case" aria-labelledby={`case-${app.id}`}>

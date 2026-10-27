@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useActionKey } from "../actionKey.js";
-import { ROLE_LABELS } from "../nav.js";
+import { ROLE_LABELS, sentence } from "../nav.js";
 import {
   DEFICIENCY_ITEM_KEYS, LETTER_ACTIONS, WORKFLOW_REASONS, actionLabel, itemLabel, reasonText, refusal,
 } from "../workflowText.js";
 import { versionOptions, VersionPicker } from "./Checklist.jsx";
 import { stageLabel } from "./RouteJourney.jsx";
-import { Badge, ErrorBox, useSingleFlight } from "./ui.jsx";
+import { ErrorBox, useSingleFlight } from "./ui.jsx";
 
 // Actions the server needs a reason code for (reason_codes_required) get the ruleset's reason list; the submit
 // action is driven by the checklist panel, which collects the items and the DSC flag it needs.
@@ -51,7 +51,7 @@ export default function CaseActions({ who, me, caseRec, application, deficiencie
   const [open, setOpen] = useState(null);
   const act = useCaseAction(who, caseRec, onChanged);
   const listed = (caseRec.available_actions ?? []).filter((a) => !HANDLED_ELSEWHERE.has(a.action));
-  const where = caseRec.stage ? stageLabel(caseRec.stage) : caseRec.status === "DRAFT" ? "draft" : caseRec.status.toLowerCase();
+  const where = caseRec.stage ? stageLabel(caseRec.stage) : caseRec.status === "DRAFT" ? "draft" : "the end of the route";
 
   return (
     <section className="case-zone case-actions" aria-labelledby={`act-${caseRec.case_id}`}>
@@ -61,29 +61,39 @@ export default function CaseActions({ who, me, caseRec, application, deficiencie
         rule again when you act.
       </p>
       {listed.length === 0 && <p className="muted">No actions for your role at this stage.</p>}
-      <ul className="action-list">
-        {listed.map((a) => (
-          <li key={a.action} className={`action-row${a.enabled ? "" : " blocked"}`}>
-            <div className="action-head">
-              <strong>{actionLabel(a.action)}</strong>
-              {a.targets?.length > 0 && <span className="muted small">to {a.targets.map(stageLabel).join(" or ")}</span>}
-              {a.enabled ? (
-                <button type="button" className="small secondary" aria-expanded={open === a.action}
-                  onClick={() => { setOpen(open === a.action ? null : a.action); act.clear(); }}>
-                  {open === a.action ? "Close" : "Open"}
-                </button>
-              ) : (
-                <Badge tone="neutral">Not available now</Badge>
-              )}
-            </div>
-            {!a.enabled && <p className="small action-reason">{reasonText(a.reason_code)}</p>}
-            {a.enabled && open === a.action && (
-              <ActionForm who={who} action={a} caseRec={caseRec} application={application} deficiencies={deficiencies}
-                docs={docs} committeeIds={committeeIds} act={act} onDone={() => setOpen(null)} />
-            )}
-          </li>
-        ))}
-      </ul>
+      {[["enabled", listed.filter((a) => a.enabled)], ["blocked", listed.filter((a) => !a.enabled)]].map(([group, actions]) => {
+        if (!actions.length) return null;
+        const list = (
+          <ul className="action-list">
+            {actions.map((a) => (
+              <li key={a.action} className={`action-row${a.enabled ? "" : " blocked"}`}>
+                <div className="action-head">
+                  <strong>{actionLabel(a.action)}</strong>
+                  {a.targets?.length > 0 && <span className="muted small">to {a.targets.map(stageLabel).join(" or ")}</span>}
+                  {a.enabled && (
+                    <button type="button" className="small secondary" aria-expanded={open === a.action}
+                      onClick={() => { setOpen(open === a.action ? null : a.action); act.clear(); }}>
+                      {open === a.action ? "Close" : "Open"}
+                    </button>
+                  )}
+                </div>
+                {!a.enabled && <p className="small action-reason">{reasonText(a.reason_code)}</p>}
+                {a.enabled && open === a.action && (
+                  <ActionForm who={who} action={a} caseRec={caseRec} application={application} deficiencies={deficiencies}
+                    docs={docs} committeeIds={committeeIds} act={act} onDone={() => setOpen(null)} />
+                )}
+              </li>
+            ))}
+          </ul>
+        );
+        // Blocked actions stay listed with their reason, folded away when something can be done now.
+        return group === "enabled" ? <div key={group}>{list}</div> : (
+          <details key={group} className="action-blocked" open={!listed.some((a) => a.enabled)}>
+            <summary>Not available now ({actions.length})</summary>
+            {list}
+          </details>
+        );
+      })}
       {!open && <ErrorBox error={refusal(act.failure)} />}
     </section>
   );
@@ -204,8 +214,10 @@ function LetterFields({ who, committeeIds, letter, setLetter, application }) {
   const [reports, setReports] = useState(null);
   useEffect(() => {
     let live = true;
-    Promise.all((committeeIds ?? []).map((id) => api(who, `/committees/${id}/reports`).catch(() => [])))
-      .then((all) => live && setReports(all.map((rs) => rs[rs.length - 1]).filter(Boolean)));
+    Promise.all((committeeIds ?? []).map((id) => Promise.all([
+      api(who, `/committees/${id}`).catch(() => null), api(who, `/committees/${id}/reports`).catch(() => []),
+    ]))).then((all) => live && setReports(all
+      .map(([c, rs]) => (rs.length ? { ...rs[rs.length - 1], committee: c } : null)).filter(Boolean)));
     return () => { live = false; };
   }, [who, committeeIds]);
   return (
@@ -215,7 +227,9 @@ function LetterFields({ who, committeeIds, letter, setLetter, application }) {
         Decision cited
         <select value={letter.decision_ref} onChange={(e) => setLetter((l) => ({ ...l, decision_ref: e.target.value }))}>
           <option value="">Choose a committee report</option>
-          {(reports ?? []).map((r) => <option key={r.id} value={r.id}>Report version {r.version_no} · committee {r.committee_id.slice(0, 8)}</option>)}
+          {(reports ?? []).map((r) => <option key={r.id} value={r.id}>
+            {r.committee ? `${sentence(r.committee.type)} committee` : `Committee ${r.committee_id.slice(0, 8)}`} · latest report, version {r.version_no}
+          </option>)}
         </select>
       </label>
       <label>

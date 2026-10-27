@@ -69,7 +69,7 @@ export default function CommitteeWorkspace({ who, me, caseRec, timeline, demo, o
   }, [who, ids.join(","), tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!OFFICER_ROLES.has(me.role) && me.role !== "AUDITOR") return null;
-  const canWrite = WRITERS.has(me.role);
+  const canWrite = WRITERS.has(me.role) && caseRec.status === "IN_PROCESS";
   const staffing = STAFFING[caseRec.stage] ?? [];
 
   return (
