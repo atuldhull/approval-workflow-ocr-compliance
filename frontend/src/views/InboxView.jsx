@@ -17,7 +17,7 @@ const FILTERS = [["all", "All"], ["unread", "Unread"], ["urgent", "Urgent"]];
 
 // The inbox as a signal stream: grouped by day (IST), unread signals pulse softly, urgent ones carry the
 // warning mark, and choosing one opens its detail beside the stream.
-export default function InboxView({ who }) {
+export default function InboxView({ who, onNavigate }) {
   const { data, error, loading, reload } = useApi(who, "/notifications/inbox");
   const [busy, setBusy] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -98,7 +98,7 @@ export default function InboxView({ who }) {
             </ul>
           </section>
         ))}
-        <p className="muted small">Acknowledging an alert will be enabled when the alerts module provides it.</p>
+        <p className="muted small">Deadline alerts are acknowledged on the Alerts screen, by the role they are addressed to.</p>
       </Card>
 
       {open && (
@@ -114,9 +114,9 @@ export default function InboxView({ who }) {
             <dt>Read</dt><dd>{open.read_at ? when(open.read_at) : "Not yet"}</dd>
           </dl>
           <p className="muted small">Messages carry no case details by design; sign-in is how the details are seen.</p>
-          <button className="secondary small" disabled title="Acknowledgement is recorded by the alerts module (Person 2), not built yet">
-            Acknowledge
-          </button>
+          {onNavigate && (
+            <button className="secondary small" onClick={() => onNavigate("alerts")}>Open alerts to acknowledge</button>
+          )}
         </aside>
       )}
     </div>
