@@ -2,7 +2,7 @@
 #   docker compose up --build
 #
 # Optional profiles - laptops only run them when needed:
-#   docker compose --profile worker up            # + notification delivery worker
+#   docker compose --profile worker up            # + notification delivery and deadline timer workers
 #   docker compose --env-file .env.security --profile security --profile worker up
 #                                                 # + Keycloak, Cerbos, Mailpit (local mail sink), real sign-in
 #   docker compose --profile scanning up -d clamav  # + ClamAV malware scanner for uploaded documents
@@ -84,6 +84,23 @@ services:
     volumes:
       - ./backend:/srv/backend
       - ./contracts:/srv/contracts
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Deadline timers: fires due alert levels from dl.deadline.next_fire_at. Demo time travel is shared through
+  # the database (dl.sim_clock), so this worker sees POST /api/sim/clock too.
+  deadline-worker:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "app.deadlines.worker", "--poll-seconds", "10"]
+    environment: *backend-env
+    volumes:
+      - ./backend:/srv/backend
+      - ./contracts:/srv/contracts
+      - ./rulesets:/srv/rulesets
     depends_on:
       db:
         condition: service_healthy

@@ -1,7 +1,8 @@
 """Deadline timer worker: fires due ladder levels from persisted state.
 
-    python -m app.deadlines.worker            # run until stopped
-    python -m app.deadlines.worker --once     # process what is due now, then exit
+    python -m app.deadlines.worker                     # run until stopped, polling every 5 s when idle
+    python -m app.deadlines.worker --poll-seconds 10   # poll interval when nothing was due
+    python -m app.deadlines.worker --once              # process what is due now, then exit
 
 Guarantees:
 - The schedule lives in dl.deadline.next_fire_at; nothing is held in memory, so a restart loses nothing and a
@@ -163,7 +164,10 @@ class TimerWorker:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Fire due deadline alerts and escalations.")
     ap.add_argument("--once", action="store_true", help="process what is due now and exit")
+    ap.add_argument("--poll-seconds", type=float, default=5.0, help="wait this long when nothing was due")
     args = ap.parse_args()
+    if args.poll_seconds <= 0:
+        ap.error("--poll-seconds must be positive")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
     from app.main import create_app
@@ -181,7 +185,7 @@ def main() -> None:
     stop = threading.Event()
     log.info("deadline timer %s started", worker.worker_id)
     try:
-        worker.run_forever(stop)
+        worker.run_forever(stop, poll_seconds=args.poll_seconds)
     except KeyboardInterrupt:
         stop.set()
 
