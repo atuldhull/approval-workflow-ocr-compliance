@@ -10,7 +10,7 @@ const FILTERS = [
   ["DRAFT", "Drafts"],
 ];
 
-// The case list: a reference to tell cases apart, the stage in words, the date filed. Status filters and a text
+// The case list: a reference to tell cases apart, the stage in words, the date filed (or started, for a draft). Status filters and a text
 // filter narrow the rows; counts on the chips are computed from the rows the server returned.
 export default function ApplicationList({ apps, selected, onSelect }) {
   const [filter, setFilter] = useState("all");
@@ -28,7 +28,7 @@ export default function ApplicationList({ apps, selected, onSelect }) {
     <section className="card cases" aria-labelledby="cases-title">
       <header className="card-head">
         <h2 id="cases-title">Applications <span className="count num">{apps.length}</span></h2>
-        <button className="ghost small" onClick={() => setNewestFirst((v) => !v)} aria-label={`Sort by date filed, ${newestFirst ? "newest" : "oldest"} first`}>
+        <button className="ghost small" onClick={() => setNewestFirst((v) => !v)} aria-label={`Sort by date started, ${newestFirst ? "newest" : "oldest"} first`}>
           {newestFirst ? "Newest first" : "Oldest first"}
         </button>
       </header>
@@ -57,7 +57,7 @@ export default function ApplicationList({ apps, selected, onSelect }) {
               <span className="row-main">
                 <span className="row-title">{sentence(a.category)}</span>
                 <span className="row-sub">
-                  <code title={INTERNAL_REF_TITLE}>{internalRef(a.id)}</code>{a.academic_year ? ` · ${a.academic_year}` : ""}{a.created_at ? ` · filed ${dateIST(a.created_at)}` : ""}
+                  <code title={INTERNAL_REF_TITLE}>{internalRef(a.id)}</code>{a.academic_year ? ` · ${a.academic_year}` : ""}{a.submitted_at ? ` · filed ${dateIST(a.submitted_at)}` : a.created_at ? ` · started ${dateIST(a.created_at)}` : ""}
                 </span>
               </span>
               <span className={`badge ${a.status === "DRAFT" ? "draft" : "info"}`}>

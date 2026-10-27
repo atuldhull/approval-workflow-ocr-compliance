@@ -548,6 +548,18 @@ describe("redesign interactions", () => {
     expect(screen.getAllByRole("button", { pressed: false }).filter((b) => b.classList.contains("row"))).toHaveLength(2);
   });
 
+  it("case list dates a submitted case by its filing and a draft by when it was started", () => {
+    render(<ApplicationList apps={[
+      { id: "d1", category: "NEW_PROGRAMME", academic_year: "2027-28", status: "DRAFT", current_stage: null,
+        created_at: "2026-10-01T10:00:00Z", submitted_at: null },
+      { id: "s1", category: "NEW_PROGRAMME", academic_year: "2027-28", status: "IN_PROCESS", current_stage: "SCRUTINY",
+        created_at: "2026-10-02T10:00:00Z", submitted_at: "2026-10-09T10:00:00Z" },
+    ]} selected={null} onSelect={() => {}} />);
+    expect(screen.getByText(/started 01 Oct 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/filed 09 Oct 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/filed 01 Oct 2026|filed 02 Oct 2026/)).not.toBeInTheDocument();
+  });
+
   it("the ledger falls back to a block strip without WebGL and says what it shows", () => {
     render(<LedgerChamber chain={{ ok: false, checked: 12, first_bad_seq: 9 }} verify={{ ok: false, assurance: "NONE" }} />);
     const strip = screen.getByRole("img", { name: /12 ledger entries: 0 anchored by the trusted checkpoint, first broken link at entry 9/ });
