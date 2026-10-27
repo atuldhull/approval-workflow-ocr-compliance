@@ -38,11 +38,12 @@ def main() -> int:
     trusted_path.write_text(json.dumps(trusted, indent=2) + "\n")
     print(f"""created {private_path.relative_to(ROOT)} and trusted {kid} in {trusted_path.relative_to(ROOT)}
 
-Set (paths as the backend sees them; inside Docker the folder is mounted at /srv/.secrets):
+Set (paths as the backend sees them; inside Docker the folder is mounted read-only at /srv/.secrets):
   AUDIT_SIGNING_KEY_FILE=.secrets/audit-{kid}.pem
   AUDIT_SIGNING_KEY_ID={kid}
   AUDIT_TRUSTED_KEYS_FILE=.secrets/audit-trusted-keys.json
-  AUDIT_WITNESS_DIR=.secrets/witness
+  AUDIT_WITNESS_DIR=.secrets/witness          (backend outside Docker)
+  AUDIT_WITNESS_DIR=/var/lib/awoc/witness     (docker compose: the witness volume; .secrets is read-only there)
 
 For a real deployment the private key belongs in a secret store and the witness outside this machine.""")
     return 0

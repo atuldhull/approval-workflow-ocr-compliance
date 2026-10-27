@@ -67,6 +67,8 @@ services:
       - ./generator:/srv/generator
       - ./.secrets:/srv/.secrets:ro
       - documents:/var/lib/awoc/documents
+      # the demo checkpoint witness appends here; .secrets above is read-only
+      - audit_witness:/var/lib/awoc/witness
     depends_on:
       db:
         condition: service_healthy
@@ -182,3 +184,4 @@ volumes:
   frontend_modules:
   clamav_db:
   documents:
+  audit_witness:
