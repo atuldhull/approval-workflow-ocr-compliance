@@ -16,7 +16,7 @@ from app.deadlines.wiring import clock
 from app.platform import auth
 from app.platform.demo_seed import seed_directory
 from conftest import NORTHFIELD, SUNRISE, headers
-from document_fakes import configure_documents, pdf
+from document_fakes import CleanScanner, configure_documents, pdf
 
 U = lambda n: f"00000000-0000-4000-9000-{n:012d}"  # noqa: E731
 ROLES = {
@@ -59,7 +59,8 @@ MATRIX = [
     ("file for Sunrise", "POST", "/api/applications",
      {"institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"},
      expect({"inst_sunrise": 201})),
-    ("all deadlines", "GET", "/api/deadlines", None, expect(("committee",) + OVERSIGHT)),
+    # regional officers get their own region's deadlines (the list is filtered, not refused)
+    ("all deadlines", "GET", "/api/deadlines", None, expect(("committee", "ro_south", "ro_north") + OVERSIGHT)),
     ("ledger chain", "GET", "/api/ledger/verify", None, expect(OVERSIGHT)),
     ("audit verify", "GET", "/api/audit/verify", None, expect(OVERSIGHT)),
     ("checkpoint list", "GET", "/api/audit/checkpoints", None, expect(OVERSIGHT)),
@@ -94,8 +95,15 @@ MATRIX = [
     ("documents across cases", "GET", "/api/documents", None, expect(ALL)),
     ("another region's documents", "GET", "/api/documents?region=Northern", None,
      expect(tuple(r for r in ALL if r != "ro_south"))),
-    # a rescan is the uploader's action (document.upload); the version is already clean, so nothing changes
-    ("rescan a version", "POST", "/api/document-versions/{version}/scan", None, expect({"inst_sunrise": 200})),
+    # a rescan (document.rescan) is for the owning institution and the case officers who can chase a stuck scan;
+    # the version is already clean, so nothing changes
+    ("rescan a version", "POST", "/api/document-versions/{version}/scan", None,
+     expect(("inst_sunrise", "ro_south", "bureau_officer", "bureau_head"))),
+    # the stored file is served to whoever may read the version's facts
+    ("view a clean version", "GET", "/api/document-versions/{version}/content", None, expect(CASE_READERS)),
+    # {quarantined} never got a scan verdict: the same readers pass authorisation and are told it cannot be viewed
+    ("view a quarantined version", "GET", "/api/document-versions/{quarantined}/content", None,
+     expect(CASE_READERS, code=409)),
     ("extract facts again", "POST", "/api/document-versions/{version}/extract", None,
      expect(("committee", "ro_south"))),
     # institutions see confirmed values only (none yet); officers and oversight see the proposals
@@ -126,18 +134,22 @@ MATRIX = [
     # a rejection without a reason code is refused after authorisation, so nothing is decided
     ("verify evidence", "POST", "/api/compliance/evidence/{evidence}/verify", {"decision": "REJECTED"},
      expect(CASE_OFFICERS, code=422)),
+    # the verifier's note: officers who may verify and the owning institution; oversight-only roles see has_note only
+    ("an evidence note", "GET", "/api/compliance/evidence/{evidence}/note", None,
+     expect(CASE_OFFICERS + ("inst_sunrise",))),
 
     # ---- Person 2: alerts and demo timers. {alert} is the level-0 reminder to the Southern regional office. ----
     ("alerts", "GET", "/api/alerts", None, expect(ALL)),
-    # a regional officer's region filter is replaced by their own region rather than refused
-    ("another region's alerts", "GET", "/api/alerts?region=Northern", None, expect(ALL)),
+    # a regional officer asking for another region is refused rather than silently given its own
+    ("another region's alerts", "GET", "/api/alerts?region=Northern", None,
+     expect(tuple(r for r in ALL if r != "ro_south"))),
     # policy lets officers and institutions acknowledge; the deadlines module then requires the addressed role
     ("acknowledge an alert", "POST", "/api/alerts/{alert}/ack", None, expect(("ro_south",))),
     ("time travel", "POST", "/api/sim/clock", {"days": 1}, expect(ALL)),
     ("run the timers", "POST", "/api/sim/timers/run", None, expect(ALL)),
-    # the deadline is checked as an "application" record without its region, so no regional officer passes
+    # checked as a "deadline" record with the case's institution and region: the Southern officer passes
     ("explain a deadline", "GET", "/api/deadlines/{deadline}/explain", None,
-     expect(("inst_sunrise", "committee") + OVERSIGHT)),
+     expect(("inst_sunrise", "committee", "ro_south") + OVERSIGHT)),
 ]
 
 
@@ -150,9 +162,10 @@ def letter_body(app_id: str, year: str = "2025-26") -> dict:
 class World(dict):
     """The records a row names, built the first time a row asks for one."""
 
-    def __init__(self, client, app_id):
+    def __init__(self, client, app_id, scanner):
         super().__init__(app=app_id, random=str(uuid4()))
         self.client = client
+        self.scanner = scanner
 
     @staticmethod
     def ok(response):
@@ -178,6 +191,18 @@ class World(dict):
         assert listed[0]["versions"][0]["scan_status"] == "clean", listed
         self.ok(c.post(f"/api/document-versions/{version}/extract", headers=EXTRACTOR))
         self["version"] = version
+
+    def _quarantined(self):
+        self.scanner.down = True   # the scan after the upload cannot run, so the version stays quarantined
+        try:
+            up = self.ok(self.client.post(f"/api/applications/{self['app']}/documents",
+                                          headers={**ROLES["inst_sunrise"], "Idempotency-Key": "matrix-world-0002"},
+                                          data={"doc_type": "FIRE_NOC"},
+                                          files={"file": ("noc.pdf", pdf("matrix-pending"), "application/pdf")}))
+        finally:
+            self.scanner.down = False
+        assert up["version"]["status"] == "QUARANTINED", up
+        self["quarantined"] = up["version"]["version_id"]
 
     def _facts(self):
         facts = self.ok(self.client.get(f"/api/document-versions/{self['version']}/facts",
@@ -220,12 +245,13 @@ class World(dict):
 
 @pytest.fixture
 def case(client, tmp_path):
-    reset = configure_documents(tmp_path)
+    scanner = CleanScanner()
+    reset = configure_documents(tmp_path, scanner)
     h = ROLES["inst_sunrise"]
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
     client.post(f"/api/applications/{app_id}/submit", headers=h)
-    yield World(client, app_id)
+    yield World(client, app_id, scanner)
     reset()
 
 
