@@ -26,11 +26,11 @@ export default function HeroCanvas({ progressRef, subscribe, reduced, narrow, on
     el.appendChild(renderer.domElement);
 
     const world = buildDossierScene(renderer, { narrow });
-    let current = progressRef.current, raf = 0, frames = 0, visible = true, disposed = false;
+    let current = progressRef.current, raf = 0, frames = 0, visible = true, disposed = false, ready = false;
 
     const draw = () => {
       raf = 0;
-      if (disposed || !visible || document.hidden) return;
+      if (disposed || !ready || !visible || document.hidden) return;
       const target = progressRef.current;
       const diff = target - current;
       current = reduced || Math.abs(diff) < 0.0006 ? target : current + diff * 0.16;
@@ -64,6 +64,10 @@ export default function HeroCanvas({ progressRef, subscribe, reduced, narrow, on
     const unsubscribe = subscribe(invalidate);
     const lost = (e) => { e.preventDefault(); onFailure?.(); };
     renderer.domElement.addEventListener("webglcontextlost", lost);
+    // Compile every shader before the first frame, off the main thread where the browser supports it, so the
+    // first scroll into a new phase does not stall on a shader compile.
+    const start = () => { if (disposed) return; ready = true; el.dataset.ready = "true"; current = progressRef.current - 1e-9; invalidate(); };
+    Promise.resolve(renderer.compileAsync ? renderer.compileAsync(world.scene, world.camera) : null).then(start, start);
     el.dataset.rendered = "true";
 
     return () => {

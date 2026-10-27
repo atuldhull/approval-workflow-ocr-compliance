@@ -161,8 +161,8 @@ export function buildDossierScene(renderer, { narrow = false } = {}) {
 
   // dividers: section cards with side tabs, sitting in the folder between sheet groups
   const dividerMats = [
-    mat({ color: 0xffffff, map: tex(drawDivider("PART B · PREMISES", "#3c5a55")), roughness: 0.8 }),
-    mat({ color: 0xffffff, map: tex(drawDivider("PART D · FINANCE", "#9a7843")), roughness: 0.8 }),
+    mat({ color: 0xffffff, map: tex(drawDivider("PART B", "#3c5a55")), roughness: 0.8 }),
+    mat({ color: 0xffffff, map: tex(drawDivider("PART D", "#9a7843")), roughness: 0.8 }),
   ];
   const dividers = [0.95, 0.15].map((a, i) => {
     const g = geo(new THREE.ExtrudeGeometry(roundedRect(SW + 0.04, SH + 0.02, 0.03, { side: "right", a: a - 0.42 + i * 0.1, b: a + i * 0.1, d: 0.16 }), { depth: 0.006, bevelEnabled: false, curveSegments: 4 }));

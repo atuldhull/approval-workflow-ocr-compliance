@@ -378,3 +378,5 @@ html.in-showcase body{background:#141310}
   .sc-hero-copy{right:var(--sc-gutter);width:auto;max-width:620px;top:calc(var(--sc-bar) + 48px);bottom:auto;align-items:start}
   .sc-hero-stage::before{inset:0 0 auto;height:58%;background:linear-gradient(#141310 0%,#141310e0 60%,#14131000)}
 }
+.sc-canvas{opacity:0;transition:opacity .6s ease}
+.sc-canvas[data-ready="true"]{opacity:1}

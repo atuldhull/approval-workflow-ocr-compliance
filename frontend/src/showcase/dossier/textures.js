@@ -18,12 +18,31 @@ function canvas(w, h) {
   return [c, c.getContext("2d")];
 }
 
-function grain(ctx, w, h, rand, alpha, count, light = false) {
-  for (let i = 0; i < count; i++) {
-    const v = light ? 255 : 0;
-    ctx.fillStyle = `rgba(${v},${v},${v},${(rand() * alpha).toFixed(3)})`;
-    ctx.fillRect(rand() * w, rand() * h, 1 + rand() * 2, 1);
+// Paper tooth and board fibre: one small noise tile, written once through ImageData and repeated as a pattern.
+// (Thousands of individual fillRect calls per sheet cost hundreds of milliseconds on load.)
+const tiles = {};
+function noiseTile(light) {
+  const key = light ? "light" : "dark";
+  if (tiles[key]) return tiles[key];
+  const [c, ctx] = canvas(192, 192);
+  const img = ctx.createImageData(192, 192);
+  const rand = rng(light ? 11 : 23);
+  const v = light ? 255 : 0;
+  for (let i = 0; i < img.data.length; i += 4) {
+    const r = rand();
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = r > 0.82 ? Math.floor((r - 0.82) * 1400) : 0; // sparse specks, varied strength
   }
+  ctx.putImageData(img, 0, 0);
+  tiles[key] = c;
+  return c;
+}
+function grain(ctx, w, h, rand, alpha, count, light = false) {
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha * (count / 6000));
+  ctx.fillStyle = ctx.createPattern(noiseTile(light), "repeat");
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
 }
 
 // Grey "printed text" bars: reads as type at product-shot distance without inventing content.
