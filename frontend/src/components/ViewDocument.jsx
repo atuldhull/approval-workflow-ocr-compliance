@@ -58,7 +58,7 @@ export default function ViewDocument({ who, versionId, filename, label = "View d
     <span className="view-document">
       <button type="button" className="ghost small" onClick={open} disabled={busy}
         aria-label={filename ? `${label}: ${filename}` : label}>
-        <Icon name="document" /> {busy ? "Opening…" : label}
+        <Icon name="documents" /> {busy ? "Opening…" : label}
       </button>
       {fallback && (
         <a className="small" href={fallback} download={filename || "document"} onClick={() => setTimeout(() => {
