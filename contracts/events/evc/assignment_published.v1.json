@@ -3,11 +3,11 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "run_id",
-    "algorithm",
     "application_id",
     "request_id",
     "assignment_id",
+    "run_id",
+    "algorithm",
     "slot_id",
     "date",
     "slot_part",
@@ -15,19 +15,13 @@
     "lateness_days",
     "expert_ids",
     "panel_role",
-    "selector_label",
+    "ruleset_key",
+    "request_status",
     "simulation_status",
-    "source_status",
-    "assumption_code"
+    "selector_policy_version",
+    "source_status"
   ],
   "properties": {
-    "run_id": {
-      "type": "string",
-      "format": "uuid"
-    },
-    "algorithm": {
-      "enum": ["EDF", "CPSAT"]
-    },
     "application_id": {
       "type": "string",
       "format": "uuid"
@@ -40,6 +34,16 @@
       "type": "string",
       "format": "uuid"
     },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "algorithm": {
+      "enum": [
+        "EDF",
+        "CPSAT"
+      ]
+    },
     "slot_id": {
       "type": "string",
       "format": "uuid"
@@ -49,7 +53,10 @@
       "format": "date"
     },
     "slot_part": {
-      "enum": ["AM", "PM"]
+      "enum": [
+        "AM",
+        "PM"
+      ]
     },
     "due_by": {
       "type": "string",
@@ -72,17 +79,21 @@
       "type": "string",
       "pattern": "^[A-Z][A-Z0-9_]*$"
     },
-    "selector_label": {
-      "const": "SIMULATED authorised selector (stand-in)"
+    "ruleset_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$"
+    },
+    "request_status": {
+      "const": "PUBLISHED"
     },
     "simulation_status": {
       "const": "SIMULATED"
     },
+    "selector_policy_version": {
+      "const": "DEMO_SELECTOR_V1"
+    },
     "source_status": {
       "const": "DEMO_ASSUMPTION"
-    },
-    "assumption_code": {
-      "const": "EVC_SCHEDULING_POLICY_UNCONFIRMED"
     }
   }
 }
