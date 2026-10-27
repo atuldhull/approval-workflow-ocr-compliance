@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -204,11 +205,10 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
     )
     migration_versions = text("SELECT version_num FROM alembic_version")
 
-    # only this module's own chains; other modules add heads of their own
-    expected_heads = {
-        "dl_0004_calendar_truncate_guards",
-        "doc_0003_document_history_guards",
-    }
+    # only this module's own chains; other modules add heads of their own. The deadlines head moves as the
+    # chain grows, so read it from the scripts rather than naming it.
+    dl_head = next(h for h in ScriptDirectory.from_config(config).get_heads() if h.startswith("dl_"))
+    expected_heads = {dl_head, "doc_0003_document_history_guards"}
     assert set(pg_session.scalars(protected_triggers).all()) == {
         "trg_dl_calendar_version_no_truncate",
         "trg_dl_holiday_no_truncate",
