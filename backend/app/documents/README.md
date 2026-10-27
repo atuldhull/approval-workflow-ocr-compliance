@@ -3,9 +3,9 @@
 ## Status
 
 Upload, malware scan, fact extraction, fact review and confirmation are
-available over HTTP (see "API" below). There is still **no download
-endpoint**: no route returns file bytes. Do not upload real documents; use
-synthetic files only. The frontend document-review adapter is not built yet.
+available over HTTP (see "API" below). The only route that returns file bytes
+is `GET /document-versions/{id}/content`, and only for a version scanned clean.
+Do not upload real documents; use synthetic files only.
 
 Extraction goes through a replaceable `TextEngine` (`extraction.py`). The
 default is the local engine in `text_engine.py`: pypdf for PDF text layers,
@@ -25,11 +25,12 @@ match the application's region.
 | Method and path | Permission | Notes |
 |---|---|---|
 | `POST /applications/{id}/documents` (multipart `doc_type`, `file`) | `document.upload` | `Idempotency-Key` required (422 without). 201 new version, 200 when the same bytes already exist for this item. |
-| `GET /applications/{id}/documents` | `document.facts.read` | Documents with all versions; `current_version_id` is the newest clean one. |
+| `GET /applications/{id}/documents` | `document.facts.read` | Documents with all versions; `current_version_id` is the newest clean one. Each version has `status` (`QUARANTINED`, `AVAILABLE`, `REJECTED`) and `scan_status`. |
 | `GET /documents?region=&doc_type=` | `document.facts.read` | Across applications. Institutions get their own; regional officers always their own region. |
 | `POST /document-versions/{id}/scan` | `document.upload` | Rescan a `scan_pending` version; 503 if the scanner cannot answer. |
 | `POST /document-versions/{id}/extract` | `document.fact.review` | Clean versions only. Returns run state and fact ids, after commit. |
-| `GET /document-versions/{id}/facts` | `document.facts.read` | What is shown depends on the role, see below. |
+| `GET /document-versions/{id}/content` | `document.facts.read` | The stored file, `AVAILABLE` versions only; 409 `DocumentNotViewable` otherwise. See "Viewing a version". |
+| `GET /document-versions/{id}/facts` | `document.facts.read` | What is shown depends on the role, see below. Also `version_status` and `scan_status`. |
 | `POST /document-facts/{id}/entry` `{value}` | `document.fact.review` | Commits the reviewer's own reading, then reveals the suggestion. |
 | `POST /document-facts/{id}/reveal` | `document.fact.review` | Shows it again, to the same reviewer only. |
 | `POST /document-facts/{id}/review` `{decision, value?, note?}` | `document.fact.review` | `ACCEPTED`, `CORRECTED` or `REJECTED`; optional `Idempotency-Key`. |
@@ -58,6 +59,16 @@ Rules the endpoints follow:
   reading (type before reveal). Bureau officer/head and auditor see proposed and
   confirmed facts read-only. Institutions see only confirmed values and review
   counts, never raw OCR proposals.
+- **Reload mid-review.** Each fact in an officer's listing has `my_entry`:
+  the caller's own blind entry (`value`, `entered_at`, `suggestion_revealed`,
+  `revealed_at`), or `null` if the caller has not entered one. Another
+  reviewer's entry is never returned. If `suggestion_revealed` is false the
+  UI calls `/reveal` to get the suggestion.
+- **Who acted.** `entered_by`, `reviewed_by` and `confirmed_by` are
+  `{role, is_you, who}` with `who` = `you` or `another officer`, or `null`.
+  User ids and names are never returned. The roles are stored with the user
+  ids (`review_typed_role`, `confirmed_role`, migration doc_0005) and a
+  trigger keeps them fixed; facts entered before doc_0005 have `role: null`.
 - **Review and confirm** are separate steps. `state` keeps the review outcome
   (`ACCEPTED` is stored as the existing FactState `CONFIRMED`); confirmation
   sets `confirmed_by`/`confirmed_at`. The database also refuses a confirmation
@@ -69,6 +80,28 @@ Rules the endpoints follow:
   `value_hash` is the sha256 of the reviewed value (of the empty string for a
   rejection); a review note goes to the note store and only its hash is in the
   event. The schemas in `contracts/events/doc/` still need three-way approval.
+
+## Viewing a version
+
+`GET /document-versions/{id}/content` uses the same authorization as the facts
+listing (owning institution only, regional officers their own region,
+committee members under the assignment rule in `policy.py`). It then:
+
+- refuses anything but `status = AVAILABLE` and `scan_status = clean` with 409
+  `DocumentNotViewable` (scan pending or rejected), after authorization, so a
+  caller who may not see the case learns nothing about the version;
+- re-reads the stored bytes and checks size, sha256 and file signature against
+  what was recorded at upload; a mismatch is 409 `StoredContentMismatch` and
+  nothing is sent;
+- answers with the stored `media_type` (PDF, PNG or JPEG only),
+  `Content-Disposition: inline; filename="<ascii>"; filename*=UTF-8''<encoded>`
+  built from the sanitised upload name, `X-Content-Type-Options: nosniff`,
+  `Cache-Control: private, no-store` and
+  `Content-Security-Policy: default-src 'none'; sandbox`. The platform's
+  `X-Frame-Options: DENY` still applies, so the UI opens the file in its own
+  tab or fetches it into a `blob:` URL rather than framing the API URL.
+
+Views are not written to the ledger. There is no page-image endpoint.
 
 ## Scanner configuration
 
@@ -151,8 +184,8 @@ machine. Accuracy on real AICTE documents has not been measured.
 
 The byte-signature check is only an initial filter. Structural validation does
 not prove a file is malware-free; that is the scanner's job. Objects remain
-private in quarantine; `open_private()` is used only by the scanner and the
-text engine. Staging reconciliation removes only unowned
+private in quarantine; `open_private()` is used only by the scanner, the
+text engine and the content endpoint (clean versions only). Staging reconciliation removes only unowned
 temporary `.part` files and never deletes persisted document objects.
 
 ## Prototype history protection

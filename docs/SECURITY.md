@@ -74,7 +74,10 @@ the frontend.
 Every `/api/` response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
 no-referrer`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: no-store` and
 `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, plus HSTS when `APP_ENV=production`
-(`platform/http_security.py`). The Vite dev server is not hardened and is for local use only.
+(`platform/http_security.py`). The one response that is not JSON, `GET /api/document-versions/{id}/content` (a
+version scanned clean), sets its own `Cache-Control: private, no-store` and `Content-Security-Policy: default-src
+'none'; sandbox`, an inline `Content-Disposition` with a sanitised file name, and keeps the other headers. The
+Vite dev server is not hardened and is for local use only.
 
 The built UI is served by the production image in `frontend/Dockerfile` (unprivileged nginx, config in
 `frontend/nginx/default.conf.template`):

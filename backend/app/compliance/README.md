@@ -27,8 +27,7 @@ ruleset but is not opened yet: nothing records the "no admissions" fact.
 ## Rules
 
 - Acknowledged is not the same as met: an obligation is `MET` only when an officer accepts evidence.
-- Evidence must be a document version of the same application that the scanner approved (`AVAILABLE`). The
-  documents schema has no such state yet, so submission stays closed until the scanner integration lands.
+- Evidence must be a document version of the same application that the scanner approved (`AVAILABLE`).
 - Verification is by a human officer; `SYSTEM` is refused. A rejection needs a code from `vocab.RejectionReason`
   (proposed list, pending team approval); `OTHER_SEE_NOTE` also needs a note. Note text goes to the note store
   and events carry only its hash.
@@ -43,6 +42,27 @@ ruleset but is not opened yet: nothing records the "no admissions" fact.
 | GET | `/api/compliance/obligations`, `/api/compliance/obligations/{id}` | `compliance.read` |
 | POST | `/api/compliance/obligations/{id}/evidence` | `compliance.evidence.submit` |
 | POST | `/api/compliance/evidence/{id}/verify` | `compliance.evidence.verify` |
+| GET | `/api/compliance/evidence/{id}/note` | `compliance.evidence.verify`, or `compliance.read` for the owning institution |
 
 POSTs honour an optional `Idempotency-Key`. Lists take `application_id` or `region`; institutions see only their
 own records and regional officers only their region.
+
+## Verification notes
+
+`GET /api/compliance/evidence/{id}/note` returns `{evidence_id, has_note, note, redacted, verified_role,
+verified_at}`. Officers who may verify that obligation's evidence (committee under the assignment rule, the
+regional officer of its region, bureau officer and head) and the owning institution may read the text. Auditors
+are refused (403): `has_note` on the evidence tells them a note exists, and the policy gives them no reason to read
+officers' free text, so this stays closed until the team decides otherwise. `NotesPort` has no read method, so the
+note is read from the platform note store by `evidence.note_ref` and checked against `evidence.note_hash`; a
+mismatch is 409 `NoteIntegrityError` and a redacted note comes back as `note: null, redacted: true`. Events never
+carry the text. A `NotesPort.read` would replace the direct read once contracts allow it.
+
+## Demo letters
+
+`python -m app.compliance.demo_seed` (refused unless `DEMO_MODE=true`; safe to rerun) registers three synthetic
+LoAs, each on a new DEMO application of a fictional institution, numbered `F.No. DEMO-SEED/<key>/<year>`. Issue
+dates come from `ClockPort.now()` (so from the demo clock), never a fixed date: `SOUTH-CURRENT` and
+`NORTH-CURRENT` are issued two days ago and their obligations fall due in the future; `SOUTH-OVERDUE` is issued
+the rule's duration plus five days ago, so its obligations are five days overdue and the timer worker raises the
+reminder, breach and first escalation for the escalation demo. The deadline rules are not changed.
