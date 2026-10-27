@@ -89,9 +89,11 @@ def read_case(session: Session, application_id: UUID, principal: Principal) -> C
 
 def list_cases(session: Session, principal: Principal, *, region: str | None = None, stage: Stage | None = None,
                status: ApplicationStatus | None = None, offset: int = 0, limit: int = 50) -> CasePageOut:
-    port(AuthzPort).check(principal, "application.read", ResourceRef("application"))
     if principal.role == Role.RO_OFFICER and (not principal.region or (region and region != principal.region)):
         raise Forbidden("regional officer may only query their own region")
+    # applications are region-scoped: a regional officer's list query states its own region, which it is filtered to
+    list_region = principal.region if principal.role == Role.RO_OFFICER else region
+    port(AuthzPort).check(principal, "application.read", ResourceRef("application", region=list_region))
     # Scope and filter before pagination: no foreign IDs, counts or offsets leak.
     visible = []
     for application_id in session.scalars(select(applications.c.id).order_by(applications.c.id)):

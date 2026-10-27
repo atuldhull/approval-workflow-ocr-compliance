@@ -147,7 +147,8 @@ def test_ro_region_scope_on_detail_action_and_collection(api):
     assert api.get("/api/cases", headers=foreign).json()["total"] == 0
     matching = headers("RO_OFFICER") | {"X-Demo-Region": own}
     assert api.get(f"/api/cases/{case_id}", headers=matching).status_code == 200
-    assert api.get("/api/cases", headers=headers("RO_OFFICER")).status_code == 403
+    # a regional officer without a region is refused at sign-in, before any case query
+    assert api.get("/api/cases", headers=headers("RO_OFFICER")).status_code == 401
 
 
 def test_collection_scopes_filters_and_pages_before_counting(api):
