@@ -41,12 +41,20 @@ export const DEMO_USERS = [
 
 export class ApiError extends Error {
   // `code` is the server's error class name (e.g. "FourEyesViolation"), for screens that explain a refusal.
-  constructor(status, detail, code = null) {
+  // `reason` is the coded refusal (e.g. "ASSIGNMENT_REQUIRED") when the server gives one; `body` is the parsed answer.
+  constructor(status, detail, code = null, reason = null, body = null) {
     super(detail);
     this.status = status;
     this.code = code;
+    this.reason = reason;
+    this.body = body;
   }
 }
+
+const CODE = /^[A-Z][A-Z0-9_]*$/;
+// The workflow, intake and EVC modules refuse with a code in `detail` (or `reason_code`); keep it for plain wording.
+export const reasonOf = (data) => (typeof data?.reason_code === "string" ? data.reason_code
+  : typeof data?.detail === "string" && CODE.test(data.detail) ? data.detail : null);
 
 // A 422 from request validation carries a list of field problems; show their messages, not the raw structure.
 function detailText(detail, fallback) {
@@ -108,7 +116,7 @@ function failure(who, res, data) {
   if (res.status === 403) detail = `Not permitted: ${detail}`;
   if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
   if (res.status === 502 || res.status === 504) detail = "The server is unavailable right now. Try again shortly.";
-  return new ApiError(res.status, detail, typeof data?.error === "string" ? data.error : null);
+  return new ApiError(res.status, detail, typeof data?.error === "string" ? data.error : null, reasonOf(data), data);
 }
 
 export async function api(who, path, options = {}) {
