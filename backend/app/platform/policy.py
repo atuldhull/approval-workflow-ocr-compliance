@@ -34,15 +34,21 @@ POLICY: dict[str, frozenset[Role]] = {
     "analytics.scorecard": OVERSIGHT,
     "analytics.report": OFFICERS | {R.AUDITOR},
     "analytics.export": OVERSIGHT,
+    # application documents (Person 2's endpoints). Facts are extracted by OCR and only proposals until an
+    # officer reviews and confirms them; institutions upload and see their own documents' facts.
+    "document.upload": frozenset({R.INSTITUTION}),
+    "document.facts.read": OFFICERS | {R.INSTITUTION, R.AUDITOR},
+    "document.fact.review": frozenset({R.SCRUTINY_COMMITTEE, R.RO_OFFICER}),
+    "document.fact.confirm": OFFICERS,
 }
 
 # Resource kinds the policy knows. Any other kind is denied.
 KINDS = frozenset({"institution", "ruleset", "application", "deadline", "ledger", "clock", "principal",
-                   "audit", "notification", "analytics"})
+                   "audit", "notification", "analytics", "document"})
 
 # Records that belong to a regional office. A regional officer may touch them only when the caller states the
 # region (resource.region) and it is the officer's own - including list queries, which must filter by it.
-REGION_SCOPED_KINDS = frozenset({"application", "deadline", "analytics"})
+REGION_SCOPED_KINDS = frozenset({"application", "deadline", "analytics", "document"})
 
 DEMO_ONLY_ACTIONS = frozenset({"sim.clock"})
 
@@ -61,7 +67,7 @@ def precheck(action: str, resource: ResourceRef, demo_mode: bool) -> str | None:
 # Committee members should only touch the cases assigned to them. Assignment data does not exist yet (Person 1,
 # contract change C3), so with AUTHZ_REQUIRE_ASSIGNMENT on (the production default) their case access is refused
 # rather than assumed. Off in development so the demo keeps working - see docs/SECURITY.md.
-ASSIGNMENT_SCOPED = {R.SCRUTINY_COMMITTEE: frozenset({"application", "deadline"})}
+ASSIGNMENT_SCOPED = {R.SCRUTINY_COMMITTEE: frozenset({"application", "deadline", "document"})}
 
 
 def assignment_guard(principal: Principal, resource: ResourceRef, require_assignment: bool) -> str | None:

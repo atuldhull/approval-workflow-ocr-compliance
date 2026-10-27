@@ -12,6 +12,8 @@ resourcePolicy:
     - auth.me
     - case.timeline
     - deadline.read
+    - document.facts.read
+    - document.upload
     - institution.list
     - notification.inbox
     - ruleset.read
@@ -30,6 +32,9 @@ resourcePolicy:
     - auth.me
     - case.timeline
     - deadline.read
+    - document.fact.confirm
+    - document.fact.review
+    - document.facts.read
     - institution.list
     - notification.inbox
     - ruleset.read
@@ -45,6 +50,9 @@ resourcePolicy:
     - auth.me
     - case.timeline
     - deadline.read
+    - document.fact.confirm
+    - document.fact.review
+    - document.facts.read
     - institution.list
     - notification.inbox
     - ruleset.read
@@ -66,6 +74,8 @@ resourcePolicy:
     - auth.me
     - case.timeline
     - deadline.read
+    - document.fact.confirm
+    - document.facts.read
     - institution.list
     - ledger.verify
     - notification.inbox
@@ -88,6 +98,8 @@ resourcePolicy:
     - auth.me
     - case.timeline
     - deadline.read
+    - document.fact.confirm
+    - document.facts.read
     - institution.list
     - ledger.verify
     - notification.inbox
@@ -111,6 +123,7 @@ resourcePolicy:
     - auth.me
     - case.timeline
     - deadline.read
+    - document.facts.read
     - institution.list
     - ledger.verify
     - notification.inbox

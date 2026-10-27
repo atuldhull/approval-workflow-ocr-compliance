@@ -13,6 +13,7 @@ Items are independent and can be approved one by one.
 | C4 | `Idempotency-Key` in the snapshot | Waits for Person 1 to apply the idempotency patch |
 | C5 | Checkpoint publication endpoint and fields | Patch file only, **not applied**; re-verified to apply cleanly and to make `check_contracts.py` pass |
 | C6 | Reports and exports endpoints | Patch file only, **not applied**; applies on top of C5 and `check_contracts.py` passes with both (Python 3.12) |
+| C7 | Document audit events (`doc.*` v1) | Schema files only in `docs/proposals/document-events/`, **not copied into `contracts/events/`** |
 
 Any API change after these were prepared means regenerating the snapshot (`python scripts/check_contracts.py
 --write`) on the integration branch and reviewing the whole diff again, rather than applying an old patch blindly.
@@ -62,6 +63,41 @@ git apply docs/proposals/openapi-checkpoint-publication.patch
 git apply docs/proposals/openapi-reports-exports.patch
 python scripts/check_contracts.py          # must print: contracts ok (run with Python 3.12)
 ```
+
+## C7 - document audit events
+
+Person 2's document endpoints need four events. The proposed schemas are in `docs/proposals/document-events/`;
+on approval they move to `contracts/events/doc/` unchanged. They carry identifiers, hashes and verdicts only:
+no file content, no extracted values, no names or notes (`value_hash` / `note_hash` are sha256 of what stays in
+the documents schema, the same pattern as `note_hash` in the ledger).
+
+| Event | Emitted when |
+|---|---|
+| `doc.document_uploaded` v1 | a new version is stored in quarantine (same transaction as the row) |
+| `doc.document_scanned` v1 | the scanner returns `CLEAN` or `INFECTED` for that version |
+| `doc.fact_reviewed` v1 | an officer accepts, corrects or rejects a proposed fact |
+| `doc.fact_confirmed` v1 | an officer confirms a fact; only confirmed facts may drive deadlines or obligations |
+
+The permissions these endpoints call are already in `policy.py` (and the generated Cerbos policies):
+`document.upload` (institution, own records), `document.facts.read` (institution for its own documents, officers,
+auditor), `document.fact.review` (scrutiny committee, regional officer), `document.fact.confirm` (officers only;
+an institution never confirms its own facts). `document` is region-scoped and, for the committee,
+assignment-scoped like a case. Build the `ResourceRef` from the owning application on the server, never from the
+request.
+
+Proposed behaviour for the open questions (for all three to agree with the schemas):
+
+- **Versions.** Each upload for an (application, doc_type) adds a version with `version_no` + 1. The current
+  version is the newest `CLEAN` one; older versions stay readable and their facts stay attached to them.
+- **Duplicate uploads.** The same sha256 for the same application and doc_type returns the existing version
+  (200, no new version, no event). A retry with the same `Idempotency-Key` replays the first response. The same
+  file for a different application is a separate document.
+- **Scanning.** A version is `scan_pending` until the scanner answers; `INFECTED` stays in quarantine and is never
+  served. If the scanner is unavailable the version stays `scan_pending` (fail closed) and can be rescanned.
+  Locally: `docker compose --profile scanning up -d clamav` (clamd on 127.0.0.1:3310).
+- **Fact visibility.** Proposed facts exist only after a `CLEAN` scan and are shown only to roles with
+  `document.fact.review`, and only after the extraction transaction has committed (commit before reveal).
+  Institutions see confirmed facts and the review status, not raw OCR proposals.
 
 ## C2 - RecipientPort
 
