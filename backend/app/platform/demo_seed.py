@@ -25,6 +25,7 @@ DEMO_PEOPLE = [
     (U(4), Role.INSTITUTION, None, NORTHFIELD, "inst.northfield"),
     (U(2), Role.SCRUTINY_COMMITTEE, None, None, "scrutiny"),
     (U(5), Role.RO_OFFICER, "Southern", None, "ro.southern"),
+    (U(8), Role.RO_OFFICER, "Northern", None, "ro.northern"),
     (U(6), Role.BUREAU_OFFICER, None, None, "bureau.officer"),
     (U(7), Role.BUREAU_HEAD, None, None, "bureau.head"),
     (U(3), Role.AUDITOR, None, None, "auditor"),

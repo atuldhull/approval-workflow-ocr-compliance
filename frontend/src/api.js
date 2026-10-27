@@ -37,6 +37,13 @@ export const DEMO_USERS = [
   { key: "bureau-officer", label: "Bureau officer", user: "00000000-0000-4000-9000-000000000006", role: "BUREAU_OFFICER" },
   { key: "bureau-head", label: "Bureau head", user: "00000000-0000-4000-9000-000000000007", role: "BUREAU_HEAD" },
   { key: "auditor", label: "Auditor", user: "00000000-0000-4000-9000-000000000003", role: "AUDITOR" },
+  {
+    key: "ro-northern",
+    label: "Regional officer - Northern",
+    user: "00000000-0000-4000-9000-000000000008",
+    role: "RO_OFFICER",
+    region: "Northern",
+  },
 ];
 
 export class ApiError extends Error {

@@ -272,6 +272,30 @@
       ]
     },
     {
+      "id": "00000000-0000-4000-9000-000000000008",
+      "username": "ro.northern",
+      "enabled": true,
+      "email": "ro.northern@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Ro",
+      "lastName": "Demo",
+      "attributes": {
+        "region": [
+          "Northern"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "RO_OFFICER"
+      ]
+    },
+    {
       "id": "00000000-0000-4000-9000-000000000006",
       "username": "bureau.officer",
       "enabled": true,

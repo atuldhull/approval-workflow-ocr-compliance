@@ -16,6 +16,7 @@
 | inst.northfield | INSTITUTION | Northfield College of Engineering (DEMO) |
 | scrutiny | SCRUTINY_COMMITTEE | national |
 | ro.southern | RO_OFFICER | Southern region |
+| ro.northern | RO_OFFICER | Northern region (Northfield's region) |
 | bureau.officer | BUREAU_OFFICER | national |
 | bureau.head | BUREAU_HEAD | national |
 | auditor | AUDITOR | national |
