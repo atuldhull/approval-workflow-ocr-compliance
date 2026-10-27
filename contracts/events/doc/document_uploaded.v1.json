@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "doc.document_uploaded v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document_id", "version_id", "version_no", "application_id", "institution_id", "doc_type", "sha256", "size_bytes", "media_type"],
+  "properties": {
+    "document_id": {"type": "string", "format": "uuid"},
+    "version_id": {"type": "string", "format": "uuid"},
+    "version_no": {"type": "integer", "minimum": 1},
+    "application_id": {"type": "string", "format": "uuid"},
+    "institution_id": {"type": "string", "format": "uuid"},
+    "doc_type": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "size_bytes": {"type": "integer", "minimum": 1},
+    "media_type": {"type": "string", "enum": ["application/pdf", "image/jpeg", "image/png"]}
+  }
+}

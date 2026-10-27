@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "field_key": "lease_end_date",
+      "normalizer": "normalize_date_candidate",
+      "aliases": []
+    },
+    {
+      "field_key": "letter_issue_date",
+      "normalizer": "normalize_date_candidate",
+      "aliases": []
+    },
+    {
+      "field_key": "letter_file_number",
+      "normalizer": "normalize_reference_value",
+      "aliases": []
+    }
+  ]
+}

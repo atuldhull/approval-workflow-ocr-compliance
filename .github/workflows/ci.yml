@@ -22,6 +22,8 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgresql+psycopg://awoc:awoc@localhost:5432/awoc_test
+      # The postgres service above exists only for this job and is discarded with it, so the tests may reset it.
+      AWOC_TEST_DATABASE_DISPOSABLE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,6 +34,8 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - name: Shared contracts are valid and up to date
         run: python scripts/check_contracts.py
+      - name: Cerbos policies match the policy table
+        run: python scripts/gen_cerbos_policies.py --check
       - name: One migration head per module
         run: python scripts/check_migration_heads.py
       - name: Tests (unit + end-to-end)
@@ -50,4 +54,17 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: No high-severity advisories in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - run: npm test
       - run: npm run build
+
+  workflow-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Contract-approval decision tests
+        run: node --test .github/scripts/contract-approval.test.js

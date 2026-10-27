@@ -5,7 +5,8 @@ from uuid import UUID, uuid5, NAMESPACE_URL
 
 import pytest
 
-from app.platform.auth import Authz, POLICY
+from app.platform.auth import Authz
+from app.platform.policy import POLICY
 from app.platform.db import new_session
 from app.platform.registry import port
 from app.workflow import guards

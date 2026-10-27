@@ -20,6 +20,20 @@ class Notes:
         return note.id, body_hash
 
 
+def redact_note(session, note_id: UUID) -> None:
+    """Removes a note's text. Its hash stays, so events that anchor the note still verify."""
+    note = session.get(CaseNote, note_id)
+    if note is not None and note.redacted_at is None:
+        note.body, note.redacted_at = None, port(ClockPort).now()
+
+
+def erase_personal(session, ref: UUID) -> None:
+    """Erases personal fields. Events hold only the reference, so the ledger is unaffected."""
+    row = session.get(PersonalData, ref)
+    if row is not None and row.erased_at is None:
+        row.data, row.erased_at = None, port(ClockPort).now()
+
+
 class PersonalStore:
     def store(self, uow: UnitOfWork, data: dict[str, Any], purpose: str) -> UUID:
         row = PersonalData(data=data, purpose=purpose)

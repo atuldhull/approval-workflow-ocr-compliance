@@ -1,86 +1,134 @@
 """Who is calling, and may they do this?
 
-Demo auth reads X-Demo-* headers so the UI can switch roles. It is switched off with DEMO_AUTH=false,
-and Keycloak (identity) + Cerbos (policy) replace it.
+Two identity modes, chosen by DEMO_AUTH:
+- demo (DEMO_AUTH=true, local only): X-Demo-* headers pick a synthetic user so the UI can switch roles.
+- oidc (DEMO_AUTH=false): a Bearer access token from the identity provider (Keycloak), verified in oidc.py.
+  X-Demo-* headers are refused outright in this mode.
+
+Two policy engines, chosen by AUTHZ_ENGINE, both driven by the table in policy.py:
+- local: evaluated in-process.
+- cerbos: asked over HTTP. If Cerbos cannot answer, the request fails (503); it never falls back to allow.
 """
 from uuid import UUID
 
-from fastapi import Header, HTTPException
+import httpx
+from fastapi import Header, HTTPException, Request
 
-from app.platform.settings import settings
+from app.platform import policy
+from app.platform.errors import ServiceUnavailable
+from app.platform.oidc import InvalidToken, JwksCache, TokenVerifier
+from app.platform.settings import Settings, settings
 from contracts.enums import Role
 from contracts.errors import Forbidden
 from contracts.types import Principal, ResourceRef
 
-OFFICERS = {Role.SCRUTINY_COMMITTEE, Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD}
-EVERYONE = set(Role)
-
-# action -> roles allowed. Object-level rules are applied in Authz.check.
-POLICY: dict[str, set[Role]] = {
-    "evc.expert.register": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
-    "evc.availability.set": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
-    "evc.coi.record": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
-    "evc.expert.read": {Role.RO_OFFICER, Role.BUREAU_OFFICER, Role.BUREAU_HEAD, Role.SCRUTINY_COMMITTEE, Role.AUDITOR},
-    "institution.list": EVERYONE,
-    "ruleset.read": EVERYONE,
-    "application.create": {Role.INSTITUTION},
-    "application.submit": {Role.INSTITUTION},
-    "application.read": EVERYONE,
-    "deadline.read": EVERYONE,
-    "case.timeline": EVERYONE,
-    "ledger.verify": {Role.AUDITOR, Role.BUREAU_OFFICER, Role.BUREAU_HEAD},
-    "sim.clock": EVERYONE,
-    "committee.create": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "committee.task.assign": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "committee.observation.add": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "committee.report.add": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "committee.read": EVERYONE,
-    # Case actions are further constrained by the pinned YAML stage/guards.
-    "case.submit": {Role.INSTITUTION},
-    "case.advance": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "case.record_deficiency": {Role.SCRUTINY_COMMITTEE},
-    "case.submit_compliance": {Role.INSTITUTION},
-    "case.start_rescrutiny": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "case.advance_to_evc": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "case.complete_evc": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "case.advance_to_shc": {Role.SCRUTINY_COMMITTEE, Role.BUREAU_OFFICER},
-    "case.issue_loa": {Role.BUREAU_OFFICER},
-    "case.issue_eoa": {Role.BUREAU_OFFICER},
-    "case.issue_lod": {Role.BUREAU_OFFICER},
-    "case.reject": {Role.BUREAU_OFFICER},
-    "case.withdraw": {Role.INSTITUTION},
-    "case.revert": {Role.BUREAU_OFFICER},
-}
+COLLECTION = "_collection_"  # Cerbos needs a resource id; list-level checks use this one
 
 
 class Authz:
+    """Local policy engine."""
+
     def check(self, principal: Principal, action: str, resource: ResourceRef) -> None:
-        allowed = POLICY.get(action)
-        if allowed is None:
-            raise Forbidden(f"unknown action {action}")
-        if principal.role not in allowed:
-            raise Forbidden(f"{principal.role} may not {action}")
-        # an institution only ever sees and acts on its own records
-        if principal.role == Role.INSTITUTION and resource.owner_institution_id is not None:
-            if principal.institution_id != resource.owner_institution_id:
-                raise Forbidden("institution may only access its own records")
-        if principal.role == Role.RO_OFFICER and resource.id is not None and resource.type == "application":
-            if resource.region is not None or action.startswith("case."):
-                if not principal.region or principal.region != resource.region:
-                    raise Forbidden("regional officer may only access their own region")
+        reason = policy.decide(principal, action, resource, settings.demo_mode, settings.authz_require_assignment)
+        if reason:
+            raise Forbidden(reason)
+
+
+class CerbosAuthz:
+    """Asks a Cerbos policy decision point. Denies on anything but an explicit EFFECT_ALLOW."""
+
+    def __init__(self, url: str, timeout: float = 2.0, http: httpx.Client | None = None):
+        self.url = url.rstrip("/")
+        self.http = http or httpx.Client(timeout=timeout)
+
+    @staticmethod
+    def request_body(principal: Principal, action: str, resource: ResourceRef) -> dict:
+        p_attr = {k: str(v) for k, v in (("region", principal.region), ("institution_id", principal.institution_id))
+                  if v is not None}
+        r_attr = {k: str(v) for k, v in (("owner_institution_id", resource.owner_institution_id),
+                                         ("region", resource.region)) if v is not None}
+        r_attr["is_collection"] = resource.id is None
+        return {
+            "requestId": f"{principal.user_id}:{action}",
+            "principal": {"id": str(principal.user_id), "roles": [str(principal.role)], "attr": p_attr},
+            "resources": [{
+                "actions": [action],
+                "resource": {"kind": resource.type, "id": str(resource.id) if resource.id else COLLECTION,
+                             "attr": r_attr},
+            }],
+        }
+
+    def check(self, principal: Principal, action: str, resource: ResourceRef) -> None:
+        reason = (policy.precheck(action, resource, settings.demo_mode)
+                  or policy.assignment_guard(principal, resource, settings.authz_require_assignment))
+        if reason:
+            raise Forbidden(reason)
+        try:
+            r = self.http.post(f"{self.url}/api/check/resources", json=self.request_body(principal, action, resource))
+            r.raise_for_status()
+            effect = r.json()["results"][0]["actions"].get(action)
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as e:
+            raise ServiceUnavailable("authorisation service unavailable") from e
+        if effect != "EFFECT_ALLOW":
+            raise Forbidden(f"{principal.role} may not {action} on this {resource.type}")
+
+
+def build_authz(s: Settings):
+    return CerbosAuthz(s.cerbos_url, s.cerbos_timeout_seconds) if s.authz_engine == "cerbos" else Authz()
+
+
+_verifier: TokenVerifier | None = None
+
+
+def get_verifier() -> TokenVerifier:
+    global _verifier
+    if _verifier is None:
+        _verifier = TokenVerifier(settings.oidc_issuer, settings.oidc_audience, settings.oidc_algorithms,
+                                  JwksCache(settings.oidc_jwks_url), settings.oidc_leeway_seconds)
+    return _verifier
+
+
+def set_verifier(verifier: TokenVerifier | None) -> None:
+    global _verifier
+    _verifier = verifier
+
+
+def _unauthorised(detail: str) -> HTTPException:
+    return HTTPException(status_code=401, detail=detail, headers={"WWW-Authenticate": 'Bearer error="invalid_token"'})
+
+
+def _bearer(request: Request) -> str:
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="sign-in required", headers={"WWW-Authenticate": "Bearer"})
+    return token.strip()
+
+
+def _demo_principal(user: UUID | None, role: Role | None, institution: UUID | None, region: str | None) -> Principal:
+    if user is None or role is None:
+        raise HTTPException(status_code=401, detail="X-Demo-User and X-Demo-Role headers are required")
+    if role == Role.SYSTEM:
+        raise HTTPException(status_code=401, detail="SYSTEM is not a user role")
+    if role == Role.INSTITUTION and institution is None:
+        raise HTTPException(status_code=401, detail="institution users need X-Demo-Institution")
+    if role == Role.RO_OFFICER and not region:
+        raise HTTPException(status_code=401, detail="regional officers need X-Demo-Region")
+    return Principal(user_id=user, role=role, region=region,
+                     institution_id=institution if role == Role.INSTITUTION else None)
 
 
 def current_principal(
+    request: Request,
     x_demo_user: UUID | None = Header(default=None),
     x_demo_role: Role | None = Header(default=None),
     x_demo_institution: UUID | None = Header(default=None),
     x_demo_region: str | None = Header(default=None),
 ) -> Principal:
-    if not settings.demo_auth:
-        raise HTTPException(status_code=401, detail="identity provider not configured")
-    if x_demo_user is None or x_demo_role is None:
-        raise HTTPException(status_code=401, detail="X-Demo-User and X-Demo-Role headers are required")
-    if x_demo_role == Role.INSTITUTION and x_demo_institution is None:
-        raise HTTPException(status_code=401, detail="institution users need X-Demo-Institution")
-    return Principal(user_id=x_demo_user, role=x_demo_role, region=x_demo_region,
-                     institution_id=x_demo_institution)
+    if settings.demo_auth:
+        return _demo_principal(x_demo_user, x_demo_role, x_demo_institution, x_demo_region)
+    if any(name.lower().startswith("x-demo-") for name in request.headers.keys()):
+        raise HTTPException(status_code=401, detail="demo identity headers are not accepted")
+    try:
+        return get_verifier().principal(_bearer(request))
+    except InvalidToken:
+        raise _unauthorised("invalid or expired token") from None

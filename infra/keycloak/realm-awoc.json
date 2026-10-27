@@ -1,0 +1,328 @@
+{
+  "realm": "awoc",
+  "displayName": "Approval workflow (LOCAL DEMO ONLY)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      {
+        "name": "INSTITUTION",
+        "description": "Application role"
+      },
+      {
+        "name": "SCRUTINY_COMMITTEE",
+        "description": "Application role"
+      },
+      {
+        "name": "RO_OFFICER",
+        "description": "Application role"
+      },
+      {
+        "name": "BUREAU_OFFICER",
+        "description": "Application role"
+      },
+      {
+        "name": "BUREAU_HEAD",
+        "description": "Application role"
+      },
+      {
+        "name": "AUDITOR",
+        "description": "Application role"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "awoc-ui",
+      "name": "Approval workflow UI (DEMO)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "awoc-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "awoc-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "institution_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "institution_id",
+            "claim.name": "institution_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "region",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "region",
+            "claim.name": "region",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "awoc-smoke",
+      "name": "Local smoke tests only (DEMO) - password grant, never deploy",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "fullScopeAllowed": true,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "awoc-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "awoc-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "institution_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "institution_id",
+            "claim.name": "institution_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "region",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "region",
+            "claim.name": "region",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-4000-9000-000000000001",
+      "username": "inst.sunrise",
+      "enabled": true,
+      "email": "inst.sunrise@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Inst",
+      "lastName": "Demo",
+      "attributes": {
+        "institution_id": [
+          "00000000-0000-4000-8000-000000000001"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "INSTITUTION"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000004",
+      "username": "inst.northfield",
+      "enabled": true,
+      "email": "inst.northfield@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Inst",
+      "lastName": "Demo",
+      "attributes": {
+        "institution_id": [
+          "00000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "INSTITUTION"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000002",
+      "username": "scrutiny",
+      "enabled": true,
+      "email": "scrutiny@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Scrutiny",
+      "lastName": "Demo",
+      "attributes": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "SCRUTINY_COMMITTEE"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000003",
+      "username": "auditor",
+      "enabled": true,
+      "email": "auditor@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Auditor",
+      "lastName": "Demo",
+      "attributes": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "AUDITOR"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000005",
+      "username": "ro.southern",
+      "enabled": true,
+      "email": "ro.southern@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Ro",
+      "lastName": "Demo",
+      "attributes": {
+        "region": [
+          "Southern"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "RO_OFFICER"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000006",
+      "username": "bureau.officer",
+      "enabled": true,
+      "email": "bureau.officer@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Bureau",
+      "lastName": "Demo",
+      "attributes": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "BUREAU_OFFICER"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000007",
+      "username": "bureau.head",
+      "enabled": true,
+      "email": "bureau.head@awoc.example.invalid",
+      "emailVerified": true,
+      "firstName": "Bureau",
+      "lastName": "Demo",
+      "attributes": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "BUREAU_HEAD"
+      ]
+    }
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\": [{\"name\": \"username\", \"displayName\": \"${username}\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}, \"multivalued\": false}, {\"name\": \"email\", \"displayName\": \"${email}\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}, \"multivalued\": false}, {\"name\": \"firstName\", \"displayName\": \"${firstName}\", \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"lastName\", \"displayName\": \"${lastName}\", \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}], \"groups\": [], \"unmanagedAttributePolicy\": \"ADMIN_EDIT\"}"
+          ]
+        }
+      }
+    ]
+  }
+}

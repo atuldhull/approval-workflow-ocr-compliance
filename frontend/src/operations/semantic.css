@@ -1,0 +1,60 @@
+/* The audit assurance console and the spatial figure host.
+   Three layers, three distinct identities: continuity is teal (a technical relation between entries), the witness
+   is brass (a seal held outside the chain), replay is blue (a computation over the event log). The identity colour
+   is only the layer's accent; its result is always the status badge, in words. */
+
+.assurance-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s4); padding: 10px var(--s4); margin-bottom: var(--s3); background: var(--ink-2); border: 1px solid var(--line); border-left: 3px solid var(--text-3); border-radius: var(--radius); }
+.assurance-head.tone-ok { border-left-color: var(--ok); }
+.assurance-head.tone-warn { border-left-color: var(--warn); }
+.assurance-head.tone-bad { border-left-color: var(--bad); background: linear-gradient(90deg, var(--bad-soft), var(--ink-2) 50%); }
+.assurance-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); min-width: 0; }
+.assurance-verdict .badge { font-size: var(--fs-sm); white-space: normal; }
+.assurance-label { font-size: var(--fs-xs); color: var(--text-3); }
+
+.assurance-layers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin-bottom: var(--s4); }
+.assurance-layer { --layer: var(--teal); display: flex; flex-direction: column; min-width: 0; padding: var(--s3) var(--s4) var(--s3); background: var(--ink-2); border: 1px solid var(--line); border-top: 2px solid var(--layer); border-radius: var(--radius); transition: border-color var(--t-fast), background var(--t-fast); }
+.layer-witness { --layer: var(--brass); }
+.layer-replay { --layer: var(--info); }
+.assurance-layer.state-broken { border-color: rgba(236, 129, 112, 0.55); }
+.assurance-layer.is-selected { background: var(--ink-3); border-color: var(--line-strong); border-top-color: var(--layer); }
+.layer-head { display: flex; align-items: center; gap: var(--s2); }
+.layer-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--layer); background: color-mix(in srgb, var(--layer) 14%, transparent); flex: none; }
+.layer-head h2 { flex: 1; font-size: var(--fs-md); font-weight: 650; }
+.layer-inspect[aria-pressed="true"] { color: var(--text); background: var(--ink-4); }
+.layer-question { margin: 6px 0 var(--s3); font-size: var(--fs-sm); color: var(--text-3); }
+.layer-body { flex: 1; min-width: 0; font-size: var(--fs-md); }
+.layer-body .alert { font-size: var(--fs-sm); }
+.layer-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2) var(--s3); margin-bottom: 6px; }
+.layer-result .badge { white-space: normal; }
+.layer-figure { font: 500 22px/1 var(--ui); color: var(--text); }
+.layer-limit { margin: var(--s2) 0 0; font-size: var(--fs-xs); color: var(--text-3); }
+.layer-actions { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
+.layer-body .facts.compact dd .badge { margin-top: 3px; white-space: normal; }
+
+.audit-workspace { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(340px, 0.9fr); gap: var(--s4); align-items: start; }
+.audit-history { display: grid; gap: var(--s4); min-width: 0; }
+.audit-history > .card + .card { margin-top: 0; }
+.audit-inspector { position: sticky; top: calc(var(--topbar) + var(--s4)); }
+.gap-list { margin: 0; padding-left: 18px; font-size: var(--fs-sm); display: grid; gap: 4px; }
+
+.event-history { list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--line-strong); }
+.history-row { position: relative; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s3); align-items: center; padding: 8px var(--s2) 8px var(--s3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); font-weight: 400; text-align: left; white-space: normal; }
+.history-row:hover { background: var(--ink-3); }
+.history-row.is-selected { background: var(--ink-4); }
+.history-mark { position: absolute; left: -15px; top: 14px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--warn); background: var(--ink-2); }
+.history-mark.ok { border-color: var(--brass); background: var(--brass); }
+.history-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.spatial-figure { margin: 0 0 var(--s3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: radial-gradient(120% 90% at 50% 0%, #1d1f24, var(--ink-1)); overflow: hidden; }
+.spatial-stage { position: relative; height: 200px; pointer-events: none; }
+.operations-canvas, .operations-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.flat-figure { width: 100%; height: 100%; padding: var(--s4) var(--s3) var(--s2); }
+.flat-layer { opacity: 0.55; transition: opacity var(--t-med); }
+.flat-layer.is-selected { opacity: 1; }
+.spatial-figure figcaption { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding: 4px 4px 4px var(--s3); border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--text-3); }
+
+@media (max-width: 1180px) {
+  .assurance-layers { grid-template-columns: minmax(0, 1fr); }
+  .audit-workspace { grid-template-columns: minmax(0, 1fr); }
+  .audit-inspector { position: static; order: -1; }
+}

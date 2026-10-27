@@ -77,7 +77,9 @@ Short, imperative, about the change itself:
 After the first push, in **Settings -> Branches -> Add rule** for `main`
 (requires GitHub Pro / Team for private repositories; GitHub Education gives students Pro):
 
-- Require a pull request before merging, with 1 approval
+- Require a pull request before merging, with 1 approval; dismiss stale approvals when new commits are pushed
 - Require review from Code Owners
-- Require status checks: `backend`, `frontend`, `all-three-approve`
+- Require status checks: `backend`, `frontend`, `workflow-scripts`, `contracts-approval/designated-approvals`
 - Do not allow bypassing the above settings
+
+How the contract-approval status decides, and its limits: `docs/CONTRACT_APPROVAL.md`.

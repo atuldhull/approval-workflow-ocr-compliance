@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cmp.evidence_submitted v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "obligation_id", "application_id", "institution_id", "document_version_id",
+               "document_sha256"],
+  "properties": {
+    "evidence_id": {"type": "string", "format": "uuid"},
+    "obligation_id": {"type": "string", "format": "uuid"},
+    "application_id": {"type": "string", "format": "uuid"},
+    "institution_id": {"type": "string", "format": "uuid"},
+    "document_version_id": {"type": "string", "format": "uuid"},
+    "document_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

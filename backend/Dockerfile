@@ -4,6 +4,11 @@ WORKDIR /srv
 ENV PYTHONPATH=/srv:/srv/backend \
     PYTHONUNBUFFERED=1
 
+# Tesseract for scanned documents (English, plus Hindi/Devanagari); PDF text layers are read with pypdf.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-hin \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
@@ -13,4 +18,5 @@ COPY rulesets rulesets
 COPY generator generator
 
 EXPOSE 8000
-CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade heads && python generator/cases/seed_demo.py && uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload --reload-dir backend --reload-dir contracts --reload-dir rulesets"]
+# The platform demo seed refuses to run unless DEMO_MODE=true; that is not an error for startup.
+CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade heads && python generator/cases/seed_demo.py && (python -m app.platform.demo_seed || echo 'platform demo seed skipped') && uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload --reload-dir backend --reload-dir contracts --reload-dir rulesets"]

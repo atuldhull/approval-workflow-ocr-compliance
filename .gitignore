@@ -14,6 +14,7 @@ frontend/dist/
 .env
 .env.*
 !.env.example
+!.env.security.example
 
 # Local data
 *.db
@@ -30,3 +31,6 @@ scratch/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local keys and audit witness copies - never commit
+.secrets/
