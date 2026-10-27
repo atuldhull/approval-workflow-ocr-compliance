@@ -6,7 +6,9 @@
 #   docker compose --env-file .env.security --profile security --profile worker up
 #                                                 # + Keycloak, Cerbos, Mailpit (local mail sink), real sign-in
 #   docker compose --profile scanning up -d clamav  # + ClamAV malware scanner for uploaded documents
+#   docker compose --profile web up --build web     # + the production frontend image (nginx) on 8088
 # Everything optional binds to 127.0.0.1 only. All accounts and passwords in infra/ are LOCAL DEMO ONLY.
+# Without the scanning profile, uploads are accepted but stay scan_pending (unusable) until ClamAV answers.
 
 x-backend-env: &backend-env
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-awoc}:${POSTGRES_PASSWORD:-awoc}@db:5432/${POSTGRES_DB:-awoc}
@@ -26,6 +28,11 @@ x-backend-env: &backend-env
   AUDIT_SIGNING_KEY_ID: ${AUDIT_SIGNING_KEY_ID:-}
   AUDIT_TRUSTED_KEYS_FILE: ${AUDIT_TRUSTED_KEYS_FILE:-}
   AUDIT_WITNESS_DIR: ${AUDIT_WITNESS_DIR:-}
+  # uploaded files: a private volume outside the source tree (the storage refuses any path inside the repo)
+  DOCUMENT_STORAGE_DIR: ${DOCUMENT_STORAGE_DIR:-/var/lib/awoc/documents}
+  CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+  CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+  DOCUMENT_TEXT_ENGINE: ${DOCUMENT_TEXT_ENGINE:-local}
 
 services:
   db:
@@ -56,6 +63,7 @@ services:
       - ./rulesets:/srv/rulesets
       - ./generator:/srv/generator
       - ./.secrets:/srv/.secrets:ro
+      - documents:/var/lib/awoc/documents
     depends_on:
       db:
         condition: service_healthy
@@ -153,7 +161,21 @@ services:
       start_period: 300s
       retries: 5
 
+  # The built UI as it would be deployed: static files and an /api proxy behind nginx, with the UI's own CSP.
+  web:
+    profiles: ["web"]
+    build:
+      context: frontend
+    environment:
+      API_UPSTREAM: http://backend:8000
+      OIDC_ORIGIN: http://localhost:${KEYCLOAK_PORT:-8081}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8088}:8080"
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
   frontend_modules:
   clamav_db:
+  documents:
