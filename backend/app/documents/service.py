@@ -30,6 +30,7 @@ from app.documents.review import RevealedSuggestion, enter_value_before_reveal, 
 from app.documents.scanning import (SIGNATURE_PATTERN, ClamdScanner, MalwareScanner, ScannerUnavailable,
                                     ScanVerdict)
 from app.documents.states import OcrErrorCode, OcrRunStatus
+from app.documents.text_engine import text_engine_from_environment
 from app.documents.storage import (DocumentStorage, LocalQuarantineStorage, StagedObject,
                                    StorageConfigurationError, StorageError)
 from app.platform.db import new_session, unit_of_work
@@ -94,8 +95,16 @@ def scanner() -> MalwareScanner:
 
 
 def engine() -> TextEngine:
+    """The configured engine, else the one DOCUMENT_TEXT_ENGINE selects (default: local pypdf + Tesseract)."""
+    global _engine
     if _engine is None:
-        raise ServiceUnavailable("no text engine is configured, so facts cannot be extracted yet")
+        try:
+            _engine = text_engine_from_environment()
+        except DocumentConfigurationError as exc:
+            raise ServiceUnavailable(f"text engine is not configured: {exc}") from None
+        if _engine is None:
+            raise ServiceUnavailable("no text engine is configured (DOCUMENT_TEXT_ENGINE=none), "
+                                     "so facts cannot be extracted")
     return _engine
 
 

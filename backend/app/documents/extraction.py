@@ -2,8 +2,9 @@
 
 A TextEngine turns the bytes of one scanner-approved version into page text and
 OCR tokens whose spans index that text. The candidate extractor then finds
-fields in it. No engine is configured by default: no OCR model is approved yet
-(see README), so extraction answers 503 until one is wired with configure().
+fields in it. The default engine (text_engine.py, selected by DOCUMENT_TEXT_ENGINE)
+reads PDF text layers with pypdf and runs a local Tesseract for scans; tests and
+deployments can install another one with service.configure(engine=...).
 """
 
 from __future__ import annotations

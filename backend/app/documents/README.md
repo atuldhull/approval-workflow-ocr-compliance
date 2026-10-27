@@ -7,9 +7,11 @@ available over HTTP (see "API" below). There is still **no download
 endpoint**: no route returns file bytes. Do not upload real documents; use
 synthetic files only. The frontend document-review adapter is not built yet.
 
-No OCR model is configured. Extraction goes through a replaceable `TextEngine`
-(`extraction.py`) and answers 503 until one is installed with
-`service.configure(engine=...)`. Document migration downgrade/re-upgrade
+Extraction goes through a replaceable `TextEngine` (`extraction.py`). The
+default is the local engine in `text_engine.py`: pypdf for PDF text layers,
+the Tesseract command line for images and pages without a text layer (see
+"Text engine configuration"). `service.configure(engine=...)` installs another
+one (tests use fakes). Document migration downgrade/re-upgrade
 (doc_0004 to doc_0003 and back) was verified on the disposable test database;
 rerun that after document migration changes.
 
@@ -75,6 +77,43 @@ Rules the endpoints follow:
 `docker compose --profile scanning up -d clamav`. The first start downloads
 signatures and can take a few minutes; scans answer 503 until clamd is ready.
 
+## Text engine configuration
+
+`service.engine()` builds the engine on first use from the environment, like
+the storage and scanner adapters:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DOCUMENT_TEXT_ENGINE` | `local` | `local` = pypdf + Tesseract; `none` = no engine, extraction answers 503. Anything else is a configuration error (503). |
+| `DOCUMENT_TESSERACT_CMD` | `tesseract` | Binary name or path, looked up on `PATH`. |
+| `DOCUMENT_OCR_LANGUAGES` | `eng+hin` | Tesseract languages to use; only the installed ones are passed (`--list-langs`). |
+| `DOCUMENT_OCR_TIMEOUT_SECONDS` | `60` | Per image; a timeout fails the run with `TIMEOUT`. |
+
+How a clean version is read:
+
+- **PDF page with a text layer:** `pypdf` `extract_text()`, page by page. One
+  token per word; confidence `1`, because the text was read, not recognised.
+- **Image, or PDF page without a text layer:** its embedded images go to
+  `tesseract stdin stdout -l eng+hin tsv`. Word confidences are Tesseract's
+  own, scaled to 0..1, and are **uncalibrated** (the run's `model_version` says
+  so, e.g. `pypdf 6.19.0; tesseract 5.3.4; confidence uncalibrated`). No
+  threshold uses them.
+- **Tesseract missing** (binary not found, or none of the configured languages
+  installed) while a page needs it: the run is `FAILED` with
+  `ADAPTER_UNAVAILABLE` and can be retried with another extract call once
+  Tesseract is there. Such a run is never recorded as an empty success. A
+  mixed PDF fails as a whole; no partial batch of facts is kept.
+- Other failures: unreadable PDF or unsupported type `INPUT_REJECTED`,
+  Tesseract error or unparseable output `PROCESSING_FAILED`, timeout `TIMEOUT`.
+- Token scripts come from `ocr.detect_script`; the candidate extractor then
+  converts Indic digits to ASCII and normalises dates exactly as before. Every
+  value is a `PROPOSED` fact until a reviewer enters, reviews and confirms it.
+
+The backend image installs `tesseract-ocr`, `tesseract-ocr-eng` and
+`tesseract-ocr-hin`. Running the backend outside Docker without Tesseract
+still reads text-layer PDFs; scans then fail as above. Nothing is sent off the
+machine. Accuracy on real AICTE documents has not been measured.
+
 ## Prototype configuration
 
 - `DOCUMENT_STORAGE_DIR` must be an absolute path outside this repository and
@@ -137,7 +176,8 @@ database permissions.
 ## Later OCR and fact work
 
 - The replaceable `OcrAdapter` interface has no configured production adapter;
-  a `TextEngine` built on it can be installed for extraction. Adapters must declare script support; routing uses explicit hints or a
+  a `TextEngine` built on it can be installed for extraction instead of the
+  local engine. Adapters must declare script support; routing uses explicit hints or a
   homogeneous detected script and fails closed for mixed or unsupported text.
 - OCR runs have queued/running/succeeded/failed states. A retry is a new linked
   attempt and is allowed only after failure. Retry creation is idempotent per
@@ -158,6 +198,9 @@ database permissions.
   original string, and leaves multiple valid interpretations ambiguous. It
   creates candidate values only; legal deadlines and date conventions remain
   outside this module.
-- Real OCR remains blocked until model ownership/licensing, resource/runtime
-  limits and the Person 3 review interface are resolved. The supplied Indic model is not
-  bundled or invoked. External translation is not integrated.
+- The local engine uses Tesseract (Apache-2.0) and pypdf only. A dedicated
+  Indic model still needs ownership/licensing and resource limits agreed; the
+  supplied Indic model is not bundled or invoked. External translation is not
+  integrated. The local engine does not go through `AdapterRouter`: one
+  Tesseract call reads `eng+hin` together, and each token's script is
+  detected afterwards.
