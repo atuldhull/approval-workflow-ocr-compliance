@@ -1,4 +1,8 @@
-"""Deterministic fictional EVC master data; no real people or selector decisions."""
+"""Deterministic fictional EVC master data; no real people or selector decisions.
+
+Thirty DEMO experts in nine DEMO_REGION_nn regions (the benchmark pool) plus six DEMO experts in each region the seeded
+DEMO institutions use (Northern, Southern, Western), so the demo's own cases can be proposed and published.
+"""
 import argparse
 from datetime import timedelta
 import sys
@@ -9,7 +13,7 @@ from generator.cases.scale_generator import EPOCH, LogicalClock, ROOT
 
 
 def demo_rows(clock: ClockPort, institution_refs: list[UUID]) -> dict:
-    """Thirty DEMO experts, sixty days of AM/PM availability, three COIs."""
+    """Thirty DEMO experts in nine DEMO regions, sixty days of AM/PM availability, three COIs."""
     if len(institution_refs) < 3 or len(set(institution_refs)) != len(institution_refs):
         raise ValueError("at least three distinct DEMO institution references are required")
     now = clock.now()
@@ -31,6 +35,34 @@ def demo_rows(clock: ClockPort, institution_refs: list[UUID]) -> dict:
     return dict(label="DEMO", simulation_status="SIMULATED", experts=experts, availability=availability, coi=conflicts)
 
 
+REGIONAL_EXPERTS = 6  # per region: two full panels of three a day under the one-visit-a-day DEMO cap
+
+
+def regional_rows(clock: ClockPort, regions: list[str]) -> dict:
+    """DEMO experts in the regions the seeded DEMO institutions use, so their cases can be planned end to end.
+
+    Six fictional expert references per region, sixty days of AM/PM availability (each expert off one day in seven).
+    No COIs: the curated DEMO COIs above stay the only ones. Same deterministic UUID5 scheme with its own prefix.
+    """
+    if not regions or len(set(regions)) != len(regions):
+        raise ValueError("distinct DEMO regions are required")
+    now = clock.now()
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("logical clock must be timezone-aware")
+    start = now.date()
+    experts, availability = [], []
+    for region in regions:
+        for index in range(REGIONAL_EXPERTS):
+            expert = uuid5(NAMESPACE_URL, f"SIH26262:DEMO:EVC:regional-expert:{region}:{index}")
+            experts.append(dict(id=expert, user_ref=uuid5(NAMESPACE_URL, f"SIH26262:DEMO:EVC:regional-user:{region}:{index}"),
+                                region=region, expertise_tags=["DEMO", f"DEMO_DOMAIN_{index % 3 + 1:02d}"], active=True))
+            for day in range(60):
+                for part in ("AM", "PM"):
+                    availability.append(dict(expert_id=expert, date=start + timedelta(days=day), slot_part=part,
+                                             available=(index + day) % 7 != 0))
+    return dict(label="DEMO", simulation_status="SIMULATED", experts=experts, availability=availability)
+
+
 def seed(session, clock: ClockPort, institution_refs: list[UUID]) -> dict[str, int]:
     """Idempotent bootstrap into evc only, in the caller's single transaction.
 
@@ -48,6 +80,8 @@ def seed(session, clock: ClockPort, institution_refs: list[UUID]) -> dict[str, i
     rows = demo_rows(clock, institution_refs)
     if set(institution_refs) != {row[0] for row in DEMO_INSTITUTIONS}:
         raise ValueError("COIs require the three known fictional DEMO institution references")
+    regional = regional_rows(clock, sorted({row[2] for row in DEMO_INSTITUTIONS}))
+    rows = dict(rows, experts=rows["experts"] + regional["experts"], availability=rows["availability"] + regional["availability"])
     for model, name, key in ((Expert, "experts", ("id",)),
                              (Availability, "availability", ("expert_id", "date", "slot_part")),
                              (Coi, "coi", ("expert_id", "institution_ref", "reason_code", "source"))):

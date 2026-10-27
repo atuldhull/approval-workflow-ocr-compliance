@@ -252,13 +252,16 @@ def test_demo_seed_is_deterministic_complete_idempotent_and_cli_loadable(client)
     assert all("DEMO" in row["expertise_tags"] and row["region"].startswith("DEMO_") for row in rows["experts"])
     for _ in range(2):
         with new_session() as session, session.begin():
-            assert seed(session, clock, INSTITUTIONS) == dict(experts=30, availability=3600, coi=3)
+            assert seed(session, clock, INSTITUTIONS) == dict(experts=48, availability=5760, coi=3)
     result = subprocess.run([sys.executable, "-m", "generator.cases.seed_evc_demo", "--at", EPOCH],
                             cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True)
     assert result.returncode == 0, result.stdout + result.stderr
     with new_session() as session:
-        assert session.scalar(select(func.count()).select_from(Expert)) == 30
-        assert session.scalar(select(func.count()).select_from(Availability)) == 3600
+        assert session.scalar(select(func.count()).select_from(Expert)) == 48
+        assert session.scalar(select(func.count()).select_from(Availability)) == 5760
+        regions = session.execute(select(Expert.region, func.count()).where(~Expert.region.startswith("DEMO_"))
+                                  .group_by(Expert.region)).all()
+        assert sorted(regions) == [("Northern", 6), ("Southern", 6), ("Western", 6)]
         assert session.scalar(select(func.count()).select_from(Coi)) == 3
 
 
