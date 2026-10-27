@@ -145,12 +145,13 @@
 .case-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: var(--s2) 0 0; font-size: var(--fs-md); }
 .case-provenance { margin: var(--s3) 0 0; padding: var(--s2) var(--s3); background: var(--ink-1); border-radius: var(--radius-sm); }
 .case-provenance .status-note { margin: 0 0 6px; }
-.official-refs { display: grid; grid-template-columns: repeat(3, max-content minmax(0, 1fr)); gap: 2px var(--s2); margin: 0; font-size: var(--fs-xs); }
+.official-refs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px var(--s2); margin: 0; font-size: var(--fs-xs); }
 .official-refs dt { color: var(--text-3); }
 .official-refs dd { margin: 0 var(--s3) 0 0; color: var(--text-2); }
 .case-zone { margin-top: var(--s5); min-width: 0; }
 .case-zone > h3 { margin: 0 0 var(--s3); font-size: var(--fs-sm); color: var(--text-2); }
 .case-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s5); }
+.split-detail .case-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .clock { padding: 10px var(--s3); border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: var(--s2); background: var(--ink-1); }
 .clock-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); flex-wrap: wrap; }
 .clock-due { margin: 0; font-size: var(--fs-sm); color: var(--text-3); white-space: nowrap; }
@@ -281,7 +282,7 @@
 .version-list { list-style: none; margin: 0; padding: 0; }
 .version { padding: var(--s2) 0 var(--s2) var(--s2); border-left: 2px solid transparent; }
 .version + .version { border-top: 1px solid var(--line); }
-.version.is-previewed { border-left-color: var(--brass); background: var(--brass-soft); }
+.version.is-previewed { border-left-color: var(--brass); background: var(--ink-3); }
 .version-main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
 .version-no { font: 600 var(--fs-sm)/1 var(--mono); color: var(--text-2); }
 .version-name { font-family: var(--mono); font-size: var(--fs-sm); overflow-wrap: anywhere; }

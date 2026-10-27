@@ -42,7 +42,7 @@ export default function DocumentPreview({ who, version, children, caption }) {
   }
   return (
     <figure className="paper-frame">
-      <div className={`paper${state.url ? " has-image" : ""}`}>
+      <div className={`paper${state.url ? " has-image" : ""}`} tabIndex={0} role="region" aria-label={`Reading surface: ${version.original_filename}`}>
         {state.url && <img src={state.url} alt={`Page image of ${version.original_filename}`} />}
         {image && state.loading && <p className="paper-note" role="status">Loading the page image…</p>}
         {state.error && <ErrorBox error={state.error} />}

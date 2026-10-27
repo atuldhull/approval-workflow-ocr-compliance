@@ -149,7 +149,7 @@ a { color: var(--brass-strong); text-underline-offset: 2px; }
 .grid { display: grid; gap: var(--s4); align-items: start; min-width: 0; }
 .grid.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .grid.cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); }
-.card { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s4); min-width: 0; }
+.card { position: relative; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s4); min-width: 0; }
 .card + .card { margin-top: var(--s4); }
 .grid > .card + .card, .grid > * + .card { margin-top: 0; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin: calc(var(--s1) * -1) 0 var(--s3); min-height: 30px; flex-wrap: wrap; }
@@ -241,7 +241,7 @@ legend { padding: 0; }
 .stat-value { font: 500 22px/1.15 var(--ui); color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .stat-hint { font-size: var(--fs-xs); color: var(--text-3); }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap { position: relative; overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .table th, .table td { padding: 8px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 .table th:first-child, .table td:first-child { padding-left: 0; }
