@@ -384,6 +384,23 @@ def _suggestion_visible(fact: Fact, principal: Principal) -> bool:
     return fact.suggestion_revealed_at is not None and fact.review_typed_by == principal.user_id
 
 
+def _actor(user_id: UUID | None, role: str | None, principal: Principal) -> dict[str, Any] | None:
+    """Who acted, as a role and whether it was the caller. Never a user id or name."""
+    if user_id is None:
+        return None
+    you = user_id == principal.user_id
+    return {"role": role, "is_you": you, "who": "you" if you else "another officer"}
+
+
+def _own_entry(fact: Fact, principal: Principal) -> dict[str, Any] | None:
+    """The caller's own blind entry, so a reload mid-review restores it. Another reviewer's entry: never."""
+    if fact.review_typed_by is None or fact.review_typed_by != principal.user_id:
+        return None
+    return {"value": fact.review_typed_value, "entered_at": fact.review_typed_at.isoformat(),
+            "suggestion_revealed": fact.suggestion_revealed_at is not None,
+            "revealed_at": fact.suggestion_revealed_at.isoformat() if fact.suggestion_revealed_at else None}
+
+
 def fact_view(fact: Fact, principal: Principal) -> dict[str, Any]:
     status = fact_status(fact)
     if principal.role == Role.INSTITUTION:
@@ -403,10 +420,12 @@ def fact_view(fact: Fact, principal: Principal) -> dict[str, Any]:
         "candidate_text": fact.candidate_text if visible else None,
         "normalized_value": fact.normalized_value if visible else None,
         "confidence": float(fact.confidence) if visible else None,
+        "my_entry": _own_entry(fact, principal),
+        "entered_by": _actor(fact.review_typed_by, fact.review_typed_role, principal),
         "reviewed_value": fact.reviewed_value,
-        "reviewed_by": str(fact.review_typed_by) if fact.reviewed_at else None,
+        "reviewed_by": _actor(fact.review_typed_by, fact.review_typed_role, principal) if fact.reviewed_at else None,
         "reviewed_at": fact.reviewed_at.isoformat() if fact.reviewed_at else None,
-        "confirmed_by": str(fact.confirmed_by) if fact.confirmed_by else None,
+        "confirmed_by": _actor(fact.confirmed_by, fact.confirmed_role, principal),
         "confirmed_at": fact.confirmed_at.isoformat() if fact.confirmed_at else None,
     }
 
@@ -456,6 +475,7 @@ def enter_review_value(uow: UnitOfWork, fact_id: UUID, value: str) -> Fact:
         enter_value_before_reveal(fact, reviewer_id=uow.principal.user_id, value=value, at=_now())
     except ValueError as exc:
         raise Conflict(str(exc)) from None
+    fact.review_typed_role = str(uow.principal.role)
     uow.session.flush()
     return fact
 
@@ -513,6 +533,7 @@ def confirm_fact(uow: UnitOfWork, fact_id: UUID) -> Fact:
         now = fact.reviewed_at
     fact.confirmed_by = uow.principal.user_id
     fact.confirmed_at = now
+    fact.confirmed_role = str(uow.principal.role)
     uow.session.flush()
     _event(uow, version.document_id, "doc.fact_confirmed", {
         "fact_id": str(fact.fact_id), "document_id": str(version.document_id),

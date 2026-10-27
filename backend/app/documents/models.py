@@ -231,6 +231,16 @@ class Fact(Base):
             "AND confirmed_at >= reviewed_at AND confirmed_by <> review_typed_by)",
             name="ck_doc_fact_confirmation",
         ),
+        CheckConstraint(
+            "(review_typed_role IS NULL OR (review_typed_by IS NOT NULL AND review_typed_role IN "
+            "('INSTITUTION', 'SCRUTINY_COMMITTEE', 'RO_OFFICER', 'BUREAU_OFFICER', 'BUREAU_HEAD', 'AUDITOR')))",
+            name="ck_doc_fact_review_typed_role",
+        ),
+        CheckConstraint(
+            "(confirmed_role IS NULL OR (confirmed_by IS NOT NULL AND confirmed_role IN "
+            "('INSTITUTION', 'SCRUTINY_COMMITTEE', 'RO_OFFICER', 'BUREAU_OFFICER', 'BUREAU_HEAD', 'AUDITOR')))",
+            name="ck_doc_fact_confirmed_role",
+        ),
         Index("ix_doc_fact_version_field", "document_version_id", "field_key"),
         Index("ix_doc_fact_review_state", "state", "created_at"),
         {"schema": SCHEMA},
@@ -255,10 +265,13 @@ class Fact(Base):
     review_typed_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_typed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     review_typed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Role of that officer, so listings can say who acted without exposing user ids (doc_0005).
+    review_typed_role: Mapped[str | None] = mapped_column(Text, nullable=True)
     suggestion_revealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Second step after review, by another officer. Only confirmed facts may drive deadlines.
     confirmed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_role: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

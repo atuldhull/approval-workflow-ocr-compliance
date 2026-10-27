@@ -610,3 +610,84 @@ def test_document_listings_show_the_version_lifecycle_status(docs):
     assert {v["status"] for d in listed for v in d["versions"]} == {"AVAILABLE"}
     facts = docs.client.get(f"/api/document-versions/{version_id}/facts", headers=BUREAU).json()
     assert facts["version_status"] == "AVAILABLE" and facts["scan_status"] == "clean"
+
+
+# ---- the reviewer's own entry survives a reload ----
+
+def _fact(docs, version_id, fact_id, h):
+    facts = docs.client.get(f"/api/document-versions/{version_id}/facts", headers=h).json()["facts"]
+    return next(f for f in facts if f["fact_id"] == fact_id)
+
+
+def test_a_reload_restores_the_reviewers_own_entry_and_reveal_state(docs, monkeypatch):
+    _, version_id, _ = extracted(docs)
+    fact_id = fact_id_for(docs, version_id, "letter_issue_date")
+    before = _fact(docs, version_id, fact_id, COMMITTEE)
+    assert before["my_entry"] is None and before["entered_by"] is None
+
+    def lost_reveal(uow, fid):
+        raise Conflict("simulated lost reveal")
+
+    # the entry commits but its reveal is lost, as after a dropped response
+    real = service.reveal_for_reviewer
+    monkeypatch.setattr(service, "reveal_for_reviewer", lost_reveal)
+    docs.client.post(f"/api/document-facts/{fact_id}/entry", headers=COMMITTEE, json={"value": "2025-03-21"})
+    monkeypatch.setattr(service, "reveal_for_reviewer", real)
+    mine = _fact(docs, version_id, fact_id, COMMITTEE)
+    assert mine["my_entry"]["value"] == "2025-03-21" and mine["my_entry"]["entered_at"]
+    assert mine["my_entry"]["suggestion_revealed"] is False and mine["suggestion_visible"] is False
+    assert mine["entered_by"] == {"role": "SCRUTINY_COMMITTEE", "is_you": True, "who": "you"}
+
+    docs.client.post(f"/api/document-facts/{fact_id}/reveal", headers=COMMITTEE)
+    mine = _fact(docs, version_id, fact_id, COMMITTEE)
+    assert mine["my_entry"]["suggestion_revealed"] is True and mine["my_entry"]["revealed_at"]
+    assert mine["suggestion_visible"] is True and mine["normalized_value"] == "2025-03-12"
+
+
+def test_another_reviewers_entry_is_never_shown(docs):
+    _, version_id, _ = extracted(docs)
+    fact_id = fact_id_for(docs, version_id, "letter_issue_date")
+    docs.client.post(f"/api/document-facts/{fact_id}/entry", headers=COMMITTEE, json={"value": "2025-03-21"})
+    for h in (COMMITTEE_2, RO_SOUTH, BUREAU, AUDITOR):
+        r = docs.client.get(f"/api/document-versions/{version_id}/facts", headers=h)
+        assert "2025-03-21" not in r.text
+        other = _fact(docs, version_id, fact_id, h)
+        assert other["my_entry"] is None
+        assert other["entered_by"] == {"role": "SCRUTINY_COMMITTEE", "is_you": False, "who": "another officer"}
+    reviewer = _fact(docs, version_id, fact_id, COMMITTEE_2)
+    assert reviewer["candidate_text"] is None and reviewer["suggestion_visible"] is False
+    # no user ids anywhere in an officer's listing
+    raw = docs.client.get(f"/api/document-versions/{version_id}/facts", headers=BUREAU).text
+    for h in (COMMITTEE, COMMITTEE_2, BUREAU):
+        assert h["X-Demo-User"] not in raw
+
+
+def test_reviewed_and_confirmed_by_are_roles_with_a_you_flag(docs):
+    _, version_id, _ = extracted(docs)
+    fact_id = fact_id_for(docs, version_id, "letter_issue_date")
+    docs.client.post(f"/api/document-facts/{fact_id}/entry", headers=RO_SOUTH, json={"value": "2025-03-12"})
+    docs.client.post(f"/api/document-facts/{fact_id}/review", headers=RO_SOUTH, json={"decision": "ACCEPTED"})
+    assert docs.client.post(f"/api/document-facts/{fact_id}/confirm", headers=BUREAU).status_code == 200
+    as_reviewer = _fact(docs, version_id, fact_id, RO_SOUTH)
+    assert as_reviewer["reviewed_by"] == {"role": "RO_OFFICER", "is_you": True, "who": "you"}
+    assert as_reviewer["confirmed_by"] == {"role": "BUREAU_OFFICER", "is_you": False, "who": "another officer"}
+    assert as_reviewer["my_entry"]["value"] == "2025-03-12"
+    as_confirmer = _fact(docs, version_id, fact_id, BUREAU)
+    assert as_confirmer["confirmed_by"]["is_you"] is True and as_confirmer["reviewed_by"]["who"] == "another officer"
+    with new_session() as s:
+        fact = s.get(Fact, UUID(fact_id))
+        assert (fact.review_typed_role, fact.confirmed_role) == ("RO_OFFICER", "BUREAU_OFFICER")
+
+
+def test_the_database_keeps_the_actor_roles_fixed(docs):
+    from sqlalchemy import text
+
+    from app.platform.db import get_engine
+
+    _, version_id, _ = extracted(docs)
+    fact_id = fact_id_for(docs, version_id, "letter_issue_date")
+    docs.client.post(f"/api/document-facts/{fact_id}/entry", headers=COMMITTEE, json={"value": "2025-03-12"})
+    with pytest.raises(Exception, match="immutable"):
+        with get_engine().begin() as c:
+            c.execute(text("UPDATE doc.fact SET review_typed_role = 'BUREAU_HEAD' WHERE fact_id = :f"),
+                      {"f": fact_id})
