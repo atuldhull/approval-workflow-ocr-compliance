@@ -80,15 +80,21 @@ export function Sidebar({ items, current, onNavigate, collapsed, onToggleCollaps
   );
 }
 
+// On phones the session controls (identity, demo clock) fold behind one button so the page starts at the top.
 export function TopBar({ me, who, config, identityControl, title, view }) {
+  const [open, setOpen] = useState(false);
   return (
-    <header className="topbar">
+    <header className={`topbar${open ? " ctx-open" : ""}`}>
       <div className="topbar-title">
         <span className="crumb">{ROLE_LABELS[me.role] ?? me.role}{me.region ? ` · ${me.region} region` : ""}</span>
         <span className="crumb-sep" aria-hidden="true">/</span>
         <span key={view} className="crumb-page">{title}</span>
       </div>
-      <div className="topbar-context">
+      <button className="ghost small context-toggle" aria-expanded={open} aria-controls="session-context"
+        onClick={() => setOpen((o) => !o)}>
+        {config.mode === "demo" ? "Demo session" : "Session"} <Icon name={open ? "close" : "expand"} />
+      </button>
+      <div className="topbar-context" id="session-context">
         {config.mode === "demo" && <span className="badge warn">DEMO SIGN-IN</span>}
         <span className="badge neutral">Synthetic data</span>
         {config.demo_mode && <TimeTravel who={who} />}
