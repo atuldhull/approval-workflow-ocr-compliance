@@ -468,3 +468,19 @@ def test_alert_list_is_scoped_by_role_region_and_institution(env):
 def _outbox(alert_id):
     with new_session() as s:
         return s.scalars(select(Outbox).where(Outbox.alert_id == alert_id)).all()
+
+
+# ---- alerts lead back to the case and the obligation ----
+
+def test_alerts_carry_the_rule_due_date_and_case(env):
+    app_id = submit(env)
+    d = deadline_of(app_id)
+    clock.advance(29)
+    worker().run_once()
+    [listed] = [a for a in env.get("/api/alerts", headers=SOUTH_RO).json() if a["deadline_id"] == str(d.id)]
+    assert (listed["rule_id"], listed["due_date"], listed["deadline_status"]) == (
+        "AICTE_PROCESSING", d.due_date.isoformat(), "RUNNING")
+    assert (listed["subject_type"], listed["subject_id"], listed["application_id"]) == (
+        "application", str(app_id), str(app_id))
+    acked = env.post(f"/api/alerts/{listed['id']}/ack", headers=SOUTH_RO).json()
+    assert acked["rule_id"] == "AICTE_PROCESSING" and acked["application_id"] == str(app_id)
