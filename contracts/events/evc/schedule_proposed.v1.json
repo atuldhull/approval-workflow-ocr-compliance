@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "algorithm",
+    "region_scope",
+    "proposals",
+    "unscheduled",
+    "scheduled_count",
+    "unscheduled_count",
+    "total_lateness_days",
+    "selector_label",
+    "simulation_status",
+    "source_status",
+    "assumption_code"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "algorithm": {
+      "enum": ["EDF", "CPSAT"]
+    },
+    "region_scope": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["request_id", "assignment_id", "slot_id", "date", "slot_part", "expert_ids", "lateness_days"],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "slot_part": {
+            "enum": ["AM", "PM"]
+          },
+          "expert_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "lateness_days": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "unscheduled": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["request_id", "reason_code"],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason_code": {
+            "enum": ["NO_AVAILABILITY", "COI_ONLY", "PANEL_INCOMPLETE", "CAPACITY_EXHAUSTED"]
+          }
+        }
+      }
+    },
+    "scheduled_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unscheduled_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_lateness_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "selector_label": {
+      "const": "SIMULATED authorised selector (stand-in)"
+    },
+    "simulation_status": {
+      "const": "SIMULATED"
+    },
+    "source_status": {
+      "const": "DEMO_ASSUMPTION"
+    },
+    "assumption_code": {
+      "const": "EVC_SCHEDULING_POLICY_UNCONFIRMED"
+    }
+  }
+}
