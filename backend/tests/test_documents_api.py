@@ -266,7 +266,10 @@ def test_scanner_down_keeps_the_version_pending_unserved_and_rescannable(docs):
     assert docs.client.post(f"/api/document-versions/{version_id}/scan", headers=INST).status_code == 503
     assert [t for t, _ in events()] == ["doc.document_uploaded"]
 
-    assert docs.client.post(f"/api/document-versions/{version_id}/scan", headers=RO_SOUTH).status_code == 403
+    # the case's regional officer may retry too (still no answer, still nothing changes); another region may not
+    assert docs.client.post(f"/api/document-versions/{version_id}/scan", headers=RO_SOUTH).status_code == 503
+    assert docs.client.post(f"/api/document-versions/{version_id}/scan", headers=RO_NORTH).status_code == 403
+    assert [t for t, _ in events()] == ["doc.document_uploaded"]
     docs.scanner.down = False
     assert docs.client.post(f"/api/document-versions/{version_id}/scan", headers=INST).json()["scan_status"] == "clean"
     assert docs.client.post(f"/api/document-versions/{version_id}/scan", headers=INST).json()["scan_status"] == "clean"
