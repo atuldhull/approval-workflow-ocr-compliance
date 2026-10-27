@@ -151,7 +151,7 @@ def test_ro_scope_on_every_command_and_before_pagination(pool_client):
     listing = pool_client.get("/api/evc/experts?limit=1", headers=actor).json()
     assert listing["total"] == 1 and listing["items"][0]["id"] == southern["id"]
     assert pool_client.get("/api/evc/experts?region=NORTHERN", headers=actor).status_code == 403
-    assert pool_client.get("/api/evc/experts", headers=headers("RO_OFFICER")).status_code == 403
+    assert pool_client.get("/api/evc/experts", headers=headers("RO_OFFICER")).status_code == 401  # platform: RO needs a region
     assert pool_client.get("/api/evc/experts", headers=headers("AUDITOR")).status_code == 200
     assert availability(pool_client, southern["id"], headers=headers("AUDITOR")).status_code == 403
 

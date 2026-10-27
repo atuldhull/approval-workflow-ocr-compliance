@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "algorithm",
+    "application_id",
+    "request_id",
+    "assignment_id",
+    "slot_id",
+    "date",
+    "slot_part",
+    "due_by",
+    "lateness_days",
+    "expert_ids",
+    "panel_role",
+    "selector_label",
+    "simulation_status",
+    "source_status",
+    "assumption_code"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "algorithm": {
+      "enum": ["EDF", "CPSAT"]
+    },
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assignment_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "slot_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "slot_part": {
+      "enum": ["AM", "PM"]
+    },
+    "due_by": {
+      "type": "string",
+      "format": "date"
+    },
+    "lateness_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expert_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "panel_role": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "selector_label": {
+      "const": "SIMULATED authorised selector (stand-in)"
+    },
+    "simulation_status": {
+      "const": "SIMULATED"
+    },
+    "source_status": {
+      "const": "DEMO_ASSUMPTION"
+    },
+    "assumption_code": {
+      "const": "EVC_SCHEDULING_POLICY_UNCONFIRMED"
+    }
+  }
+}

@@ -3,7 +3,7 @@ from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.evc.models import Assignment, EvcRequest
 from app.platform.registry import port
@@ -47,6 +47,7 @@ def active(session, application_id, *, lock=False):
 
 class EvcService:
     def status(self, session, application_id):
+        """Latest request status for workflow guards. PUBLISHED means a published panel/date exists."""
         row = active(session, application_id)
         if row is None:
             row = session.scalar(select(EvcRequest).where(EvcRequest.application_id == application_id)
@@ -100,9 +101,13 @@ class EvcService:
             raise ValidationFailed("EVC_REQUEST_NOT_ACTIVE")
         if (row.ruleset_key, row.rule_id) != (ruleset_key, rule_id) or row.deadline_ref is None:
             raise Conflict("EVC_REQUEST_PIN_MISMATCH")
-        if cancelled and (row.status != "QUEUED" or uow.session.scalar(select(Assignment.id)
-            .where(Assignment.evc_request_id == row.id).limit(1)) is not None):
-            raise Conflict("EVC_SCHEDULE_CANCELLATION_REQUIRED")
+        if cancelled:
+            # Unpublished proposals reserve nothing and are withdrawn with the request; a published
+            # assignment still fails closed until an unpublication lifecycle exists.
+            if row.status not in ("QUEUED", "PROPOSED") or uow.session.scalar(select(Assignment.id).where(
+                    Assignment.evc_request_id == row.id, Assignment.published.is_(True)).limit(1)) is not None:
+                raise Conflict("EVC_SCHEDULE_CANCELLATION_REQUIRED")
+            uow.session.execute(delete(Assignment).where(Assignment.evc_request_id == row.id, Assignment.published.is_(False)))
         now = port(ClockPort).now()
         if now.tzinfo is None or now.utcoffset() is None or now < row.requested_at:
             raise Conflict("EVC_CLOCK_BEFORE_REQUEST")

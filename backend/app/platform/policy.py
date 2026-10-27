@@ -58,6 +58,9 @@ POLICY: dict[str, frozenset[Role]] = {
     "evc.availability.set": frozenset({R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD}),
     "evc.coi.record": frozenset({R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD}),
     "evc.expert.read": frozenset({R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD, R.SCRUTINY_COMMITTEE, R.AUDITOR}),
+    # EVC scheduling (Person 1): propose dated runs for queued requests; only the bureau publishes them
+    "evc.schedule.propose": frozenset({R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD}),
+    "evc.schedule.publish": frozenset({R.BUREAU_OFFICER, R.BUREAU_HEAD}),
     # application documents (Person 2's endpoints). Facts are extracted by OCR and only proposals until an
     # officer reviews and confirms them; institutions upload and see their own documents' facts.
     "document.upload": frozenset({R.INSTITUTION}),
@@ -81,11 +84,11 @@ POLICY: dict[str, frozenset[Role]] = {
 
 # Resource kinds the policy knows. Any other kind is denied.
 KINDS = frozenset({"institution", "ruleset", "application", "deadline", "ledger", "clock", "principal",
-                   "audit", "notification", "analytics", "document", "compliance", "alert", "evc_expert"})
+                   "audit", "notification", "analytics", "document", "compliance", "alert", "evc_expert", "evc"})
 
 # Records that belong to a regional office. A regional officer may touch them only when the caller states the
 # region (resource.region) and it is the officer's own - including list queries, which must filter by it.
-REGION_SCOPED_KINDS = frozenset({"application", "deadline", "analytics", "document", "compliance", "alert"})
+REGION_SCOPED_KINDS = frozenset({"application", "deadline", "analytics", "document", "compliance", "alert", "evc"})
 
 DEMO_ONLY_ACTIONS = frozenset({"sim.clock"})
 
