@@ -43,10 +43,16 @@ verification cards) follow below, unchanged in behaviour.
 3. The dashboard draws only regions present in the response; nothing is added for absent regions.
 4. Audit shows three separate assurance layers (continuity, independent witness, replay). A broken chain
    is never combined into a stronger claim.
-5. Document review keeps commit-before-reveal: machine readings appear only after the reviewer commits.
-6. EVC and compliance screens are labelled **PREVIEW · SAMPLE** until their APIs exist.
+5. Fact review keeps type-before-reveal: a reviewer's machine reading is rendered only from the server's
+   answer to their own entry, and a second officer confirms (the reviewer is told up front they cannot).
+6. EVC scheduling is labelled **PREVIEW · SAMPLE** until its API exists. Documents, fact review,
+   compliance and alerts run on the real APIs.
 7. Missing data produces an explicit empty or unavailable state, never filler.
 8. All data in this project is synthetic; the top bar always says so.
+9. Scan states, fact states, obligation and alert states are shown in words (`src/recordText.js`), never
+   as raw codes. A 503 is explained per service (scanner, storage, text reader), not as a security outage.
+10. Every write that the server makes idempotent sends an Idempotency-Key, created once per user action
+    and reused when that same action is retried after a lost answer or a server error.
 
 See `MOTION.md` for transitions and scenes, and `SEMANTIC_MOTION_MAP.md` for the per-screen mapping from
 API fields to visuals.

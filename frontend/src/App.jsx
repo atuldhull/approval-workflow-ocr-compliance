@@ -11,8 +11,11 @@ import AuditView from "./views/AuditView.jsx";
 import DashboardView from "./views/DashboardView.jsx";
 import DeliveryView from "./views/DeliveryView.jsx";
 import InboxView from "./views/InboxView.jsx";
-import OcrReviewView from "./views/OcrReviewView.jsx";
-import { ComplianceView, EvcView } from "./views/PreviewViews.jsx";
+import AlertsView from "./views/AlertsView.jsx";
+import ComplianceView from "./views/ComplianceView.jsx";
+import DocumentsView from "./views/DocumentsView.jsx";
+import FactReviewView from "./views/FactReviewView.jsx";
+import { EvcView } from "./views/PreviewViews.jsx";
 import ScorecardView from "./views/ScorecardView.jsx";
 
 const VIEWS = {
@@ -20,7 +23,9 @@ const VIEWS = {
   dashboard: DashboardView,
   applications: ApplicationsView,
   inbox: InboxView,
-  ocr: OcrReviewView,
+  alerts: AlertsView,
+  documents: DocumentsView,
+  ocr: FactReviewView,
   evc: EvcView,
   compliance: ComplianceView,
   audit: AuditView,
@@ -51,9 +56,11 @@ const SUBTITLES = {
   dashboard: "Applications, ageing and deadlines, rebuilt from the audit event log.",
   applications: "File, submit and follow each case along its route.",
   inbox: "Signals sent to you or to the role you hold.",
-  ocr: "Read the document first; the machine reading is revealed only after you commit yours.",
+  alerts: "Deadline alerts addressed to your role, their escalation level, and acknowledgement.",
+  documents: "Checklist documents, every uploaded version, and what its malware scan found.",
+  ocr: "Enter your own reading first; the machine reading is revealed only after the server records yours.",
   evc: "Expert visit scheduling.",
-  compliance: "Undertakings, affidavits and letter conditions.",
+  compliance: "Approval letters, the obligations they create, and the evidence that meets them.",
   audit: "Three independent layers of evidence that the record has not been altered.",
   delivery: "Every alert message, its attempts and where it is now.",
   scorecard: "What the system can show about its own correctness, and how each line was measured.",

@@ -16,8 +16,11 @@ export const WORLDS={
  delivery:['07','Message delivery','What happened to each message.','Each lane ends at the reported state. Inspect recorded attempts for a message; scrolling never simulates delivery.'],
  audit:['08','Assurance layers','Three different questions of trust.','Continuity, independent anchoring and replay answer different questions. No single result substitutes for the others.'],
  ocr:['09','Evidence inspection','Read the source. Then compare.','The document is the evidence. Machine locations and comparisons appear only after you commit the corresponding independent reading.'],
+ facts:['09','Fact register','Read the source. Then compare.','One record per extracted fact, showing only its review state. A machine reading appears below only after you commit your own.'],
+ documents:['13','Document quarantine','Every version, and what the scan found.','One record per checklist document. A version is usable only after the malware scan reports it clean; older versions stay on record.'],
+ alerts:['14','Alert ladder','Who was told, and who answered.','One record per raised alert level. Escalation follows the configured ladder; acknowledging stops it for that due date.'],
  evc:['10','Candidate visit timeline','Coordinate a visit.','Candidate dates occupy their relative positions on an IST time axis. These sample slots are not confirmed visits.'],
- compliance:['11','Obligation archive','An obligation. Its evidence.','Each compartment represents one sample obligation. Available evidence and review status remain separate.'],
+ compliance:['11','Obligation archive','An obligation. Its evidence.','Each compartment represents one recorded obligation. Submitted evidence and its verification remain separate; only acceptance by an officer meets it.'],
  scorecard:['12','Evaluation evidence','What has actually been tested.','Measurement method and outcome are separate. A category without a result remains unevaluated.'],
 };
 export default function World({kind,records=[],preview=false,onSelect,actionLabel='Open selected case',compact=false}){
