@@ -78,16 +78,15 @@ async function identityHeaders(who) {
 export const REQUEST_TIMEOUT_MS = 20_000;
 
 // `form` sends a FormData body (a multipart upload); the browser sets its Content-Type and boundary.
-export async function api(who, path, { method = "GET", body, form, headers: extra = {}, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+async function send(who, path, { method = "GET", body, form, headers: extra = {}, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const headers = { ...(await identityHeaders(who)), ...extra };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const payload = form !== undefined ? form : body === undefined ? undefined : JSON.stringify(body);
 
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
-  let res;
   try {
-    res = await fetch(`/api${path}`, { method, headers, body: payload, signal: abort.signal });
+    return await fetch(`/api${path}`, { method, headers, body: payload, signal: abort.signal });
   } catch {
     // A change that timed out may still have been applied; say so rather than invite a blind retry.
     const write = method !== "GET";
@@ -98,19 +97,36 @@ export async function api(who, path, { method = "GET", body, form, headers: extr
   } finally {
     clearTimeout(timer);
   }
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    let detail = detailText(data?.detail, res.statusText);
-    if (res.status === 401) {
-      detail = "Your session has ended or is not valid. Please sign in again.";
-      endSession(who);
-    }
-    if (res.status === 403) detail = `Not permitted: ${detail}`;
-    if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
-    if (res.status === 502 || res.status === 504) detail = "The server is unavailable right now. Try again shortly.";
-    throw new ApiError(res.status, detail, typeof data?.error === "string" ? data.error : null);
+}
+
+function failure(who, res, data) {
+  let detail = detailText(data?.detail, res.statusText);
+  if (res.status === 401) {
+    detail = "Your session has ended or is not valid. Please sign in again.";
+    endSession(who);
   }
+  if (res.status === 403) detail = `Not permitted: ${detail}`;
+  if (res.status === 503) detail = "A security service is unavailable, so the request was refused. Try again shortly.";
+  if (res.status === 502 || res.status === 504) detail = "The server is unavailable right now. Try again shortly.";
+  return new ApiError(res.status, detail, typeof data?.error === "string" ? data.error : null);
+}
+
+export async function api(who, path, options = {}) {
+  const res = await send(who, path, options);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw failure(who, res, data);
   return data;
+}
+
+// A file from the API (GET only), sent with the same identity headers as every other call. Only the media types
+// in `allowed` are accepted, and the Blob is rebuilt with that type, so whatever the response claims, the page
+// never turns server bytes into HTML or script under this origin.
+export async function apiFile(who, path, allowed) {
+  const res = await send(who, path);
+  if (!res.ok) throw failure(who, res, await res.json().catch(() => null));
+  const type = (res.headers?.get?.("Content-Type") ?? "").split(";")[0].trim().toLowerCase();
+  if (!allowed.has(type)) throw new ApiError(415, "The server sent a file this screen does not open.");
+  return new Blob([await res.blob()], { type });
 }
 
 export async function publicApi(path) {

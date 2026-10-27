@@ -1,9 +1,11 @@
 // Plain-language wording for the document, compliance and alert records. Codes stay on the server; the screens
 // show these sentences and keep the code only as a secondary detail where an officer may need to quote it.
-import { sentence } from "./nav.js";
+import { ROLE_LABELS, sentence } from "./nav.js";
 
-// Checklist item codes offered for upload. The ruleset does not publish a document checklist yet, so this list
-// lives here; the server accepts any code shaped like LAND_DEED and stores it as the document's checklist item.
+// Checklist item codes offered for upload. There is no checklist endpoint on the server: which documents a case
+// needs depends on ruleset data (rulesets/) that does not list them yet, so until it does this list lives here.
+// The server accepts any code shaped like LAND_DEED and stores it as the document's checklist item, so nothing
+// here is enforced; replace this list with the server's once the ruleset publishes one.
 export const CHECKLIST = [
   ["LAND_DEED", "Land ownership or registered lease deed"],
   ["BUILDING_PLAN", "Approved building plan"],
@@ -26,6 +28,20 @@ export const SCAN = {
     meaning: "The scanner found a threat. This version stays in quarantine and can never be used; upload a fresh copy." },
 };
 export const scanOf = (status) => SCAN[status] ?? { tone: "neutral", label: "Scan state not supplied", meaning: "The server did not report a scan state." };
+
+// A version's own status decides what may be done with it: only AVAILABLE versions can be viewed, reviewed or
+// used as evidence. The scan wording explains why a version is in that status.
+export const VERSION_STATE = { QUARANTINED: SCAN.scan_pending, AVAILABLE: SCAN.clean, REJECTED: SCAN.infected };
+export const versionStateOf = (v) => VERSION_STATE[v?.status] ?? scanOf(v?.scan_status);
+export const isAvailable = (v) => v?.status === "AVAILABLE";
+
+// Who reviewed or confirmed a fact, as the server reports it ({role, is_you}); never a user id.
+export function actorText(actor) {
+  if (!actor) return null;
+  if (actor.is_you) return "you";
+  const role = ROLE_LABELS[actor.role] ?? (actor.role ? sentence(actor.role) : null);
+  return role ? `another officer (${role.toLowerCase()})` : "another officer";
+}
 
 export const FIELD_LABELS = {
   lease_end_date: "Lease end date",
@@ -91,6 +107,20 @@ export const ALERT_STATUS = {
   VACANT: { tone: "neutral", label: "No one holds this role" },
 };
 export const alertStatusOf = (s) => ALERT_STATUS[s] ?? { tone: "neutral", label: sentence(s) || "Status not supplied" };
+
+// Deadline rules in rulesets/aph-2024-27, in plain words. Unknown ids fall back to the id itself, readable.
+export const RULES = {
+  AICTE_PROCESSING: "AICTE's processing time for a submitted application",
+  INSTITUTION_RESPONSE: "Institution's time to answer a deficiency",
+  APPEAL_7D: "Seven days to appeal a decision",
+  DEPOSIT_15D: "Fifteen days to pay the security deposit",
+  EOA_DEFICIENCY_6M: "Six months to clear the deficiencies an EoA lists",
+  LEASE_EOA_STOP: "Last year an extension can be granted before the lease ends",
+  LOA_DEPOSIT_AFFIDAVIT_15D: "Fifteen days after an LoA for the deposit proof and affidavit",
+  NO_ADMISSION_AFFIDAVIT_7D: "Seven days for the no-admission affidavit",
+  LOA_VALIDITY_2Y: "The LoA's two-year validity",
+};
+export const ruleLabel = (id) => RULES[id] ?? (id ? sentence(id) : "Rule not supplied");
 
 export const ALERT_REASON = {
   WINDOW_ELAPSED: "The previous level was not acknowledged in time.",

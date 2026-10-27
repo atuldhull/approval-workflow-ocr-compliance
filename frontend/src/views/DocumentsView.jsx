@@ -2,10 +2,13 @@ import World from "../nebula/World.jsx";
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
+import ViewDocument from "../components/ViewDocument.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import { sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
-import { CHECKLIST, checklistLabel, explain, factStatusOf, fieldLabel, fileSize, scanOf } from "../recordText.js";
+import {
+  CHECKLIST, checklistLabel, explain, factStatusOf, fieldLabel, fileSize, isAvailable, versionStateOf,
+} from "../recordText.js";
 
 // The server's cap (backend/app/documents/config.py). Checked here only to save a pointless upload.
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -16,14 +19,17 @@ const SCAN_POLLS = 5;
 
 const UPLOAD_ERRORS = { 503: "Document storage is unavailable right now, so nothing was stored. Try again shortly." };
 const SCAN_ERRORS = { 503: "The malware scanner did not answer. The file stays in quarantine; try the scan again shortly." };
+// policy.py document.rescan: the owning institution and the case officers who can chase a stuck scan
+const RESCANNERS = new Set(["INSTITUTION", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]);
+const isQuarantined = (v) => v.status === "QUARANTINED";
 
-export function ScanBadge({ status }) {
-  const s = scanOf(status);
+export function ScanBadge({ version }) {
+  const s = versionStateOf(version);
   return <Badge tone={s.tone}>{s.label}</Badge>;
 }
 
 export default function DocumentsView({ who, me }) {
-  return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} /> : <ScopeDocuments who={who} />;
+  return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} /> : <ScopeDocuments who={who} canScan={RESCANNERS.has(me.role)} />;
 }
 
 function documentRecords(docs) {
@@ -31,8 +37,8 @@ function documentRecords(docs) {
     const newest = d.versions[0];
     return {
       id: d.document_id, label: checklistLabel(d.doc_type),
-      state: newest?.scan_status === "infected" ? "broken" : newest?.scan_status === "scan_pending" ? "active" : "checked",
-      detail: newest ? `Version ${newest.version_no} · ${scanOf(newest.scan_status).label}` : "No versions",
+      state: newest?.status === "REJECTED" ? "broken" : newest?.status === "QUARANTINED" ? "active" : "checked",
+      detail: newest ? `Version ${newest.version_no} · ${versionStateOf(newest).label}` : "No versions",
       facts: [["Checklist item", d.doc_type || "Not supplied"], ["Case", internalRef(d.application_id)],
         ["Versions", d.versions.length], ["Usable version", d.current_version_id ? "Yes, scanned clean" : "None scanned clean yet"]],
     };
@@ -47,7 +53,7 @@ function InstitutionDocuments({ who }) {
   const chosen = appId ?? apps.data?.[0]?.id ?? null;
   const docs = useApi(who, chosen ? `/applications/${chosen}/documents` : null);
   const polls = useRef(0);
-  const pending = (docs.data ?? []).some((d) => d.versions.some((v) => v.scan_status === "scan_pending"));
+  const pending = (docs.data ?? []).some((d) => d.versions.some(isQuarantined));
 
   useEffect(() => {
     if (!pending || polls.current >= SCAN_POLLS) return undefined;
@@ -200,13 +206,13 @@ export function DocumentList({ who, state, canScan, onChanged, showFacts, showCa
           </header>
           <ul className="version-list">
             {d.versions.map((v) => {
-              const s = scanOf(v.scan_status);
+              const s = versionStateOf(v);
               return (
                 <li key={v.version_id} className="version">
                   <div className="version-main">
                     <span className="version-no num">v{v.version_no}</span>
                     <span className="version-name">{v.original_filename}</span>
-                    <ScanBadge status={v.scan_status} />
+                    <ScanBadge version={v} />
                   </div>
                   <p className="muted small">{s.meaning}</p>
                   <p className="muted small">
@@ -215,13 +221,14 @@ export function DocumentList({ who, state, canScan, onChanged, showFacts, showCa
                     {d.current_version_id === v.version_id && <> · <strong>current usable version</strong></>}
                   </p>
                   <div className="actions">
-                    {canScan && v.scan_status === "scan_pending" && (
+                    {canScan && isQuarantined(v) && (
                       <button className="secondary small" disabled={scanning !== null} onClick={() => scan(v.version_id)}
                         aria-label={`Run the malware scan again for version ${v.version_no} of ${checklistLabel(d.doc_type)}`}>
                         {scanning === v.version_id ? "Scanning…" : "Scan again"}
                       </button>
                     )}
-                    {showFacts && v.scan_status === "clean" && (
+                    {isAvailable(v) && <ViewDocument who={who} versionId={v.version_id} filename={v.original_filename} />}
+                    {showFacts && isAvailable(v) && (
                       <button className="ghost small" aria-expanded={factsFor === v.version_id}
                         onClick={() => setFactsFor(factsFor === v.version_id ? null : v.version_id)}>
                         {factsFor === v.version_id ? "Hide confirmed facts" : "Confirmed facts"}
@@ -274,7 +281,7 @@ export function ConfirmedFacts({ who, versionId }) {
 
 // ---- officers and auditors: documents across the applications in their scope ----
 
-function ScopeDocuments({ who }) {
+function ScopeDocuments({ who, canScan }) {
   const [docType, setDocType] = useState("");
   const path = docType ? `/documents?doc_type=${encodeURIComponent(docType)}` : "/documents";
   const docs = useApi(who, path);
@@ -290,8 +297,11 @@ function ScopeDocuments({ who }) {
             {CHECKLIST.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
         </label>
-        <p className="muted small">Files themselves are not downloadable yet; this list shows each version and its scan result.</p>
-        <DocumentList who={who} state={docs} showCase />
+        <p className="muted small">
+          Each version and its scan result. Only versions that passed the malware scan can be opened; quarantined and
+          blocked files are never served.
+        </p>
+        <DocumentList who={who} state={docs} canScan={canScan} onChanged={docs.reload} showCase />
       </Card>
     </div>
   );

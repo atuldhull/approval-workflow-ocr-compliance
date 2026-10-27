@@ -110,6 +110,15 @@ The built UI is served by the production image in `frontend/Dockerfile` (unprivi
   with no `unsafe-inline` or `unsafe-eval`. This is the main defence for the refresh token in `sessionStorage`.
 - `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a `Permissions-Policy`.
 - The page itself is `no-store`; hashed assets are cached for a year; `/api/` is proxied and never cached.
+- Viewing a document: the Documents and Fact review screens fetch `/api/document-versions/{id}/content` with the
+  user's own headers (demo headers or the bearer token), accept only `application/pdf`, `image/png` and
+  `image/jpeg` (anything else is refused and never turned into a URL), rebuild the Blob with that type, and open
+  it as a `blob:` URL in a new tab with `opener` cleared. If the browser blocks the tab, a download link is
+  offered instead. Each URL is revoked a minute after opening, and any still held when the screen closes are
+  revoked then. The UI CSP needs no change for this: a `blob:` document inherits the page's policy, `img-src`
+  already allows `blob:`, and Chromium's PDF viewer renders the file with `object-src 'none'` in force (checked
+  against the policy above on 27 Oct 2026). The only effect is cosmetic: the browser's own image viewer cannot apply
+  its inline centring styles under `style-src 'self'`. The Vite dev server sends no CSP.
 - Settings: `API_UPSTREAM` (where `/api` goes) and `OIDC_ORIGIN` (the identity provider the browser may call).
 - It serves plain HTTP on 8080. TLS, HSTS for the UI, and the real host names and Keycloak redirect URIs belong
   to the deployment in front of it and have not been set up.

@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 
 // Replaces fetch with canned responses: routes = { "GET /api/x": body | (req) => [status, body] | Promise of that }.
+// A Blob body is served as a file with the Blob's type as its Content-Type.
 export function fakeServer(routes) {
   const calls = [];
   const fetchMock = vi.fn(async (url, init = {}) => {
@@ -16,7 +17,12 @@ export function fakeServer(routes) {
       ok: status >= 200 && status < 300,
       status,
       statusText: String(status),
-      json: async () => body,
+      headers: { get: (name) => (name.toLowerCase() === "content-type" ? (body instanceof Blob ? body.type : "application/json") : null) },
+      json: async () => {
+        if (body instanceof Blob) throw new SyntaxError("not JSON");
+        return body;
+      },
+      blob: async () => (body instanceof Blob ? body : new Blob([JSON.stringify(body)], { type: "application/json" })),
     };
   });
   vi.stubGlobal("fetch", fetchMock);

@@ -637,6 +637,8 @@ input[type="radio"], input[type="checkbox"] { min-height: 0; width: auto; }
 .version-name { font-weight: 500; overflow-wrap: anywhere; min-width: 0; }
 .confirmed-facts { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--rule); }
 .facts .fact-row { display: contents; }
+.view-document { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.view-document .alert { flex-basis: 100%; margin: 6px 0 0; }
 
 .fact-card .fact-meta { margin: 0 0 10px; }
 .blind-entry button, .review-decision > button, .confirm-fact button { margin-top: 4px; }
@@ -645,6 +647,8 @@ input[type="radio"], input[type="checkbox"] { min-height: 0; width: auto; }
 .four-eyes { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; }
 p.four-eyes { color: var(--muted); font-size: 13px; }
 p.four-eyes svg { flex: none; margin-top: 2px; color: var(--warning); }
+p.four-eyes-ahead { display: flex; gap: 8px; align-items: flex-start; }
+p.four-eyes-ahead svg { flex: none; margin-top: 2px; }
 .confirm-fact { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .confirm-fact .alert { margin-top: 10px; }
 
@@ -655,6 +659,8 @@ p.four-eyes svg { flex: none; margin-top: 2px; color: var(--warning); }
 .evidence p { margin: 4px 0; overflow-wrap: anywhere; }
 .verify-evidence, .evidence-picker, .register-letter { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .verify-evidence .choice { margin: 0 0 12px; }
+.evidence-note { margin-top: 6px; }
+.note-text { margin: 6px 0 0; padding: 8px 12px; border-left: 3px solid var(--rule); background: var(--raised); white-space: pre-wrap; overflow-wrap: anywhere; }
 .register-open { margin-top: 14px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 16px; align-items: end; }
 .form-grid label.inline { margin-bottom: 14px; }
@@ -663,6 +669,7 @@ p.four-eyes svg { flex: none; margin-top: 2px; color: var(--warning); }
 .alert-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 12px 4px; }
 .alert-row + .alert-row { border-top: 1px solid var(--rule); }
 .alert-row p { margin: 2px 0; }
+.alert-row .actions { flex-wrap: wrap; justify-content: flex-end; }
 .alert-row.status-escalated { border-left: 3px solid var(--negative); padding-left: 10px; }
 .alert-row.status-open { border-left: 3px solid var(--warning); padding-left: 10px; }
 .motion .alert-row { animation: row-in 420ms var(--ease-out) both; }
