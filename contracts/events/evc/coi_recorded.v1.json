@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "expert_id",
+    "institution_ref",
+    "source",
+    "reason_code"
+  ],
+  "properties": {
+    "expert_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "institution_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source": {
+      "enum": [
+        "INSTITUTION_LINK",
+        "PRIOR_ENGAGEMENT",
+        "RECUSAL"
+      ]
+    },
+    "reason_code": {
+      "enum": [
+        "INSTITUTION_LINK",
+        "PRIOR_ENGAGEMENT",
+        "RECUSAL"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "source": {
+          "const": "INSTITUTION_LINK"
+        },
+        "reason_code": {
+          "const": "INSTITUTION_LINK"
+        }
+      }
+    },
+    {
+      "properties": {
+        "source": {
+          "const": "PRIOR_ENGAGEMENT"
+        },
+        "reason_code": {
+          "const": "PRIOR_ENGAGEMENT"
+        }
+      }
+    },
+    {
+      "properties": {
+        "source": {
+          "const": "RECUSAL"
+        },
+        "reason_code": {
+          "const": "RECUSAL"
+        }
+      }
+    }
+  ]
+}

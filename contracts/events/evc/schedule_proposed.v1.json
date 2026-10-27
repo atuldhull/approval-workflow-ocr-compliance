@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "algorithm",
+    "horizon_start",
+    "horizon_end",
+    "input_fingerprint",
+    "metrics",
+    "simulation_status",
+    "source_status"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "algorithm": {
+      "enum": [
+        "EDF",
+        "CPSAT"
+      ]
+    },
+    "horizon_start": {
+      "type": "string",
+      "format": "date"
+    },
+    "horizon_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "input_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "simulation_status": {
+      "const": "SIMULATED"
+    },
+    "source_status": {
+      "const": "DEMO_ASSUMPTION"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queue_count",
+        "scheduled",
+        "unscheduled",
+        "late_count",
+        "total_lateness",
+        "max_lateness",
+        "total_waiting",
+        "hard_constraint_violations",
+        "lateness_days"
+      ],
+      "properties": {
+        "queue_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scheduled": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unscheduled": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "late_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_lateness": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_lateness": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_waiting": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hard_constraint_violations": {
+          "const": 0
+        },
+        "lateness_days": {
+          "type": "array",
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

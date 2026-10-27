@@ -16,7 +16,7 @@ and never write to another person's tables - call their port (`contracts/ports.p
 | `generator/documents/` (incl. the OCR evaluation set) | Person 2 |
 | `tests/e2e/` steps 5-9 | Person 2 |
 | `backend/app/platform/`, `backend/app/analytics/`, `backend/app/main.py` | Person 3 |
-| `frontend/`, `docker-compose.yml`, `backend/Dockerfile`, `.github/`, `scripts/` | Person 3 |
+| `frontend/`, `docker-compose.yml`, `backend/Dockerfile`, `.github/`, `scripts/`, `infra/` (Keycloak realm, Cerbos policies) | Person 3 |
 | `backend/migrations/versions/platform/`, `analytics/`, `backend/migrations/env.py`, `backend/alembic.ini` | Person 3 |
 | `tests/e2e/` steps 11-13, `conftest.py` | Person 3 |
 | `contracts/` | All three must approve |
@@ -31,8 +31,8 @@ and never write to another person's tables - call their port (`contracts/ports.p
 | `doc` | Person 2 | document, document_version, fact, ocr_run |
 | `cmp` | Person 2 | approval_letter, obligation, evidence, verification |
 | `dl` | Person 2 | deadline (next: calendar_version, holiday, alert, ack, ladder) |
-| `plat` | Person 3 | domain_event, ledger_entry, case_note, personal_data, outbox (next: checkpoint, delivery, idempotency_key, export) |
-| `an` | Person 3 | projections, report_snapshot, scorecard_run |
+| `plat` | Person 3 | domain_event, ledger_entry, case_note, personal_data, outbox, idempotency_key, delivery_attempt, notification, recipient_member, user_contact, checkpoint (next: export) |
+| `an` | Person 3 | none yet: dashboards replay events on request (next, if volume needs it: persisted projections, report_snapshot) |
 
 ## Where two areas meet
 

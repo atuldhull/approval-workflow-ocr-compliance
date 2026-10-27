@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "committee_id",
+    "type",
+    "members"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "committee_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "SCRUTINY",
+        "RESCRUTINY",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ]
+    },
+    "members": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_ref",
+          "role"
+        ],
+        "properties": {
+          "user_ref": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "CHAIR",
+              "MEMBER",
+              "SECRETARY"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

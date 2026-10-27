@@ -1,0 +1,50 @@
+[
+  {
+    "case": "devanagari_iso_date",
+    "text": "२०२५-०३-१२",
+    "script": "DEVANAGARI",
+    "normalized_digits": "2025-03-12",
+    "date_value": "2025-03-12",
+    "date_status": "NORMALIZED"
+  },
+  {
+    "case": "bengali_iso_date",
+    "text": "২০২৫-০৩-১২",
+    "script": "BENGALI",
+    "normalized_digits": "2025-03-12",
+    "date_value": "2025-03-12",
+    "date_status": "NORMALIZED"
+  },
+  {
+    "case": "devanagari_reference_number",
+    "text": "पत्र सं. १२३/२०२५",
+    "script": "DEVANAGARI",
+    "normalized_digits": "पत्र सं. 123/2025",
+    "date_value": null,
+    "date_status": "UNSUPPORTED"
+  },
+  {
+    "case": "ambiguous_day_month_order",
+    "text": "०४/०५/२०२५",
+    "script": "DEVANAGARI",
+    "normalized_digits": "04/05/2025",
+    "date_value": null,
+    "date_status": "AMBIGUOUS"
+  },
+  {
+    "case": "unique_calendar_interpretation",
+    "text": "३१/१२/२०२५",
+    "script": "DEVANAGARI",
+    "normalized_digits": "31/12/2025",
+    "date_value": "2025-12-31",
+    "date_status": "NORMALIZED"
+  },
+  {
+    "case": "latin_iso_date",
+    "text": "2025-03-12",
+    "script": "UNKNOWN",
+    "normalized_digits": "2025-03-12",
+    "date_value": "2025-03-12",
+    "date_status": "NORMALIZED"
+  }
+]

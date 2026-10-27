@@ -14,9 +14,12 @@ AUDITOR = headers("AUDITOR")
 
 
 def submit_one(client):
+    from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
+    ensure_intake_rules(client)
     app = client.post("/api/applications", headers=INST,
                       json={"institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"})
-    client.post(f"/api/applications/{app.json()['id']}/submit", headers=INST)
+    provide_fixture_items(app.json()["id"])
+    client.post(f"/api/applications/{app.json()['id']}/submit", headers=INST, json={"dsc_present": True})
 
 
 def test_unknown_event_types_are_rejected():

@@ -1,0 +1,17 @@
+rules:
+- id: PROCESSING
+  clock_kind: INTERNAL
+  clock_owner: AICTE
+  source:
+    status: demo_assumption
+  duration:
+    value: 1
+    unit: calendar_days
+- id: LEGAL_RULE
+  clock_kind: LEGAL
+  clock_owner: AICTE
+  source:
+    status: demo_assumption
+  duration:
+    value: 1
+    unit: calendar_days

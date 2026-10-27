@@ -1,0 +1,39 @@
+# ${API_UPSTREAM} and ${OIDC_ORIGIN} are filled in from the environment when the container starts.
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    server_tokens off;
+
+    # The UI's own policy (the API sets a stricter one on its responses). Scripts, styles, fonts and 3D code are
+    # all bundled; data: is the sample facsimile, blob: the audit summary download.
+    set $csp "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${OIDC_ORIGIN}; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
+    location /api/ {
+        proxy_pass ${API_UPSTREAM};
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # API responses carry case and personal data and their own no-store headers; never cache them here.
+        proxy_no_cache 1;
+        proxy_cache_bypass 1;
+    }
+
+    # Hashed build output: safe to cache for a year.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
+    # Everything else is the single page app; routes live in the URL fragment, so any path serves index.html.
+    location / {
+        add_header Cache-Control "no-store" always;
+        add_header Content-Security-Policy $csp always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        try_files $uri /index.html;
+    }
+}

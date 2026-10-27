@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "expert_id",
+    "changes"
+  ],
+  "properties": {
+    "expert_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 732,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "slot_part",
+          "available"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "slot_part": {
+            "enum": [
+              "AM",
+              "PM"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

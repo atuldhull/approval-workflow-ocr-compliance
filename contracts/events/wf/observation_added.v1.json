@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "committee_id",
+    "task_id",
+    "observation_id",
+    "author_user_ref",
+    "body_note_ref",
+    "body_note_hash"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "committee_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "observation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "author_user_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "body_note_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "body_note_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

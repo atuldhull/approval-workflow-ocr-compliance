@@ -1,0 +1,47 @@
+grammar_version: 1
+terminal_states:
+- APPROVED
+clocks:
+  on_submit: []
+auxiliary_stages: {}
+resume_after: {}
+templates:
+  submit:
+    allowed_roles:
+    - INSTITUTION
+    guards: []
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.application_submitted
+    letter: null
+    action: submit
+    from_stage: DRAFT
+    to_stage: $first
+  finish:
+    allowed_roles:
+    - BUREAU_OFFICER
+    guards:
+    - at_last_applicable_stage
+    - letter_type_matches_decision
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter:
+      type: LOA
+      lists_deficiencies: false
+    action: issue_loa
+    from_stage: $last
+    to_stage: APPROVED
+transitions:
+- submit
+- finish
+routes:
+  X:
+    label: DEMO
+    stages:
+    - SCRUTINY
+    - stage: SHC
+      when: as_applicable
+    transitions:
+    - submit
+    - finish

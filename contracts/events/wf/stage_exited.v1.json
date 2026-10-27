@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.stage_exited v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "stage_visit_id",
+    "stage",
+    "exited_at",
+    "outcome",
+    "version"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "stage_visit_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "SELF_DISCLOSURE",
+        "SCRUTINY",
+        "RESCRUTINY",
+        "DEFICIENT",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ]
+    },
+    "exited_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "ADVANCE",
+        "ADVANCE_TO_EVC",
+        "ADVANCE_TO_SHC",
+        "COMPLETE_EVC",
+        "ISSUE_EOA",
+        "ISSUE_LOA",
+        "ISSUE_LOD",
+        "RECORD_DEFICIENCY",
+        "REJECT",
+        "REVERT",
+        "START_RESCRUTINY",
+        "SUBMIT",
+        "SUBMIT_COMPLIANCE",
+        "WITHDRAW"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

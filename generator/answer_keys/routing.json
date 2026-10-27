@@ -1,0 +1,302 @@
+{
+  "source": "Frozen docs/p1/expected_routes.csv: a manual transcription of APH 2024-27 Table 2.3 (21 categories) and Chapter I (NEW_INSTITUTION). DEMO ASSUMPTION ACCEPTANCE_SOURCE_UNVERIFIED: the primary source was not available, so no row is verified against the official handbook (PRIMARY_SOURCE_UNAVAILABLE).",
+  "source_status": "DEMO_ASSUMPTION",
+  "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+  "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED",
+  "generated_from": "docs/p1/expected_routes.csv",
+  "generated_from_sha256": "8eefc3bc0d2c56b1bbbf91c17793e55c1deab26f3c4a39a559aee4ac21cdc4e3",
+  "cases": [
+    {
+      "category": "EOA_SELF_DISCLOSURE",
+      "expected_stages": [
+        "SELF_DISCLOSURE"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "NRI_SEATS",
+      "expected_stages": [
+        "SELF_DISCLOSURE"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "CONVERSION_LEVEL",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "CHANGE_OF_NAME",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "NEW_PROGRAMME",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "MERGER",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "RESTORATION",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "SUPERNUMERARY_SEATS",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "INCREASE_INTAKE",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "INTEGRATED_DUAL",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "FELLOW_PROGRAMME",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "COURSE_CHANGE_REDUCTION",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "COLLABORATION_TWINNING",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "CHANGE_OF_SITE",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "CLOSURE_INSTITUTION",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "CONVERSION_COED",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "CLOSURE_PROGRAMME",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "BANK_DETAILS",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "TRUST_NAME",
+      "expected_stages": [
+        "SCRUTINY"
+      ],
+      "as_applicable_stages": [],
+      "evc": false,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "DEEMED_UNIVERSITY",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "ODL",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "TABLE_2_3",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    },
+    {
+      "category": "NEW_INSTITUTION",
+      "expected_stages": [
+        "SCRUTINY",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ],
+      "as_applicable_stages": [
+        "SHC"
+      ],
+      "evc": true,
+      "source_table": "CHAPTER_I",
+      "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
+      "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED"
+    }
+  ]
+}

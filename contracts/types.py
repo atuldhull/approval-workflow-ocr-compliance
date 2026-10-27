@@ -110,3 +110,4 @@ class RuleSet:
     clocks_on_submit: tuple[str, ...] = ()
     roles: dict[str, str] = field(default_factory=dict)
     banner: str | None = None
+    expert_pool: dict[str, Any] = field(default_factory=dict)

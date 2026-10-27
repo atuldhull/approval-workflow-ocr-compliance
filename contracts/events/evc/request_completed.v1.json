@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "request_id",
+    "ruleset_key",
+    "rule_id",
+    "deadline_ref",
+    "outcome"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ruleset_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "deadline_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "outcome": {
+      "const": "MET"
+    }
+  }
+}

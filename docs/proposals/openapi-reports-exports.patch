@@ -1,0 +1,392 @@
+diff --git a/contracts/openapi.json b/contracts/openapi.json
+--- a/contracts/openapi.json
++++ b/contracts/openapi.json
+@@ -382,6 +382,21 @@
+         "title": "DeadlineOut",
+         "type": "object"
+       },
++      "ExportIn": {
++        "properties": {
++          "format": {
++            "description": "OCEL 2.0 JSON; the only format so far.",
++            "pattern": "^ocel2$",
++            "title": "Format",
++            "type": "string"
++          }
++        },
++        "required": [
++          "format"
++        ],
++        "title": "ExportIn",
++        "type": "object"
++      },
+       "HTTPValidationError": {
+         "properties": {
+           "detail": {
+@@ -2217,6 +2232,121 @@
+         ]
+       }
+     },
++    "/api/dashboards/pendency": {
++      "get": {
++        "description": "Applications in process by regional office and stage, with the ledger head and a snapshot hash.",
++        "operationId": "get_pendency_api_dashboards_pendency_get",
++        "parameters": [
++          {
++            "in": "query",
++            "name": "region",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "pattern": "^[A-Za-z][A-Za-z -]{0,39}$",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "Region"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-user",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-User"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-role",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "$ref": "#/components/schemas/Role"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Role"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-institution",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Institution"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-region",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Region"
++            }
++          }
++        ],
++        "responses": {
++          "200": {
++            "content": {
++              "application/json": {
++                "schema": {}
++              }
++            },
++            "description": "Successful Response"
++          },
++          "422": {
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/HTTPValidationError"
++                }
++              }
++            },
++            "description": "Validation Error"
++          }
++        },
++        "summary": "Get Pendency",
++        "tags": [
++          "reports"
++        ]
++      }
++    },
+     "/api/deadlines": {
+       "get": {
+         "operationId": "list_deadlines_api_deadlines_get",
+@@ -2478,6 +2608,114 @@
+         ]
+       }
+     },
++    "/api/exports": {
++      "post": {
++        "description": "The whole event log as OCEL 2.0, national scope, for oversight roles. No payloads or personal references.",
++        "operationId": "create_export_api_exports_post",
++        "parameters": [
++          {
++            "in": "header",
++            "name": "x-demo-user",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-User"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-role",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "$ref": "#/components/schemas/Role"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Role"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-institution",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Institution"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-region",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Region"
++            }
++          }
++        ],
++        "requestBody": {
++          "content": {
++            "application/json": {
++              "schema": {
++                "$ref": "#/components/schemas/ExportIn"
++              }
++            }
++          },
++          "required": true
++        },
++        "responses": {
++          "200": {
++            "content": {
++              "application/json": {
++                "schema": {}
++              }
++            },
++            "description": "Successful Response"
++          },
++          "422": {
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/HTTPValidationError"
++                }
++              }
++            },
++            "description": "Validation Error"
++          }
++        },
++        "summary": "Create Export",
++        "tags": [
++          "reports"
++        ]
++      }
++    },
+     "/api/health": {
+       "get": {
+         "operationId": "health_api_health_get",
+@@ -3363,6 +3601,129 @@
+         ]
+       }
+     },
++    "/api/reports/{report_type}": {
++      "get": {
++        "operationId": "get_report_api_reports__report_type__get",
++        "parameters": [
++          {
++            "in": "path",
++            "name": "report_type",
++            "required": true,
++            "schema": {
++              "title": "Report Type",
++              "type": "string"
++            }
++          },
++          {
++            "in": "query",
++            "name": "region",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "pattern": "^[A-Za-z][A-Za-z -]{0,39}$",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "Region"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-user",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-User"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-role",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "$ref": "#/components/schemas/Role"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Role"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-institution",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "format": "uuid",
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Institution"
++            }
++          },
++          {
++            "in": "header",
++            "name": "x-demo-region",
++            "required": false,
++            "schema": {
++              "anyOf": [
++                {
++                  "type": "string"
++                },
++                {
++                  "type": "null"
++                }
++              ],
++              "title": "X-Demo-Region"
++            }
++          }
++        ],
++        "responses": {
++          "200": {
++            "content": {
++              "application/json": {
++                "schema": {}
++              }
++            },
++            "description": "Successful Response"
++          },
++          "422": {
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/HTTPValidationError"
++                }
++              }
++            },
++            "description": "Validation Error"
++          }
++        },
++        "summary": "Get Report",
++        "tags": [
++          "reports"
++        ]
++      }
++    },
+     "/api/rulesets": {
+       "get": {
+         "operationId": "list_rulesets_api_rulesets_get",

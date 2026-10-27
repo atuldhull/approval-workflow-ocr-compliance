@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "algorithm",
+    "discarded_count",
+    "withdrawn",
+    "request_status",
+    "simulation_status",
+    "source_status"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "algorithm": {
+      "enum": [
+        "EDF",
+        "CPSAT"
+      ]
+    },
+    "discarded_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "withdrawn": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "application_id",
+          "request_id",
+          "assignment_id"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignment_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      }
+    },
+    "request_status": {
+      "const": "QUEUED"
+    },
+    "simulation_status": {
+      "const": "SIMULATED"
+    },
+    "source_status": {
+      "const": "DEMO_ASSUMPTION"
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.application_submitted v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "institution_id",
+    "category",
+    "ruleset_rev",
+    "first_stage",
+    "route",
+    "dsc_present",
+    "provided_item_keys"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "institution_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "category": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "ruleset_rev": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+@[A-Za-z0-9-]+$"
+    },
+    "first_stage": {
+      "type": "string",
+      "enum": [
+        "SELF_DISCLOSURE",
+        "SCRUTINY",
+        "RESCRUTINY",
+        "DEFICIENT",
+        "EVC",
+        "SHC",
+        "EC",
+        "COUNCIL"
+      ]
+    },
+    "route": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "SELF_DISCLOSURE",
+          "SCRUTINY",
+          "RESCRUTINY",
+          "DEFICIENT",
+          "EVC",
+          "SHC",
+          "EC",
+          "COUNCIL"
+        ]
+      }
+    },
+    "dsc_present": {
+      "type": "boolean"
+    },
+    "provided_item_keys": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      }
+    }
+  }
+}

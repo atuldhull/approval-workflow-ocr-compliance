@@ -1,0 +1,28 @@
+"""State vocabularies owned by the document-processing module."""
+
+from enum import StrEnum
+
+
+class OcrRunStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class OcrErrorCode(StrEnum):
+    ADAPTER_UNAVAILABLE = "ADAPTER_UNAVAILABLE"
+    UNSUPPORTED_SCRIPT = "UNSUPPORTED_SCRIPT"
+    INPUT_REJECTED = "INPUT_REJECTED"
+    PROCESSING_FAILED = "PROCESSING_FAILED"
+    TIMEOUT = "TIMEOUT"
+    RESOURCE_LIMIT = "RESOURCE_LIMIT"
+    UNKNOWN = "UNKNOWN"
+
+
+class NormalizationStatus(StrEnum):
+    NORMALIZED = "NORMALIZED"
+    AMBIGUOUS = "AMBIGUOUS"
+    INVALID = "INVALID"
+    UNSUPPORTED = "UNSUPPORTED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
