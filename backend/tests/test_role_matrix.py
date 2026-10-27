@@ -47,7 +47,8 @@ MATRIX = [
     ("file for Sunrise", "POST", "/api/applications",
      {"institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"},
      expect({"inst_sunrise": 201})),
-    ("all deadlines", "GET", "/api/deadlines", None, expect(("committee",) + OVERSIGHT)),
+    # regional officers list their own region's deadlines (the list is filtered to it)
+    ("all deadlines", "GET", "/api/deadlines", None, expect(("committee", "ro_south", "ro_north") + OVERSIGHT)),
     ("ledger chain", "GET", "/api/ledger/verify", None, expect(OVERSIGHT)),
     ("audit verify", "GET", "/api/audit/verify", None, expect(OVERSIGHT)),
     ("checkpoint list", "GET", "/api/audit/checkpoints", None, expect(OVERSIGHT)),
