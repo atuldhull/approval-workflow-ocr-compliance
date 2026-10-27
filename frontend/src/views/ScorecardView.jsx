@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { Badge, Card, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
 
 // How each line was measured. The badge colour then comes from what was FOUND (outcomeTone), so a check that ran

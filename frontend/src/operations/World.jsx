@@ -21,20 +21,35 @@ export const WORLDS={
  scorecard:['12','Evaluation evidence','What has actually been tested.','Measurement method and outcome are separate. A category without a result remains unevaluated.'],
 };
 export default function World({kind,records=[],preview=false,onSelect,actionLabel='Open selected case',compact=false}){
- const meta=WORLDS[kind]||WORLDS.overview;const reduced=useReducedMotion();const [flat,setFlat]=useState(()=>{try{return localStorage.getItem('nebula.flat')==='true'}catch{return false}});
- const [selected,setSelected]=useState(0),[progress,setProgress]=useState(0),[travel,setTravel]=useState(0),[failed,setFailed]=useState(false);const camera=useRef({yaw:0,pitch:0});const section=useRef(null);const manual=useRef(false);const [pinned,setPinned]=useState(false);
- const spatial=['route','ocr','audit'].includes(kind);const webgl=typeof window!=='undefined'&&typeof window.WebGL2RenderingContext!=='undefined';
+ const meta=WORLDS[kind]||WORLDS.overview;const reduced=useReducedMotion();const [flat,setFlat]=useState(()=>{try{return localStorage.getItem('operations.flat')==='true'}catch{return false}});
+ const [selected,setSelected]=useState(0),[travel,setTravel]=useState(0),[failed,setFailed]=useState(false);const progressRef=useRef(0);const camera=useRef({yaw:0,pitch:0});const section=useRef(null);const manual=useRef(false);const [pinned,setPinned]=useState(false);
+ const spatial=['route','ocr','audit','overview','applications','compliance','dashboard'].includes(kind);const webgl=typeof window!=='undefined'&&typeof window.WebGL2RenderingContext!=='undefined';
  const use3d=spatial&&webgl&&!flat&&!failed&&records.length>0;const limit=Math.min(24,records.length);const index=Math.min(selected,Math.max(0,limit-1));const record=records[index];
- useEffect(()=>{let frame=0;const update=()=>{frame=0;const p=reduced?0:Math.max(0,Math.min(1,window.scrollY/Math.max(1,document.documentElement.scrollHeight-innerHeight)));setProgress(p);if(!reduced&&!manual.current)setSelected(Math.min(Math.max(0,limit-1),Math.floor(p*limit)));};const scroll=()=>{if(!frame)frame=requestAnimationFrame(update)};window.addEventListener('scroll',scroll,{passive:true});return()=>{window.removeEventListener('scroll',scroll);cancelAnimationFrame(frame)}},[reduced,limit]);
- const pick=i=>{manual.current=true;setPinned(true);setSelected(i)};const changeMode=()=>{setFlat(!flat);try{localStorage.setItem('nebula.flat',String(!flat))}catch{}};
+ useEffect(()=>{
+  let frame=0; const el=section.current;
+  const update=()=>{
+   frame=0;
+   const p=reduced?0:Math.max(0,Math.min(1,window.scrollY/Math.max(1,document.documentElement.scrollHeight-innerHeight)));
+   progressRef.current=p;
+   if(el){el.style.setProperty('--story-progress',p);el.dataset.progress=p.toFixed(4)}
+   // Only the focused record crossing a boundary causes React work.
+   if(!reduced&&!manual.current)setSelected(Math.min(Math.max(0,limit-1),Math.floor(p*limit)));
+  };
+  const scroll=()=>{if(!frame)frame=requestAnimationFrame(update)};
+  update();window.addEventListener('scroll',scroll,{passive:true});window.addEventListener('resize',scroll);
+  return()=>{window.removeEventListener('scroll',scroll);window.removeEventListener('resize',scroll);cancelAnimationFrame(frame)};
+ },[reduced,limit]);
+ useEffect(()=>{const container=section.current?.querySelector('.semantic-register');const row=container?.querySelector('[aria-pressed="true"]');if(!container||!row)return;const top=row.offsetTop,bottom=top+row.offsetHeight;if(top<container.scrollTop)container.scrollTop=top;else if(bottom>container.scrollTop+container.clientHeight)container.scrollTop=bottom-container.clientHeight},[index]);
+ const pick=i=>{manual.current=true;setPinned(true);setSelected(i)};const changeMode=()=>{setFlat(!flat);try{localStorage.setItem('operations.flat',String(!flat))}catch{}};
  const positions=datePositions(records);
- return <section ref={section} className={`semantic-world semantic-${kind} ${spatial?'semantic-spatial':'semantic-plan'}${flat?' is-standard':''}${compact?' semantic-compact':''}`} data-semantic={kind} data-progress={progress.toFixed(4)} data-focus-id={record?.id} aria-label={meta[1]} style={{'--story-progress':progress}}>
+ return <section ref={section} className={`semantic-world semantic-${kind} ${spatial?'semantic-spatial':'semantic-plan'}${flat?' is-standard':''}${compact?' semantic-compact':''}`} data-semantic={kind} data-progress="0" data-focus-id={record?.id} aria-label={meta[1]} >
   <header className="semantic-heading"><p className="world-coordinate">{meta[0]} / {meta[1]} {preview&&<strong>PREVIEW · SAMPLE</strong>}</p><h2>{meta[2]}</h2><p>{meta[3]}</p></header>
-  <div className="semantic-toolbar"><span>{records.length} {kind==='route'?'prescribed stages':kind==='ocr'?'source pages':'available records'} · {reduced?'Motion paused':'Scroll to inspect · no status changes'}</span>{pinned&&<button className="ghost small" onClick={()=>{manual.current=false;setPinned(false);setSelected(Math.min(Math.max(0,limit-1),Math.floor(progress*limit)))}}>Follow scroll</button>}<button className="ghost small" onClick={changeMode}>{flat?'Spatial view':'Standard view'}</button></div>
+  <div className="semantic-toolbar"><span>{records.length} {kind==='route'?'prescribed stages':kind==='ocr'?'source pages':'available records'} · {reduced?'Motion paused':'Scroll to inspect · recorded states unchanged'}</span>{pinned&&<button className="ghost small" onClick={()=>{manual.current=false;setPinned(false);setSelected(Math.min(Math.max(0,limit-1),Math.floor(progressRef.current*limit)))}}>Follow scroll</button>}<button className="ghost small" onClick={changeMode}>{flat?'Spatial view':'Standard view'}</button></div>
   {use3d&&<div className="world-viewport" tabIndex={0} role="group" aria-label={`${meta[1]} spatial explorer. Arrow keys rotate. Plus and minus adjust camera. Home resets.`} onKeyDown={e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','-','Home'].includes(e.key)){e.preventDefault();if(e.key==='Home'){camera.current={yaw:0,pitch:0};setTravel(0)}else if(e.key==='+'||e.key==='-')setTravel(v=>Math.max(0,Math.min(100,v+(e.key==='+'?10:-10))));else{camera.current.yaw+=e.key==='ArrowLeft'?-.15:e.key==='ArrowRight'?.15:0;camera.current.pitch+=e.key==='ArrowUp'?.1:e.key==='ArrowDown'?-.1:0;}}}}><SceneBoundary><Suspense fallback={<p>Preparing evidence environment…</p>}><Scene kind={kind} records={records.slice(0,24)} selected={index} onSelect={pick} travel={travel} cameraControl={camera} reduced={reduced} onFailure={()=>setFailed(true)}/></Suspense></SceneBoundary></div>}
-  {!use3d&&<p className="semantic-mode">{spatial&&(!webgl||failed)?'WebGL unavailable · standard view':flat?'Standard view · rendering disabled':'Labelled evidence view'}</p>}
+  {!use3d&&!flat&&records.length>0&&<EvidenceFigure kind={kind} records={records.slice(0,8)} positions={positions}/> }
+  {!use3d&&<p className="semantic-mode">{flat?'Standard view · rendering disabled':'Labelled evidence view'}</p>}
   {kind==='evc'&&<div className="schedule-axis" role="group" aria-label="Candidate dates placed proportionally">{records.map((r,i)=>positions[i]!==null&&<time className="schedule-pin" key={r.id} dateTime={r.date} style={{left:`${positions[i]}%`}}>{r.dateLabel}</time>)}</div>}
-  <div className="semantic-register" role="group" aria-label={`${meta[1]} records`} data-record-count={records.length}>
+  <div className="semantic-workbench"><div className="semantic-register" role="group" tabIndex={0} aria-label={`${meta[1]} records`} data-record-count={records.length}>
    {records.slice(0,24).map((r,i)=><button key={r.id||i} className={`semantic-record record-${r.state||'unknown'}`} data-record-id={r.id} data-record-state={r.state||''} aria-pressed={index===i} onClick={()=>pick(i)} style={{'--item':i,'--quantity':Math.max(0,Number(r.value)||0)/Math.max(1,...records.map(x=>Number(x.value)||0)),'--date-position':`${positions[i]??50}%`}}>
     <span className="semantic-number">{String(i+1).padStart(2,'0')}</span>
     {kind==='inbox'&&<span className="source-category">{r.category||r.label}<span aria-hidden="true"> → </span></span>}
@@ -53,14 +68,23 @@ export default function World({kind,records=[],preview=false,onSelect,actionLabe
    <h3>{record?.label||'No records to explore'}</h3><p className="inspection-state">{record?.detail||'No source records are available. Nothing is inferred.'}</p>
    {record?.facts&&<dl>{record.facts.map(([label,value],i)=><div key={i}><dt>{label}</dt><dd>{String(value??'Not supplied')}</dd></div>)}</dl>}
    {onSelect&&record&&<button className="world-open" onClick={()=>onSelect(record.id)}>{actionLabel} <span aria-hidden="true">↗</span></button>}
-  </aside>
+  </aside></div>
   {kind==='route'&&<p className="semantic-limit">Gateways show the prescribed route, not a recorded transition graph. Stage completion evidence and a deficiency return path are not supplied; neither is inferred.</p>}
   {kind==='audit'&&<p className="semantic-limit">The API supplies assurance summaries, not full ledger events. No synthetic event sequence is drawn from the checked-entry count.</p>}
-  <div className="story-footer"><span>SCROLL / INSPECT / RETURN</span><span>{preview?'PREVIEW — no operational decision':'Recorded states remain unchanged'}</span></div>
+  <div className="story-footer"><span>EVIDENCE / CONTEXT / ACTION</span><span>{preview?'PREVIEW — no operational decision':'Recorded states remain unchanged'}</span></div>
  </section>
 }
 export function DeadlineTimeline({deadlines=[],submittedAt}){
  const records=[...(submittedAt?[{id:'submitted',date:submittedAt,label:'Submitted',status:'Recorded timestamp'}]:[]),...deadlines.map(d=>({id:d.id,date:d.due_date,label:d.rule_id,status:d.status}))];const positions=datePositions(records);
  if(!records.length)return null;
  return <figure className="responsibility-timeline"><figcaption>Recorded dates · spacing reflects available dates only</figcaption><div className="date-axis" aria-hidden="true">{records.map((r,i)=>positions[i]!==null&&<i key={r.id} style={{left:`${positions[i]}%`}} />)}</div><ol>{records.map((r,i)=><li key={r.id}><strong>{showDate(r.date)}</strong><span>{r.label} · {r.status}</span>{positions[i]===null&&<em>Date could not be placed on the axis</em>}</li>)}</ol><p>No start date or statutory duration is inferred. Source explanations remain below.</p></figure>
+}
+
+// These labelled compositions are derived only from supplied records. Lines are correspondence,
+// not inferred event transitions; all operational content remains in the accessible register.
+function EvidenceFigure({kind,records,positions}) {
+ const max=Math.max(1,...records.map(r=>Number(r.value)||0));
+ return <div className={`evidence-figure figure-${kind}`} aria-hidden="true"><div className="figure-plane">
+ {records.map((r,i)=><div className="figure-lane" key={r.id||i} style={{'--n':i,'--amount':typeof r.value==='number'?r.value/max:1,'--date':positions[i]??50}}><i/><span>{r.category||r.label}</span><b>{typeof r.value==='number'?r.value:String(i+1).padStart(2,'0')}</b></div>)}
+ </div><span className="figure-caption">{kind==='evc'?'CANDIDATE DATES / IST':kind==='scorecard'?'METHOD / OUTCOME':'SUPPLIED RECORDS / INDEX'}</span></div>
 }

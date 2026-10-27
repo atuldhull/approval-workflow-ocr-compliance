@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { useEffect, useState } from "react";
 import { Badge, Card, ErrorBox, Loading, PreviewBanner, useSingleFlight } from "../components/ui.jsx";
 import { confirmedAll, fixtureAdapter } from "../integrations/documentReview.js";

@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {routeRecords,applicationRecords,auditRecords,datePositions} from '../nebula/semanticData.js';
+import {routeRecords,applicationRecords,auditRecords,datePositions} from '../operations/semanticData.js';
 describe('semantic evidence boundaries',()=>{
  it('does not turn earlier or conditional route positions into approvals',()=>{const app={status:'IN_PROCESS',current_stage:'EVC',route:[{stage:'SCRUTINY'},{stage:'SHC',when:'as_applicable'},{stage:'EVC'}]};const r=routeRecords(app);expect(r).toHaveLength(3);expect(r[0].state).toBe('unknown');expect(r[1].detail).toContain('completion not supplied');expect(r[2].state).toBe('active');expect(r[1].facts).toContainEqual(['Applicability','If applicable']);expect(app.route[0].status).toBeUndefined()});
  it('does not create stages for a draft or unknown current position',()=>{expect(applicationRecords([{id:'draft',status:'DRAFT'}])[0].stages).toEqual([]);expect(routeRecords({route:[{stage:'SCRUTINY'}]}).every(r=>r.state==='unknown')).toBe(true)});

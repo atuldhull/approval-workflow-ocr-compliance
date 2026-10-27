@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { useMemo, useState } from "react";
 import { api } from "../api.js";
 import { Icon } from "../components/Icons.jsx";

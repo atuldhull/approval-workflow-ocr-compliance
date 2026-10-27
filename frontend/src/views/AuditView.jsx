@@ -1,5 +1,5 @@
-import World from '../nebula/World.jsx';
-import { auditRecords } from '../nebula/semanticData.js';
+import World from '../operations/World.jsx';
+import { auditRecords } from '../operations/semanticData.js';
 import { useState } from "react";
 import { api } from "../api.js";
 import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
@@ -214,7 +214,7 @@ export default function AuditView({ who, me }) {
           {!replay && <p className="muted">Rebuilds the read models from the event log (read-only) and compares them with the live tables.</p>}
           {replay && (
             <>
-              <table className="table">
+              <table className="table" tabIndex={0}>
                 <thead>
                   <tr>
                     <th scope="col">Projection</th>
@@ -286,7 +286,7 @@ export default function AuditView({ who, me }) {
           <ErrorBox error={checkpoints.error} />
           {checkpoints.data?.length === 0 && <Empty>No checkpoints signed yet.</Empty>}
           {checkpoints.data?.length > 0 && (
-            <table className="table">
+            <table className="table" tabIndex={0}>
               <thead>
                 <tr>
                   <th scope="col">Signed</th>
