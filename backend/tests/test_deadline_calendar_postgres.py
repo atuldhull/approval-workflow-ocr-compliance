@@ -204,27 +204,24 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
     )
     migration_versions = text("SELECT version_num FROM alembic_version")
 
+    # only this module's own chains; other modules add heads of their own
     expected_heads = {
         "dl_0004_calendar_truncate_guards",
         "doc_0003_document_history_guards",
-        "plat_0001",
     }
     assert set(pg_session.scalars(protected_triggers).all()) == {
         "trg_dl_calendar_version_no_truncate",
         "trg_dl_holiday_no_truncate",
     }
-    assert set(pg_session.scalars(migration_versions).all()) == expected_heads
+    assert expected_heads <= set(pg_session.scalars(migration_versions).all())
     pg_session.commit()
 
     try:
         command.downgrade(config, "deadlines@dl_0003_immutable_calendars")
         pg_session.expire_all()
         downgraded_versions = set(pg_session.scalars(migration_versions).all())
-        assert downgraded_versions == {
-            "dl_0003_immutable_calendars",
-            "doc_0003_document_history_guards",
-            "plat_0001",
-        }
+        assert {"dl_0003_immutable_calendars", "doc_0003_document_history_guards"} <= downgraded_versions
+        assert "dl_0004_calendar_truncate_guards" not in downgraded_versions
         assert set(pg_session.scalars(protected_triggers).all()) == set()
         pg_session.commit()
 
@@ -233,7 +230,7 @@ def test_truncate_guard_migration_downgrade_and_reupgrade(database, pg_session):
 
         command.upgrade(config, "heads")
         pg_session.expire_all()
-        assert set(pg_session.scalars(migration_versions).all()) == expected_heads
+        assert expected_heads <= set(pg_session.scalars(migration_versions).all())
         assert set(pg_session.scalars(protected_triggers).all()) == {
             "trg_dl_calendar_version_no_truncate",
             "trg_dl_holiday_no_truncate",
