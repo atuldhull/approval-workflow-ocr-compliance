@@ -37,6 +37,7 @@ it('never renders a privileged world from an institution deep link',async()=>{
   render(<Workspace who={who} me={me} config={{mode:'demo'}}/>);
   expect(screen.getByRole('heading',{level:1})).toHaveTextContent('Overview');
   expect(calls.some(c=>c.url.includes('/audit'))).toBe(false);
+  expect(window.location.hash).toBe('#overview');
 });
 
 it('puts a newly created case in the address so a refresh reopens it',async()=>{

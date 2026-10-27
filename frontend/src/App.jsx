@@ -71,7 +71,10 @@ export function Workspace({ who, me, config, identityControl }) {
   const items = useMemo(() => navFor(me.role), [me.role]);
   const initialRoute = () => {
     const requested = window.location.hash.slice(1).split('?')[0];
-    return items.some(i => i.key === requested) ? requested : items[0]?.key;
+    if (items.some(i => i.key === requested)) return requested;
+    // a screen this role does not have (an old link, another role's bookmark): say where we really are
+    if (requested && items[0]) history.replaceState(history.state, '', `#${items[0].key}`);
+    return items[0]?.key;
   };
   const [view, setView] = useState(initialRoute);
   const [shown, setShown] = useState(initialRoute);
@@ -109,6 +112,7 @@ export function Workspace({ who, me, config, identityControl }) {
       cancelAnimationFrame(scrollFrame.current);
       const key = window.location.hash.slice(1).split('?')[0];
       const allowed = items.some(i => i.key === key) ? key : items[0]?.key;
+      if (allowed !== key && key && allowed) history.replaceState(event.state, '', `#${allowed}`);
       setView(allowed); setShown(allowed); setPhase('in');
       const params = new URLSearchParams(window.location.hash.split('?')[1]);
       setFocusCase(params.get('case'));
