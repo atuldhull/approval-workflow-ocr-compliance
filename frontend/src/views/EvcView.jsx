@@ -26,10 +26,32 @@ const addDays = (iso, n) => {
 };
 const short = (id) => String(id).slice(0, 8);
 
+// There is no endpoint that lists or reads proposal runs yet, so the proposals made in this browser tab are kept
+// in sessionStorage (a convenience only: a reload of the tab keeps them, nothing else does). A bureau officer
+// elsewhere publishes a run by its reference, which the planner passes on.
+const RUNS_KEY = "awoc.evc-runs";
+function readRuns() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(RUNS_KEY) ?? "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+function useRuns() {
+  const [runs, setState] = useState(readRuns);
+  const setRuns = (update) => setState((current) => {
+    const next = typeof update === "function" ? update(current) : update;
+    try { sessionStorage.setItem(RUNS_KEY, JSON.stringify(next.slice(0, 10))); } catch { /* convenience only */ }
+    return next;
+  });
+  return [runs, setRuns];
+}
+
 export default function EvcView({ who, me }) {
   const regional = me.role === "RO_OFFICER";
   const [region, setRegion] = useState(regional ? me.region : "");
-  const [runs, setRuns] = useState([]);
+  const [runs, setRuns] = useRuns();
   const [tick, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const scope = regional ? me.region : region.trim();
@@ -52,6 +74,7 @@ export default function EvcView({ who, me }) {
         <Plan who={who} me={me} region={scope} runs={runs} setRuns={setRuns} onChanged={refresh} />
       )}
       {runs.length > 0 && <Runs who={who} me={me} runs={runs} setRuns={setRuns} onChanged={refresh} />}
+      {PUBLISHERS.has(me.role) && <PublishByReference who={who} setRuns={setRuns} onChanged={refresh} />}
       {POOL_READERS.has(me.role) && <Pool who={who} me={me} region={scope} tick={tick} onChanged={refresh} />}
     </div>
   );
@@ -310,7 +333,7 @@ function RunDetail({ who, me, run, setRuns, onChanged }) {
         {run.published ? <Badge tone="ok">Published</Badge> : <Badge tone="info">Proposed, not published</Badge>}
       </header>
       <p className="muted small">
-        Run <code>{short(run.run_id)}</code> · {run.region_scope ? `region ${run.region_scope}` : "all regions"} · made {when(run.created_at)} ·
+        Run reference <code>{run.run_id}</code> · {run.region_scope ? `region ${run.region_scope}` : "all regions"} · made {when(run.created_at)} ·
         panels by the {run.selector_label} <Badge tone="sample">Simulated</Badge>
       </p>
       <Kpis label="Proposal metrics" items={[
@@ -382,6 +405,33 @@ function RunDetail({ who, me, run, setRuns, onChanged }) {
         <p className="muted small">Only the bureau publishes a schedule. This proposal holds its experts and slots until then.</p>
       )}
     </section>
+  );
+}
+
+// A run proposed elsewhere (for example by a regional officer) is published by its reference.
+function PublishByReference({ who, setRuns, onChanged }) {
+  const [ref, setRef] = useState("");
+  const w = usePost(who, onChanged);
+  const submit = async (e) => {
+    e.preventDefault();
+    const out = await w.post("/evc/schedule:publish", { run_id: ref.trim() },
+      (x) => `Published ${x.published_count} visit${x.published_count === 1 ? "" : "s"} of run ${short(x.run_id)}.`);
+    if (out) setRuns((rs) => rs.map((r) => (r.run_id === out.run_id ? { ...r, published: out } : r)));
+  };
+  return (
+    <Card title="Publish a proposal by reference">
+      <form className="inline-form" onSubmit={submit} aria-label="Publish a proposal by reference">
+        <label>
+          Run reference
+          <input value={ref} onChange={(e) => setRef(e.target.value)} required spellCheck={false} autoComplete="off"
+            pattern="[0-9a-fA-F\-]{36}" placeholder="The reference shown with the proposal" />
+        </label>
+        <button className="small" disabled={w.busy}>Publish</button>
+      </form>
+      <p className="muted small">For a proposal made by someone else, such as a regional officer. Every visit is checked again before anything is published.</p>
+      <ErrorBox error={refusal(w.failure)} />
+      {w.done && <p className="ok small" role="status">{w.done}</p>}
+    </Card>
   );
 }
 
@@ -492,7 +542,7 @@ function RegisterExpert({ who, me, region, onChanged }) {
       <h3>Register an expert</h3>
       <label>
         User reference
-        <input value={userRef} onChange={(e) => setUserRef(e.target.value)} pattern="[0-9a-fA-F-]{36}" required spellCheck={false} />
+        <input value={userRef} onChange={(e) => setUserRef(e.target.value)} pattern="[0-9a-fA-F\-]{36}" required spellCheck={false} />
       </label>
       <p className="muted small">An opaque reference, not a name. Use a synthetic one; no personal details are collected here.</p>
       <label>Region <input value={expertRegion} readOnly={me.role === "RO_OFFICER"} onChange={(e) => setExpertRegion(e.target.value)} required pattern="[A-Za-z][A-Za-z0-9_]*" /></label>
