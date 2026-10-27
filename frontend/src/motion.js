@@ -161,6 +161,8 @@ export const WORLDS = {
   dashboard: { motion: "pan", world: "control" },
   applications: { motion: "slide", world: "cases" },
   inbox: { motion: "drift", world: "signal" },
+  alerts: { motion: "drift", world: "signal" },
+  documents: { motion: "scan", world: "evidence" },
   ocr: { motion: "scan", world: "evidence" },
   evc: { motion: "rewind", world: "field" },
   compliance: { motion: "collapse", world: "field" },

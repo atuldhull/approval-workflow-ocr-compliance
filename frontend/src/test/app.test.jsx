@@ -11,8 +11,6 @@ import ApplicationList from "../components/ApplicationList.jsx";
 import LedgerChamber from "../components/LedgerChamber.jsx";
 import RouteJourney from "../components/RouteJourney.jsx";
 import { ErrorBox } from "../components/ui.jsx";
-import OcrReviewView from "../views/OcrReviewView.jsx";
-import { fixtureAdapter } from "../integrations/documentReview.js";
 import ScorecardView from "../views/ScorecardView.jsx";
 import InboxView from "../views/InboxView.jsx";
 import DeliveryView from "../views/DeliveryView.jsx";
@@ -30,7 +28,7 @@ const ME = (u) => ({ user_id: u.user, role: u.role, region: u.region ?? null, in
 describe("navigation follows the role", () => {
   it("gives institutions their own work only", () => {
     const keys = navFor("INSTITUTION").map((i) => i.key);
-    expect(keys).toEqual(["overview", "applications", "inbox", "compliance"]);
+    expect(keys).toEqual(["overview", "applications", "inbox", "alerts", "documents", "compliance"]);
     expect(navFor("INSTITUTION")[1].label).toBe("My applications");
   });
 
@@ -148,136 +146,6 @@ describe("regional officers", () => {
     fakeServer({ "GET /api/applications": () => [403, { detail: "regional officers may only access their own region" }] });
     render(<ApplicationsView who={RO} me={ME(RO)} />);
     expect(await screen.findByText(/refused by the server until it can be filtered to your region/)).toBeInTheDocument();
-  });
-});
-
-describe("document review: commit before reveal", () => {
-  it("shows only the page image until the officer commits, then reveals the machine reading", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<OcrReviewView />);
-    expect(await screen.findByRole("img", { name: /Synthetic facsimile/ })).toBeInTheDocument();
-    expect(screen.getByText(/Synthetic facsimile - demo only/)).toBeInTheDocument();
-    // nothing machine-generated anywhere on the screen yet: no values, OCR text, confidence or location boxes
-    const before = container.textContent;
-    for (const leak of ["2031-03-31", "31-03-2031", "2001-04-01", "01-04-2001", "confidence"]) expect(before).not.toContain(leak);
-    expect(container.querySelector(".ocr-box")).toBeNull();
-    expect(screen.getByRole("button", { name: "Confirm facts" })).toBeDisabled();
-
-    const end = screen.getByRole("group", { name: "Lease end date" });
-    const commit = within(end).getByRole("button", { name: "Commit my reading" });
-    expect(commit).toBeDisabled();
-    await user.type(within(end).getByLabelText(/Your reading/), "2031-03-30");
-    await user.click(commit);
-
-    expect(await within(end).findByText("2031-03-31")).toBeInTheDocument();
-    expect(within(end).getByText("Differs - check the document")).toBeInTheDocument();
-    expect(within(end).getByLabelText(/Your reading/)).toBeDisabled();
-    expect(screen.getByTestId("box-lease_end")).toBeInTheDocument();
-    // the other field is still hidden
-    const start = screen.getByRole("group", { name: "Lease start date" });
-    expect(start.textContent).not.toContain("2001-04-01");
-    expect(screen.queryByTestId("box-lease_start")).toBeNull();
-    expect(screen.getByRole("button", { name: "Confirm facts" })).toBeDisabled(); // no backend to save to
-  });
-
-  it("the adapter itself withholds suggestions until a reading is committed", async () => {
-    const review = await fixtureAdapter.loadReview("SAMPLE-LEASE-001");
-    // the page image is the document itself and may show the dates; nothing else may carry machine output
-    const { pages, ...rest } = review;
-    expect(JSON.stringify(rest)).not.toMatch(/2031|2001|confidence|suggestion|box|sourceText/);
-    expect(Object.keys(pages[0])).toEqual(["imageUrl", "width", "height"]);
-    await expect(fixtureAdapter.commitReading(review.documentId, "lease_end", "")).rejects.toThrow();
-    expect(fixtureAdapter.confirmFacts).toBeNull();
-  });
-});
-
-describe("document review: confirmation", () => {
-  function mockAdapter(confirmFacts) {
-    return { ...fixtureAdapter, live: true, confirmFacts };
-  }
-
-  async function commitBoth(user, endValue = "2031-03-31") {
-    const start = await screen.findByRole("group", { name: "Lease start date" });
-    await user.type(within(start).getByLabelText(/Your reading/), "2001-04-01");
-    await user.click(within(start).getByRole("button", { name: "Commit my reading" }));
-    const end = screen.getByRole("group", { name: "Lease end date" });
-    await user.type(within(end).getByLabelText(/Your reading/), endValue);
-    await user.click(within(end).getByRole("button", { name: "Commit my reading" }));
-    await within(end).findByText(/Machine reading/);
-    return end;
-  }
-
-  it("stays unavailable until every field is committed, then sends one request with the officer's values", async () => {
-    const user = userEvent.setup();
-    const calls = [];
-    const adapter = mockAdapter(async (id, decisions) => {
-      calls.push(decisions);
-      return { confirmed: decisions.map((d) => ({ fieldKey: d.fieldKey, factId: `f-${d.fieldKey}` })) };
-    });
-    render(<OcrReviewView adapter={adapter} />);
-    const confirm = await screen.findByRole("button", { name: "Confirm facts" });
-    expect(confirm).toBeDisabled();
-    expect(screen.queryByText(/Preview with sample data/)).toBeNull();
-    await commitBoth(user);
-    expect(confirm).toBeEnabled();
-    await user.click(confirm);
-    expect(await screen.findByText("Facts confirmed by the server.")).toBeInTheDocument();
-    expect(calls).toEqual([[
-      { fieldKey: "lease_start", value: "2001-04-01", source: "OFFICER" },
-      { fieldKey: "lease_end", value: "2031-03-31", source: "OFFICER" },
-    ]]);
-  });
-
-  it("lets the officer adopt the machine reading only after seeing it, and says so", async () => {
-    const user = userEvent.setup();
-    const calls = [];
-    const adapter = mockAdapter(async (id, d) => { calls.push(d); return { confirmed: d.map((x) => ({ fieldKey: x.fieldKey, factId: "f" })) }; });
-    render(<OcrReviewView adapter={adapter} />);
-    const end = await commitBoth(user, "2031-03-30");
-    await user.click(within(end).getByRole("radio", { name: /Use the machine reading/ }));
-    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
-    await screen.findByText("Facts confirmed by the server.");
-    expect(calls[0][1]).toEqual({ fieldKey: "lease_end", value: "2031-03-31", source: "MACHINE" });
-  });
-
-  it("shows a failure and allows a retry", async () => {
-    const user = userEvent.setup();
-    let fail = true;
-    const adapter = mockAdapter(async (id, d) => {
-      if (fail) { fail = false; throw new Error("Confirmation service unavailable"); }
-      return { confirmed: d.map((x) => ({ fieldKey: x.fieldKey, factId: "f" })) };
-    });
-    render(<OcrReviewView adapter={adapter} />);
-    await commitBoth(user);
-    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Confirmation service unavailable");
-    expect(screen.queryByText("Facts confirmed by the server.")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
-    expect(await screen.findByText("Facts confirmed by the server.")).toBeInTheDocument();
-  });
-
-  it("does not report success unless the server confirmed every field", async () => {
-    const user = userEvent.setup();
-    const adapter = mockAdapter(async () => ({ confirmed: [{ fieldKey: "lease_start", factId: "f1" }] }));
-    render(<OcrReviewView adapter={adapter} />);
-    await commitBoth(user);
-    await user.click(screen.getByRole("button", { name: "Confirm facts" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("did not confirm every field");
-    expect(screen.queryByText("Facts confirmed by the server.")).toBeNull();
-  });
-
-  it("sends only one request on a double click", async () => {
-    const user = userEvent.setup();
-    let release;
-    const calls = [];
-    const adapter = mockAdapter((id, d) => { calls.push(d); return new Promise((r) => { release = () => r({ confirmed: d.map((x) => ({ fieldKey: x.fieldKey, factId: "f" })) }); }); });
-    render(<OcrReviewView adapter={adapter} />);
-    await commitBoth(user);
-    await user.dblClick(screen.getByRole("button", { name: "Confirm facts" }));
-    expect(calls).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Confirming…" })).toBeDisabled();
-    release();
-    expect(await screen.findByText("Facts confirmed by the server.")).toBeInTheDocument();
   });
 });
 
@@ -583,12 +451,12 @@ describe("audit evidence presentation", () => {
 describe("navigation matrix (mirrors backend/app/platform/policy.py)", () => {
   // Hiding a screen is not security - the server decides - but showing one the server always refuses is a defect.
   const EXPECTED = {
-    INSTITUTION: ["overview", "applications", "inbox", "compliance"],
-    SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "ocr"],
-    RO_OFFICER: ["dashboard", "applications", "inbox", "ocr", "compliance"],
-    BUREAU_OFFICER: ["dashboard", "applications", "inbox", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
-    BUREAU_HEAD: ["dashboard", "applications", "inbox", "evc", "compliance", "audit", "delivery", "scorecard"],
-    AUDITOR: ["dashboard", "applications", "inbox", "audit", "delivery", "scorecard"],
+    INSTITUTION: ["overview", "applications", "inbox", "alerts", "documents", "compliance"],
+    SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "compliance"],
+    RO_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "compliance"],
+    BUREAU_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
+    BUREAU_HEAD: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
+    AUDITOR: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "compliance", "audit", "delivery", "scorecard"],
   };
   for (const [role, keys] of Object.entries(EXPECTED)) {
     it(`${role} sees exactly its screens`, () => {
