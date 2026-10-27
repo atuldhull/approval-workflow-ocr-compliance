@@ -14,6 +14,7 @@ from app.platform.ledger import Ledger, entry_hash, event_hash, GENESIS
 from app.platform.models import CaseNote, DomainEvent, LedgerEntry, Outbox, PersonalData
 from app.platform.records import Notes, PersonalStore, erase_personal, redact_note
 from app.platform.replay import EventRecord
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from conftest import SUNRISE, headers
 from contracts.enums import Role
 from contracts.types import EventIn, Principal
@@ -26,9 +27,11 @@ TRUSTED = {"key-a": KEY_A.public_key(), "key-b": KEY_B.public_key()}
 
 
 def submit_one(client):
+    ensure_intake_rules(client)
     app_id = client.post("/api/applications", headers=INST, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
-    client.post(f"/api/applications/{app_id}/submit", headers=INST)
+    provide_fixture_items(app_id)
+    assert client.post(f"/api/applications/{app_id}/submit", headers=INST, json={"dsc_present": True}).status_code == 200
     return app_id
 
 
@@ -250,12 +253,12 @@ def test_unknown_versions_and_unhandled_events_are_reported_not_ignored(client):
     events = [
         EventRecord(1, now, "application", uuid4(), "wf.application_created", 1,
                     {"application_id": aid, "institution_id": str(SUNRISE), "category": "X", "academic_year": "2027-28"}),
-        EventRecord(2, now, "application", uuid4(), "wf.application_submitted", 2, {"application_id": aid}),
+        EventRecord(2, now, "application", uuid4(), "wf.application_submitted", 3, {"application_id": aid}),
         EventRecord(3, now, "evc_request", uuid4(), "evc.slot_assigned", 1, {}),   # a future event type
     ]
     report = replay.replay(["applications"], events=events)
     p = report["projections"][0]
-    assert p["skipped_versions"] == {"wf.application_submitted.v2": 1}
+    assert p["skipped_versions"] == {"wf.application_submitted.v3": 1}
     assert report["unhandled_event_types"] == {"evc.slot_assigned": 1}
 
 
@@ -416,7 +419,8 @@ def test_a_projection_without_live_model_is_a_gap_not_a_pass(client):
 
     class NoLive:
         name, owner, compared_fields = "nolive", "test", ()
-        handles = frozenset({("wf.application_created", 1), ("wf.application_submitted", 1), ("dl.deadline_opened", 1)})
+        handles = frozenset({("wf.application_created", 1), ("wf.application_submitted", 1),
+                             ("wf.application_submitted", 2), ("dl.deadline_opened", 1)})
 
         def apply(self, state, ev):
             pass
@@ -434,7 +438,7 @@ def test_a_projection_without_live_model_is_a_gap_not_a_pass(client):
 
 def test_unknown_versions_make_the_result_partial(client):
     now = datetime.now(timezone.utc)
-    events = [EventRecord(1, now, "application", uuid4(), "wf.application_submitted", 2, {})]
+    events = [EventRecord(1, now, "application", uuid4(), "wf.application_submitted", 3, {})]
     r = replay.replay(["applications"], events=events)
     assert r["verdict"] in ("CONSISTENT_SUBSET", "MISMATCH") and r["ok"] is False
     assert any(g["kind"] == "UNKNOWN_EVENT_VERSION" for g in r["gaps"])

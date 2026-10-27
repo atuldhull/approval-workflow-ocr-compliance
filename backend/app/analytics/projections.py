@@ -11,11 +11,16 @@ from sqlalchemy.orm import Session
 
 from app.platform.replay import EventRecord
 
+# transition targets that are stages; the others (APPROVED, REJECTED, WITHDRAWN) end the route
+STAGES = frozenset({"SELF_DISCLOSURE", "SCRUTINY", "RESCRUTINY", "DEFICIENT", "EVC", "SHC", "EC", "COUNCIL"})
+
 
 class ApplicationsProjection:
     name = "applications"
     owner = "Person 1 events, projection in analytics"
-    handles = frozenset({("wf.application_created", 1), ("wf.application_submitted", 1)})
+    # submitted v2 adds dsc_present and provided_item_keys; neither is projected, so both versions apply alike
+    handles = frozenset({("wf.application_created", 1), ("wf.application_submitted", 1),
+                         ("wf.application_submitted", 2), ("wf.transition_applied", 1)})
     compared_fields = ("institution_id", "category", "academic_year", "status", "current_stage", "ruleset_rev")
 
     def apply(self, state: dict[str, dict], ev: EventRecord) -> None:
@@ -28,6 +33,11 @@ class ApplicationsProjection:
         elif ev.event_type == "wf.application_submitted" and key in state:
             state[key].update(status="IN_PROCESS", current_stage=p["first_stage"], ruleset_rev=p["ruleset_rev"],
                               submitted_at=ev.at.isoformat())
+        elif ev.event_type == "wf.transition_applied" and key in state:
+            stage = p["to_state"] if p["to_state"] in STAGES else None
+            state[key].update(status=p["to_status"], current_stage=stage, ruleset_rev=p["ruleset_rev"])
+            if p["action"] == "submit":
+                state[key]["submitted_at"] = state[key]["submitted_at"] or ev.at.isoformat()
 
     def live(self, session: Session) -> dict[str, dict]:
         rows = session.execute(text(

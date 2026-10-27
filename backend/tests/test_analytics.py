@@ -2,6 +2,7 @@
 import json
 
 from app.deadlines.wiring import clock
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from conftest import NORTHFIELD, SUNRISE, headers
 
 SUNRISE_H = headers("INSTITUTION", SUNRISE)
@@ -11,10 +12,12 @@ RO_SOUTH = {**headers("RO_OFFICER", user="00000000-0000-4000-9000-000000000005")
 
 
 def file(client, h, inst, submit=True, category="NEW_PROGRAMME"):
+    ensure_intake_rules(client)
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(inst), "category": category, "academic_year": "2027-28"}).json()["id"]
     if submit:
-        assert client.post(f"/api/applications/{app_id}/submit", headers=h).status_code == 200
+        provide_fixture_items(app_id)
+        assert client.post(f"/api/applications/{app_id}/submit", headers=h, json={"dsc_present": True}).status_code == 200
     return app_id
 
 
