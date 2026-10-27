@@ -4,7 +4,8 @@
     python scripts/smoke_demo.py --docker                       # also delivers alerts inside the backend container
 
 Checks what the UI shows, over HTTP:
-- a submitted application in the case list, its deadline and explanation, the audit timeline and replay, dashboard;
+- a draft refused until its mandatory checklist items are linked to clean documents, then submitted and shown in the
+  case list, its deadline and explanation, the audit timeline and replay, dashboard;
 - documents: a synthetic PDF uploaded with an Idempotency-Key (and replayed), the malware scan, text extraction,
   blind entry before the OCR suggestion is revealed, review, the four-eyes refusal and a second officer's confirmation;
 - compliance: the bureau registers an LoA from the confirmed issue-date fact, the institution submits evidence and an
@@ -155,6 +156,29 @@ def documents_and_review(api: httpx.Client, app_id: str, a) -> dict | None:
     return {"version": version, "fact": fact["fact_id"], "run": run_id}
 
 
+def provide_checklist(api: httpx.Client, app_id: str, a) -> None:
+    """Uploads one synthetic document per mandatory checklist item and links its clean version to the item."""
+    checklist = api.get(f"/applications/{app_id}/checklist", headers=INST).json()
+    items = []
+    for item in checklist["items"]:
+        if not item["mandatory"]:
+            continue
+        run_id = uuid.uuid4().hex[:8]
+        doc = upload(api, app_id, item["item_key"], synthetic_pdf([f"SYNTHETIC {item['item_key']} - DEMO ONLY"]),
+                     f"smoke-item-{run_id}", f"{item['item_key'].lower()}.pdf")
+        if doc.status_code != 201:
+            check(f"checklist document {item['item_key']} uploaded", False, f"{doc.status_code} {doc.text[:200]}")
+            continue
+        version = doc.json()["version"]["version_id"]
+        if wait_for_scan(api, app_id, version, a.scan_timeout) == "clean":
+            items.append({"item_key": item["item_key"], "state": "PROVIDED", "document_ref": version})
+    linked = api.post(f"/applications/{app_id}/items", headers=INST, json={"items": items}) if items else None
+    after = api.get(f"/applications/{app_id}/checklist", headers=INST).json()
+    check("checklist items linked to clean document versions", linked is not None and linked.status_code == 200
+          and after.get("mandatory_items_complete") is True,
+          f"{len(items)} item(s){'' if linked is None else ', ' + str(linked.status_code)}")
+
+
 def compliance(api: httpx.Client, app_id: str, doc: dict, a) -> None:
     letter = api.post("/compliance/letters", headers={**BUREAU, "Idempotency-Key": f"smoke-loa-{doc['run']}"}, json={
         "application_id": app_id, "institution_id": SUNRISE, "letter_type": "LOA", "academic_year": "2025-26",
@@ -238,7 +262,11 @@ def main() -> int:
 
     app = api.post("/applications", headers=INST, json={
         "institution_id": SUNRISE, "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()
-    submitted = api.post(f"/applications/{app['id']}/submit", headers=INST).json()
+    blocked = api.post(f"/applications/{app['id']}/submit", headers=INST, json={"dsc_present": True})
+    check("submitting without the mandatory checklist items is refused", blocked.status_code == 422,
+          f"{blocked.status_code} {blocked.json().get('detail')}")
+    provide_checklist(api, app["id"], a)
+    submitted = api.post(f"/applications/{app['id']}/submit", headers=INST, json={"dsc_present": True}).json()
     check("application submitted", submitted.get("status") == "IN_PROCESS", submitted.get("current_stage", ""))
     listed = [x["id"] for x in api.get("/applications", headers=INST).json()]
     check("visible in the institution's case list", app["id"] in listed)
@@ -289,8 +317,8 @@ def main() -> int:
     else:
         print("SKIP  notification delivery (run with --docker)")
 
-    status = api.get("/evc/requests", headers=HEAD).status_code
-    check("/evc/requests is not provided yet (UI preview only)", status == 404, str(status))
+    queue = api.get("/evc/queue", headers=HEAD)
+    check("EVC queue readable", queue.status_code == 200, str(queue.status_code))
 
     print(f"\n{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
