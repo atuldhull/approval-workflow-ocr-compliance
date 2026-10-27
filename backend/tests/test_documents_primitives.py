@@ -350,7 +350,8 @@ def test_storage_key_is_scoped_and_each_operation_has_unique_ownership(tmp_path)
     assert first.storage_ref != other_application.storage_ref
     assert "filename" not in first.storage_ref
     assert stored_path(storage, first.storage_ref).read_bytes() == PDF
-    assert not hasattr(storage, "open_private")
+    with storage.open_private(first.storage_ref) as stored:  # in-process reader for scanner and text engine
+        assert stored.read() == PDF
     assert storage.reconcile_abandoned_staging() == 0
     assert stored_path(storage, first.storage_ref).read_bytes() == PDF
 
@@ -649,8 +650,11 @@ def test_case_owner_fails_closed_on_mismatched_caseport_result(monkeypatch):
         resolve_document_owner(object(), application_id)
 
 
-def test_no_document_upload_or_download_route_is_exposed_yet():
+def test_no_document_download_route_is_exposed_yet():
     from app.main import create_app
 
-    paths = {route.path for route in create_app().routes}
-    assert not any("/documents" in path or "/document" in path for path in paths)
+    reads = {route.path for route in create_app().routes
+             if "/document" in route.path and "GET" in getattr(route, "methods", set())}
+    # listings and facts only; nothing returns stored file bytes
+    assert reads == {"/api/applications/{application_id}/documents", "/api/documents",
+                     "/api/document-versions/{version_id}/facts"}
