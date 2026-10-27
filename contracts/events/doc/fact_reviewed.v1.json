@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "doc.fact_reviewed v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fact_id", "document_id", "version_id", "field", "decision", "value_hash"],
+  "properties": {
+    "fact_id": {"type": "string", "format": "uuid"},
+    "document_id": {"type": "string", "format": "uuid"},
+    "version_id": {"type": "string", "format": "uuid"},
+    "field": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "decision": {"type": "string", "enum": ["ACCEPTED", "CORRECTED", "REJECTED"]},
+    "value_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the reviewed value; the value stays in the documents schema"},
+    "note_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
