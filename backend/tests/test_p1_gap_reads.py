@@ -136,3 +136,8 @@ def test_case_committee_list_in_formation_order_with_latest_report(api):
     assert api.get(f"/api/cases/{case_id}/committees", headers=RO_NORTH).status_code == 403
     assert api.get(f"/api/cases/{case_id}/committees", headers=NORTH_INST).status_code == 403
     assert api.get(f"/api/cases/{uuid4()}/committees", headers=CHAIR).status_code == 404
+    # a single committee and its reports read with the same case scope
+    for path in (f"/api/committees/{ids[1]}", f"/api/committees/{ids[1]}/reports"):
+        assert api.get(path, headers=RO_SOUTH).status_code == 200
+        assert api.get(path, headers=RO_NORTH).status_code == 403
+        assert api.get(path, headers=NORTH_INST).status_code == 403

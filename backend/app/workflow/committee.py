@@ -113,7 +113,10 @@ def _check(principal: Principal, action: str) -> None:
 
 
 def _committee(session: Session, committee_id: UUID, principal: Principal, action: str, *, write: bool) -> Committee:
-    _check(principal, action)
+    if write:
+        _check(principal, action)
+    # Reads are checked by the case's own scope below, which states its institution and region (so regional
+    # officers can read their region's committees, as with the case committee list).
     row = session.get(Committee, committee_id)
     if row is None:
         raise NotFound("committee not found")

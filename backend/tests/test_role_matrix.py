@@ -53,7 +53,7 @@ MATRIX = [
     # Person 1 endpoint: today every role, institutions included, can list all institutions (handoff P1 #8)
     ("institution list", "GET", "/api/institutions", None, expect(ALL)),
     ("own vs other institution's case", "GET", "/api/applications/{app}", None,
-     expect({"inst_sunrise": 200, "committee": 200, "bureau_officer": 200, "bureau_head": 200, "auditor": 200})),
+     expect({"inst_sunrise": 200, "committee": 200, "ro_south": 200, "bureau_officer": 200, "bureau_head": 200, "auditor": 200})),
     ("case timeline", "GET", "/api/cases/{app}/timeline", None,
      expect({"inst_sunrise": 200, "committee": 200, "ro_south": 200, "bureau_officer": 200, "bureau_head": 200,
              "auditor": 200})),
