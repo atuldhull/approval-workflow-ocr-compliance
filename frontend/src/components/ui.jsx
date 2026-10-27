@@ -162,3 +162,44 @@ export function useSingleFlight() {
     }
   }, []);
 }
+
+// A row of headline figures. Each value is a figure the server returned; a missing one reads "—", never 0.
+export function Kpis({ items, label }) {
+  return (
+    <dl className="kpis" aria-label={label}>
+      {items.map((k) => (
+        <div key={k.label} className={k.tone ? `kpi tone-${k.tone}` : "kpi"}>
+          <dt>{k.label}</dt>
+          <dd className="num">{k.value ?? "—"}</dd>
+          {k.hint && <dd className="kpi-hint">{k.hint}</dd>}
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+// The detail panel beside a list. Its content is keyed by the selection so a new record arrives with a short
+// fade; the panel itself never moves, so the list does not jump.
+export function Inspector({ label, title, eyebrow, onClose, children, className = "" }) {
+  return (
+    <aside className={`card inspector ${className}`.trim()} aria-label={label}>
+      <header className="inspector-head">
+        <div>
+          {eyebrow && <p className="inspector-eyebrow">{eyebrow}</p>}
+          <h2>{title}</h2>
+        </div>
+        {onClose && (
+          <button className="ghost icon-only" aria-label={`Close ${label.toLowerCase()}`} onClick={onClose}>
+            <Icon name="close" />
+          </button>
+        )}
+      </header>
+      <div className="inspector-body">{children}</div>
+    </aside>
+  );
+}
+
+// A confirmation that the server accepted an action. Rendered only after the request succeeded.
+export function Toast({ children }) {
+  return <p className="toast" role="status"><Icon name="check" /> {children}</p>;
+}

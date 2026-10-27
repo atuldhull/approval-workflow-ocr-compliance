@@ -9,17 +9,17 @@ import ApplicationsView from '../views/ApplicationsView.jsx';
 const who=DEMO_USERS[0], me={user_id:who.user,role:who.role,institution_id:who.institution};
 afterEach(()=>history.replaceState(null,'','/'));
 
-it('keeps record selection and case opening usable without WebGL',async()=>{
-  const open=vi.fn();const user=userEvent.setup();
-  render(<World kind="overview" records={[{id:'one',label:'Case one',detail:'Draft'},{id:'two',label:'Case two',detail:'In process'}]} onSelect={open}/>);
-  expect(screen.getByText('Labelled evidence view')).toBeVisible();
-  await user.click(within(screen.getByRole('group',{name:'Institution workflow records'})).getByRole('button',{name:/Case two/}));
-  await user.click(screen.getByRole('button',{name:/Open selected case/}));expect(open).toHaveBeenCalledWith('two');
+it('draws the assurance figure flat without WebGL and keeps it out of the accessibility tree',()=>{
+  const records=[{id:'continuity',label:'Hash continuity',state:'checked'},{id:'witness',label:'Checkpoint witness',state:'recorded'},{id:'replay',label:'Replay consistency',state:'unknown'}];
+  const {container}=render(<World records={records} selected={1} caption="Continuity · witness · replay"/>);
+  expect(container.querySelector('canvas')).toBeNull();
+  expect(container.querySelector('.spatial-stage')).toHaveAttribute('aria-hidden','true');
+  expect(container.querySelector('.flat-layer.is-selected')).not.toBeNull();
+  expect(screen.getByText(/Flat drawing/)).toBeVisible();
 });
 
-it('remembers the standard-view preference and provides readable empty state',async()=>{
-  const user=userEvent.setup();render(<World kind="audit" records={[]}/>);
-  expect(screen.getByText('No records to explore')).toBeVisible();
+it('remembers the standard-view preference',async()=>{
+  const user=userEvent.setup();render(<World records={[]} caption="Layers"/>);
   await user.click(screen.getByRole('button',{name:'Standard view'}));
   expect(localStorage.getItem('operations.flat')).toBe('true');expect(screen.getByRole('button',{name:'Spatial view'})).toBeVisible();
 });

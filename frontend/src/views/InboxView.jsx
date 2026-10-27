@@ -1,8 +1,8 @@
-import World from '../operations/World.jsx';
 import { useMemo, useState } from "react";
 import { api } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
-import { Card, Empty, ErrorBox, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import { Card, Empty, ErrorBox, Inspector, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import Lifecycle from "../components/Lifecycle.jsx";
 
 // Templates the alerts module marks as needing action soon; the rest are informational.
 const URGENT = new Set(["deadline.breached", "deadline.escalated"]);
@@ -54,8 +54,9 @@ export default function InboxView({ who, onNavigate }) {
   const open = data?.find((n) => n.id === openId);
 
   return (
-    <div className={`stream-layout${open ? " has-detail" : ""}`}>
-      <World kind="inbox" records={(data ?? []).map(n=>({id:n.id,label:n.id.slice(0,8),category:n.template,state:n.read_at?'read':'unread',detail:n.read_at?'Read':'Unread',facts:[['Category',n.template],['Created',n.created_at],['Application',n.subject_id||'Linkage not supplied'],['Triggering event','Specific event linkage not supplied']]}))} onSelect={id=>setOpenId(id)} actionLabel="Inspect notification" />
+    <div className="inbox">
+    <Lifecycle here="inbox" />
+    <div className={`split stream-layout${open ? " has-detail" : ""}`}>
       <Card title="Inbox" actions={<button className="secondary small" onClick={reload}><Icon name="refresh" /> Refresh</button>}>
         <div className="chips" role="group" aria-label="Show">
           {FILTERS.map(([key, label]) => (
@@ -101,24 +102,32 @@ export default function InboxView({ who, onNavigate }) {
         <p className="muted small">Deadline alerts are acknowledged on the Alerts screen, by the role they are addressed to.</p>
       </Card>
 
-      {open && (
-        <aside className="card signal-detail" aria-label="Notification detail">
-          <header className="card-head">
-            <h2>{open.subject}</h2>
-            <button className="ghost icon-only" aria-label="Close detail" onClick={() => setOpenId(null)}><Icon name="close" /></button>
-          </header>
-          <p>{MEANING[open.template] ?? "A notification from the approval system."}</p>
-          <dl className="facts">
-            <dt>Received</dt><dd>{when(open.created_at)}</dd>
-            <dt>Reference</dt><dd><code>{open.alert_id}</code></dd>
-            <dt>Read</dt><dd>{open.read_at ? when(open.read_at) : "Not yet"}</dd>
-          </dl>
-          <p className="muted small">Messages carry no case details by design; sign-in is how the details are seen.</p>
-          {onNavigate && (
-            <button className="secondary small" onClick={() => onNavigate("alerts")}>Open alerts to acknowledge</button>
-          )}
-        </aside>
-      )}
+      <div className="split-detail">
+        {open ? (
+          <Inspector label="Notification detail" eyebrow={open.read_at ? "Read" : "Unread"} title={open.subject} onClose={() => setOpenId(null)}>
+            <div key={open.id} className="inspector-swap">
+              <p>{MEANING[open.template] ?? "A notification from the approval system."}</p>
+              <dl className="facts">
+                <dt>Received</dt><dd>{when(open.created_at)}</dd>
+                <dt>Alert reference</dt><dd><code>{open.alert_id}</code></dd>
+                <dt>Read</dt><dd>{open.read_at ? when(open.read_at) : "Not yet"}</dd>
+              </dl>
+              <p className="muted small">Messages carry no case details by design; sign-in is how the details are seen.</p>
+              <div className="actions">
+                {!open.read_at && (
+                  <button className="secondary small" disabled={busy !== null} onClick={() => markRead(open.id)}>
+                    {busy === open.id ? "Marking…" : "Mark read"}
+                  </button>
+                )}
+                {onNavigate && <button className="ghost small" onClick={() => onNavigate("alerts")}>Open alerts to acknowledge</button>}
+              </div>
+            </div>
+          </Inspector>
+        ) : (
+          <div className="card placeholder-case"><Empty>Choose a notice to see what it means and where to act on it.</Empty></div>
+        )}
+      </div>
+    </div>
     </div>
   );
 }

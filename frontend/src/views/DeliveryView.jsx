@@ -1,7 +1,7 @@
-import World from '../operations/World.jsx';
 import { useState } from "react";
 import { api } from "../api.js";
-import { Badge, Card, Empty, ErrorBox, Loading, StatTile, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import { Badge, Card, Empty, ErrorBox, Inspector, Loading, StatTile, Toast, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import Lifecycle from "../components/Lifecycle.jsx";
 import { STATUS, errorText, outcomeText } from "../deliveryText.js";
 
 const pct = (r) => (r == null ? "—" : `${Math.round(r * 100)}%`);
@@ -50,7 +50,7 @@ export default function DeliveryView({ who, me }) {
   const h = health.data;
   return (
     <div>
-      <World kind="delivery" records={(outbox.data||[]).map(o=>({id:o.id,label:o.template,state:o.status,attemptCount:o.attempts,detail:o.channel+' · '+o.status,facts:[['Queued',o.created_at],['Message',o.id],['Recorded attempts',o.attempts],['Last problem',errorText(o.last_error)||'None reported']]}))} onSelect={showAttempts} actionLabel="Inspect recorded attempts" />
+      <Lifecycle here="delivery" />
       <Card title="Delivery health" actions={<button className="secondary small" onClick={refresh}>Refresh</button>}>
         {health.loading && !h && <Loading />}
         <ErrorBox error={health.error} onRetry={health.reload} />
@@ -86,6 +86,7 @@ export default function DeliveryView({ who, me }) {
         <p className="muted small">Each recipient gets a separate message, so no one sees another recipient's address. Email and SMS are delivered at least once: a retry after an unclear provider failure can repeat a message to that recipient.</p>
       </Card>
 
+      <div className="split delivery-layout">
       <Card
         title="Outbox"
         actions={
@@ -109,11 +110,11 @@ export default function DeliveryView({ who, me }) {
           ))}
         </dl>
         <ErrorBox error={error || outbox.error} onRetry={error ? undefined : outbox.reload} />
-        {notice && <p className="ok" role="status">{notice}</p>}
+        {notice && <Toast>{notice}</Toast>}
         {outbox.loading && !outbox.data && <Loading />}
         {outbox.data?.length === 0 && <Empty>{status ? `No ${status.toLowerCase()} messages.` : "No messages yet."}</Empty>}
         {outbox.data?.length > 0 && (
-          <table className="table" tabIndex={0}>
+          <div className="table-wrap"><table className="table" tabIndex={0} aria-label="Outbox messages">
             <thead>
               <tr>
                 <th scope="col">Queued</th>
@@ -129,7 +130,7 @@ export default function DeliveryView({ who, me }) {
               {outbox.data.map((o) => {
                 const name = `${o.template} by ${o.channel}, queued ${when(o.created_at)}`;
                 return (
-                  <tr key={o.id}>
+                  <tr key={o.id} className={attempts?.id === o.id ? "current" : undefined}>
                     <td>{when(o.created_at)}</td>
                     <td>{o.channel}</td>
                     <td>{o.template}</td>
@@ -160,28 +161,36 @@ export default function DeliveryView({ who, me }) {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
         {!canRequeue && <p className="muted small">Only the bureau head can requeue dead letters.</p>}
       </Card>
 
-      {attempts && (
-        <Card title={`Attempts for message ${attempts.id.slice(0, 8)}`}>
-          {attempts.rows.length === 0 && <Empty>No attempts yet.</Empty>}
-          <p className="source">Recorded attempts only. Spacing is ordinal; it does not represent elapsed time. Outcomes do not change while scrolling.</p>
-          <ol className="timeline attempt-register">
+      <div className="split-detail">
+      {attempts ? (
+        <Inspector label="Recorded attempts" eyebrow={"Message " + attempts.id.slice(0, 8)} title="Recorded attempts" onClose={() => setAttempts(null)}>
+          <div key={attempts.id} className="inspector-swap">
+          {attempts.rows.length === 0 && <Empty>No attempts yet. The message is waiting for a worker.</Empty>}
+          <ol className="attempt-register">
             {attempts.rows.map((a) => (
-              <li key={`${a.attempt_no}-${a.finished_at}`}>
-                #{a.attempt_no}{" "}
-                <Badge tone={a.outcome === "DELIVERED" ? "ok" : a.outcome === "PERMANENT" ? "bad" : "warn"}>{outcomeText(a.outcome)}</Badge>{" "}
-                via {a.provider}
-                {a.error_category && <span className="muted"> · {errorText(a.error_category)}</span>}
-                <span className="muted"> · {when(a.finished_at)}</span>
+              <li key={a.attempt_no + "-" + a.finished_at} className={"attempt outcome-" + String(a.outcome).toLowerCase()}>
+                <span className="attempt-no num">#{a.attempt_no}</span>
+                <span className="attempt-main">
+                  <Badge tone={a.outcome === "DELIVERED" ? "ok" : a.outcome === "PERMANENT" ? "bad" : "warn"}>{outcomeText(a.outcome)}</Badge>
+                  <span className="small">via {a.provider}{a.error_category && <span className="muted"> · {errorText(a.error_category)}</span>}</span>
+                  <span className="muted small">{when(a.finished_at)}</span>
+                </span>
               </li>
             ))}
           </ol>
-        </Card>
+          <p className="source">Recorded attempts only, in order. Nothing here is simulated.</p>
+          </div>
+        </Inspector>
+      ) : (
+        <div className="card placeholder-case"><Empty>Choose Attempts on a message to see each recorded try and its outcome.</Empty></div>
       )}
+      </div>
+      </div>
     </div>
   );
 }

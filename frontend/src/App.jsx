@@ -145,9 +145,8 @@ export function Workspace({ who, me, config, identityControl }) {
       window.scrollTo?.({ top: 0 });
       contentRef.current?.focus({ preventScroll: true });
     };
-    if (reduced) return arrive();
-    setPhase("out");
-    timer.current = setTimeout(arrive, 160);
+    // No departure delay: the new screen replaces the old one at once and fades in (MOTION.md).
+    arrive();
   };
 
   const toggleCollapse = () => {
@@ -172,7 +171,7 @@ export function Workspace({ who, me, config, identityControl }) {
         <TopBar me={me} who={who} config={config} identityControl={<>{identityControl}<ShowcaseLink /></>} title={navTitle} view={view} />
         <main className={`content world-${world.motion} phase-${phase}`} id="content" tabIndex={-1} ref={contentRef}>
           <header className="page-head" key={`head-${shown}`}>
-            <p className="page-eyebrow">AICTE / APPROVAL OPERATIONS</p><h1>{title}</h1>
+            <h1>{title}</h1>
             {SUBTITLES[shown] && <p className="page-sub">{SUBTITLES[shown]}</p>}
           </header>
           {View && (

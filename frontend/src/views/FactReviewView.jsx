@@ -1,8 +1,8 @@
-import World from "../operations/World.jsx";
 import { useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
 import ViewDocument from "../components/ViewDocument.jsx";
+import DocumentPreview from "../components/DocumentPreview.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import { internalRef } from "../provenance.js";
 import { actorText, checklistLabel, explain, factStatusOf, fieldLabel, isAvailable } from "../recordText.js";
@@ -32,7 +32,7 @@ function cleanVersions(docs) {
     for (const v of d.versions) {
       if (!isAvailable(v)) continue;
       out.push({ id: v.version_id, label: `${checklistLabel(d.doc_type)} · v${v.version_no} · case ${internalRef(d.application_id)}`,
-        filename: v.original_filename });
+        filename: v.original_filename, version: v });
     }
   }
   return out;
@@ -48,43 +48,38 @@ export default function FactReviewView({ who, me }) {
   const canReview = REVIEWERS.has(me.role);
   const canConfirm = CONFIRMERS.has(me.role);
 
-  // Only state and page reach the visual register: never a machine value, so the blind step stays blind.
-  const records = (facts.data?.facts ?? []).map((f) => ({
-    id: f.fact_id, label: fieldLabel(f.field_key), state: f.status === "confirmed" ? "checked" : f.status === "rejected" ? "broken" : "active",
-    detail: factStatusOf(f.status).label, facts: [["Page", f.page_number ?? "Not supplied"], ["Status", factStatusOf(f.status).label]],
-  }));
 
   if (docs.loading && !docs.data) return <Loading what="Loading documents to review" />;
   if (docs.error) return <ErrorBox error={docs.error} onRetry={docs.reload} />;
 
+  if (versions.length === 0) {
+    return <Empty>No document in your scope has a version that passed the malware scan, so there is nothing to review.</Empty>;
+  }
   return (
-    <div>
-      <World kind="facts" records={records} />
-      <Card title="Document" actions={<button className="secondary small" onClick={() => { docs.reload(); facts.reload(); }}><Icon name="refresh" /> Refresh</button>}>
-        {versions.length === 0 ? (
-          <Empty>No document in your scope has a version that passed the malware scan, so there is nothing to review.</Empty>
-        ) : (
-          <>
-            <label>
-              Version to review
-              <select value={versionId ?? ""} onChange={(e) => setPicked(e.target.value)}>
-                {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-              </select>
-            </label>
-            <div className="actions">
-              {current && <ViewDocument who={who} versionId={current.id} filename={current.filename} />}
-            </div>
-            <p className="muted small">
-              Read each value from the original document: open it in its own tab. The machine reading stays hidden
-              until you commit your own.
-            </p>
-          </>
-        )}
-      </Card>
-      {versionId && (
-        <FactList key={versionId} who={who} versionId={versionId} state={facts}
-          canReview={canReview} canConfirm={canConfirm} />
-      )}
+    <div className="fact-review">
+      <div className="toolbar">
+        <label className="inline grow">
+          Version to review
+          <select value={versionId ?? ""} onChange={(e) => setPicked(e.target.value)}>
+            {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+          </select>
+        </label>
+        <button className="ghost small" onClick={() => { docs.reload(); facts.reload(); }}><Icon name="refresh" /> Refresh</button>
+      </div>
+      <div className="workbench review-bench">
+        <section className="workbench-reader" aria-label="Source document">
+          <DocumentPreview who={who} version={current?.version}
+            caption={<span className="muted small">Read each value from the document itself. The machine reading stays hidden until you commit your own.</span>}>
+            {current && <ViewDocument who={who} versionId={current.id} filename={current.filename} label="View document" />}
+          </DocumentPreview>
+        </section>
+        <div className="workbench-panel">
+          {versionId && (
+            <FactList key={versionId} who={who} versionId={versionId} state={facts}
+              canReview={canReview} canConfirm={canConfirm} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -115,8 +110,18 @@ function FactList({ who, versionId, state, canReview, canConfirm }) {
     return <Card title="Facts from this version"><Empty>This version is no longer available, so its facts cannot be reviewed.</Empty></Card>;
   }
 
+  const counts = state.data.review_status ?? {};
   return (
-    <Card title="Facts from this version">
+    <Card title="Facts from this version" className="facts-panel">
+      {state.data.facts.length > 0 && (
+        <ol className="review-progress" aria-label="Review progress for this version">
+          <li><span className="num">{(counts.proposed ?? 0)}</span> awaiting a blind entry</li>
+          <li><span className="num">{(counts.in_review ?? 0)}</span> in review</li>
+          <li><span className="num">{(counts.reviewed ?? 0)}</span> awaiting a second officer</li>
+          <li className="done"><span className="num">{(counts.confirmed ?? 0)}</span> confirmed</li>
+          {(counts.rejected ?? 0) > 0 && <li className="rejected"><span className="num">{counts.rejected}</span> rejected</li>}
+        </ol>
+      )}
       {readOnly && <p className="muted small" role="note">Read-only: your role can see the review record but not change it.</p>}
       {!canReview && canConfirm && (
         <p className="muted small" role="note">Your role confirms values another officer reviewed; it does not enter or review readings.</p>
