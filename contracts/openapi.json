@@ -2460,6 +2460,69 @@
         "title": "MemberIn",
         "type": "object"
       },
+      "Metrics": {
+        "properties": {
+          "hard_constraint_violations": {
+            "title": "Hard Constraint Violations",
+            "type": "integer"
+          },
+          "late_count": {
+            "title": "Late Count",
+            "type": "integer"
+          },
+          "lateness_days": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Lateness Days",
+            "type": "array"
+          },
+          "max_lateness": {
+            "title": "Max Lateness",
+            "type": "integer"
+          },
+          "queue_count": {
+            "title": "Queue Count",
+            "type": "integer"
+          },
+          "scheduled": {
+            "title": "Scheduled",
+            "type": "integer"
+          },
+          "total_lateness": {
+            "title": "Total Lateness",
+            "type": "integer"
+          },
+          "total_waiting": {
+            "title": "Total Waiting",
+            "type": "integer"
+          },
+          "unscheduled": {
+            "title": "Unscheduled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queue_count",
+          "scheduled",
+          "unscheduled",
+          "late_count",
+          "total_lateness",
+          "max_lateness",
+          "total_waiting",
+          "hard_constraint_violations",
+          "lateness_days"
+        ],
+        "title": "Metrics",
+        "type": "object"
+      },
       "ObligationKind": {
         "enum": [
           "UNDERTAKING",
@@ -3088,7 +3151,7 @@
             "type": "string"
           },
           "assumption_code": {
-            "const": "EVC_SCHEDULING_POLICY_UNCONFIRMED",
+            "const": "EDF_PLANNING_UNCONFIRMED",
             "title": "Assumption Code",
             "type": "string"
           },
@@ -3097,36 +3160,22 @@
             "title": "Created At",
             "type": "string"
           },
-          "metrics": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "boolean"
-                }
-              ]
-            },
-            "title": "Metrics",
-            "type": "object"
+          "horizon_end": {
+            "format": "date",
+            "title": "Horizon End",
+            "type": "string"
           },
-          "parameters": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "title": "Parameters",
-            "type": "object"
+          "horizon_start": {
+            "format": "date",
+            "title": "Horizon Start",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
           },
           "proposals": {
             "items": {
@@ -3161,6 +3210,16 @@
             "title": "Simulation Status",
             "type": "string"
           },
+          "solver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolverOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "source_status": {
             "const": "DEMO_ASSUMPTION",
             "title": "Source Status",
@@ -3188,9 +3247,12 @@
           "algorithm",
           "status",
           "region_scope",
+          "horizon_start",
+          "horizon_end",
           "created_at",
-          "parameters",
+          "input_fingerprint",
           "metrics",
+          "solver",
           "proposals",
           "unscheduled"
         ],
@@ -3201,6 +3263,7 @@
         "additionalProperties": false,
         "properties": {
           "algorithm": {
+            "default": "EDF",
             "enum": [
               "EDF",
               "CPSAT"
@@ -3208,26 +3271,15 @@
             "title": "Algorithm",
             "type": "string"
           },
-          "default_slot_capacity": {
-            "default": 4,
-            "maximum": 50.0,
-            "minimum": 1.0,
-            "title": "Default Slot Capacity",
-            "type": "integer"
+          "horizon_end": {
+            "format": "date",
+            "title": "Horizon End",
+            "type": "string"
           },
-          "expert_daily_capacity": {
-            "default": 1,
-            "maximum": 2.0,
-            "minimum": 1.0,
-            "title": "Expert Daily Capacity",
-            "type": "integer"
-          },
-          "max_lateness_days": {
-            "default": 0,
-            "maximum": 30.0,
-            "minimum": 0.0,
-            "title": "Max Lateness Days",
-            "type": "integer"
+          "horizon_start": {
+            "format": "date",
+            "title": "Horizon Start",
+            "type": "string"
           },
           "region": {
             "anyOf": [
@@ -3242,22 +3294,40 @@
             ],
             "title": "Region"
           },
-          "time_limit_seconds": {
-            "default": 60.0,
-            "exclusiveMinimum": 0.0,
-            "maximum": 120.0,
-            "title": "Time Limit Seconds",
-            "type": "number"
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "slot_capacity": {
+            "anyOf": [
+              {
+                "maximum": 50.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Capacity"
           }
         },
         "required": [
-          "algorithm"
+          "run_id",
+          "horizon_start",
+          "horizon_end"
         ],
         "title": "ProposeBody",
         "type": "object"
       },
       "ProposedAssignment": {
         "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
           "assignment_id": {
             "format": "uuid",
             "title": "Assignment Id",
@@ -3305,6 +3375,7 @@
           }
         },
         "required": [
+          "application_id",
           "request_id",
           "assignment_id",
           "slot_id",
@@ -3350,7 +3421,7 @@
             "type": "array"
           },
           "assumption_code": {
-            "const": "EVC_SCHEDULING_POLICY_UNCONFIRMED",
+            "const": "EDF_PLANNING_UNCONFIRMED",
             "title": "Assumption Code",
             "type": "string"
           },
@@ -3418,11 +3489,6 @@
             "title": "Assignment Id",
             "type": "string"
           },
-          "assumption_code": {
-            "const": "EVC_SCHEDULING_POLICY_UNCONFIRMED",
-            "title": "Assumption Code",
-            "type": "string"
-          },
           "date": {
             "format": "date",
             "title": "Date",
@@ -3454,14 +3520,23 @@
             "title": "Request Id",
             "type": "string"
           },
+          "request_status": {
+            "const": "PUBLISHED",
+            "title": "Request Status",
+            "type": "string"
+          },
+          "ruleset_key": {
+            "title": "Ruleset Key",
+            "type": "string"
+          },
           "run_id": {
             "format": "uuid",
             "title": "Run Id",
             "type": "string"
           },
-          "selector_label": {
-            "const": "SIMULATED authorised selector (stand-in)",
-            "title": "Selector Label",
+          "selector_policy_version": {
+            "const": "DEMO_SELECTOR_V1",
+            "title": "Selector Policy Version",
             "type": "string"
           },
           "simulation_status": {
@@ -3489,22 +3564,23 @@
           }
         },
         "required": [
-          "selector_label",
-          "simulation_status",
-          "source_status",
-          "assumption_code",
-          "run_id",
-          "algorithm",
           "application_id",
           "request_id",
           "assignment_id",
+          "run_id",
+          "algorithm",
           "slot_id",
           "date",
           "slot_part",
           "due_by",
           "lateness_days",
           "expert_ids",
-          "panel_role"
+          "panel_role",
+          "ruleset_key",
+          "request_status",
+          "simulation_status",
+          "selector_policy_version",
+          "source_status"
         ],
         "title": "PublishedAssignment",
         "type": "object"
@@ -4244,6 +4320,49 @@
         "title": "RulesetOut",
         "type": "object"
       },
+      "SolverOut": {
+        "properties": {
+          "best_bound": {
+            "title": "Best Bound",
+            "type": "integer"
+          },
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "edf_scheduled": {
+            "title": "Edf Scheduled",
+            "type": "integer"
+          },
+          "fallback_to_edf": {
+            "title": "Fallback To Edf",
+            "type": "boolean"
+          },
+          "objective_value": {
+            "title": "Objective Value",
+            "type": "integer"
+          },
+          "repair_rounds": {
+            "title": "Repair Rounds",
+            "type": "integer"
+          },
+          "solver_status": {
+            "title": "Solver Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "solver_status",
+          "objective_value",
+          "best_bound",
+          "repair_rounds",
+          "candidate_count",
+          "edf_scheduled",
+          "fallback_to_edf"
+        ],
+        "title": "SolverOut",
+        "type": "object"
+      },
       "Stage": {
         "enum": [
           "SELF_DISCLOSURE",
@@ -4638,21 +4757,8 @@
       },
       "Unscheduled": {
         "properties": {
-          "best_qualified_count": {
-            "title": "Best Qualified Count",
-            "type": "integer"
-          },
-          "panel_size": {
-            "title": "Panel Size",
-            "type": "integer"
-          },
           "reason_code": {
-            "enum": [
-              "NO_AVAILABILITY",
-              "PANEL_INCOMPLETE",
-              "COI_ONLY",
-              "CAPACITY_EXHAUSTED"
-            ],
+            "const": "NO_FEASIBLE_SLOT",
             "title": "Reason Code",
             "type": "string"
           },
@@ -4660,34 +4766,11 @@
             "format": "uuid",
             "title": "Request Id",
             "type": "string"
-          },
-          "slot_reasons": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "propertyNames": {
-              "enum": [
-                "NO_AVAILABILITY",
-                "PANEL_INCOMPLETE",
-                "COI_ONLY",
-                "CAPACITY_EXHAUSTED"
-              ]
-            },
-            "title": "Slot Reasons",
-            "type": "object"
-          },
-          "slots_considered": {
-            "title": "Slots Considered",
-            "type": "integer"
           }
         },
         "required": [
           "request_id",
-          "reason_code",
-          "slots_considered",
-          "best_qualified_count",
-          "panel_size",
-          "slot_reasons"
+          "reason_code"
         ],
         "title": "Unscheduled",
         "type": "object"
@@ -12403,7 +12486,7 @@
     },
     "/api/evc/schedule:propose": {
       "post": {
-        "description": "Choose dates/AM-PM parts for queued requests in scope (EDF greedy baseline or CP-SAT). Panels come from the SIMULATED authorised selector (stand-in); optimisation never picks experts. Writes unpublished proposals and a schedule_run, supersedes earlier drafts of the same requests and explains every unscheduled request with a coded reason. RO users are limited to their own region. Capacities and lateness allowance are DEMO ASSUMPTION parameters. Optional Idempotency-Key.",
+        "description": "Plan dates/AM-PM slots for QUEUED requests in scope with the EDF baseline (default) or CP-SAT over the same locked input; both are scored by the same metrics. Panels come from the SIMULATED authorised selector (stand-in); optimisation never picks experts. Writes a schedule_run, unpublished DEMO_PANEL assignments (which reserve their experts and slot capacity) and PROPOSED requests; unscheduled requests stay QUEUED. run_id is chosen by the caller and conflicts if reused. slot_capacity (DEMO ASSUMPTION) creates missing AM/PM slot rows in the horizon. RO users are limited to their own region. Optional Idempotency-Key.",
         "operationId": "schedule_propose_api_evc_schedule_propose_post",
         "parameters": [
           {
@@ -12530,7 +12613,7 @@
     },
     "/api/evc/schedule:publish": {
       "post": {
-        "description": "Publish every proposal of one run in a single transaction after rechecking availability, COI, activity, panel size, slot and expert capacity. Any double booking or failed recheck returns 409 and publishes nothing. Requests become PUBLISHED, which EvcPort.status reports. Optional Idempotency-Key.",
+        "description": "Publish every proposal of one run in a single transaction after rechecking eligibility, COI, activity, expertise, panel size, window and slot capacity against published commitments. Any double booking or failed recheck returns 409 and publishes nothing. Requests become PUBLISHED, which EvcPort.status reports. Optional Idempotency-Key.",
         "operationId": "schedule_publish_api_evc_schedule_publish_post",
         "parameters": [
           {
