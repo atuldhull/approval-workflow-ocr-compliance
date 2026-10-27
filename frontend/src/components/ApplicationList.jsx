@@ -57,7 +57,7 @@ export default function ApplicationList({ apps, selected, onSelect }) {
               <span className="row-main">
                 <span className="row-title">{sentence(a.category)}</span>
                 <span className="row-sub">
-                  <code title={INTERNAL_REF_TITLE}>{internalRef(a.id)}</code> · {a.academic_year} · filed {dateIST(a.created_at)}
+                  <code title={INTERNAL_REF_TITLE}>{internalRef(a.id)}</code>{a.academic_year ? ` · ${a.academic_year}` : ""}{a.created_at ? ` · filed ${dateIST(a.created_at)}` : ""}
                 </span>
               </span>
               <span className={`badge ${a.status === "DRAFT" ? "draft" : "info"}`}>
