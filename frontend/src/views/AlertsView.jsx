@@ -1,8 +1,8 @@
-import World from "../operations/World.jsx";
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
-import { Badge, Card, Empty, ErrorBox, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import { Badge, Card, Empty, ErrorBox, Kpis, Loading, Toast, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
+import Lifecycle from "../components/Lifecycle.jsx";
 import { ROLE_LABELS, sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
 import { ALERT_REASON, alertMeaning, alertStatusOf, ruleLabel } from "../recordText.js";
@@ -54,18 +54,19 @@ export default function AlertsView({ who, me, onNavigate }) {
     }
   });
 
-  const records = (data ?? []).map((a) => ({
-    id: a.id, label: alertMeaning(a.template), category: levelText(a.level),
-    state: a.status === "ACKNOWLEDGED" ? "checked" : a.status === "ESCALATED" ? "broken" : a.status === "OPEN" ? "unread" : "unknown",
-    detail: `${alertStatusOf(a.status).label} · to ${ROLE_LABELS[a.role] ?? a.role}`,
-    facts: [["Rule", ruleLabel(a.rule_id)], ["Due", a.due_date ? dateIST(a.due_date) : "Not supplied"],
-      ["Raised", when(a.raised_at)], ["Addressed to", ROLE_LABELS[a.role] ?? a.role],
-      ["Case", a.application_id ? internalRef(a.application_id) : "Not supplied"], ["Region", a.region ?? "Not supplied"]],
-  }));
 
   return (
     <div>
-      <World kind="alerts" records={records} />
+      <Lifecycle here={["alerts", "ack"]} />
+      {data && !status && (
+        <Kpis label="Alerts in your scope" items={[
+          { label: "Open", value: data.filter((a) => a.status === "OPEN").length, tone: data.some((a) => a.status === "OPEN") ? "attention" : undefined },
+          { label: "Escalated", value: data.filter((a) => a.status === "ESCALATED").length, tone: data.some((a) => a.status === "ESCALATED") ? "bad" : undefined },
+          { label: "Acknowledged", value: data.filter((a) => a.status === "ACKNOWLEDGED").length },
+          { label: "Vacant (nobody held the role)", value: data.filter((a) => a.status === "VACANT").length },
+          { label: "Awaiting your role", value: data.filter((a) => canAcknowledge(a, me.role)).length, tone: data.some((a) => canAcknowledge(a, me.role)) ? "attention" : undefined },
+        ]} />
+      )}
       <Card title="Deadline alerts" actions={<button className="secondary small" onClick={reload}><Icon name="refresh" /> Refresh</button>}>
         <div className="chips" role="group" aria-label="Show alerts">
           {FILTERS.map(([key, label]) => (
@@ -77,7 +78,7 @@ export default function AlertsView({ who, me, onNavigate }) {
         {loading && !data && <Loading what="Loading alerts" />}
         <ErrorBox error={error} onRetry={reload} />
         <ErrorBox error={actionError} />
-        {done && <p className="ok" role="status">Acknowledged. No further escalation will be raised for that due date.</p>}
+        {done && <Toast>Acknowledged. No further escalation will be raised for that due date.</Toast>}
         {data && data.length === 0 && <Empty>{status ? "No alerts with this status." : "No deadline alerts in your scope."}</Empty>}
         {data && data.length > 0 && (
           <ul className="alert-list">
@@ -85,6 +86,7 @@ export default function AlertsView({ who, me, onNavigate }) {
               const s = alertStatusOf(a.status);
               return (
                 <li key={a.id} className={`alert-row status-${a.status.toLowerCase()}`}>
+                  <Ladder level={a.level} status={a.status} />
                   <div className="alert-main">
                     <p className="alert-title">
                       <strong>{alertMeaning(a.template)}</strong> <Badge tone={s.tone}>{s.label}</Badge>
@@ -135,5 +137,14 @@ export default function AlertsView({ who, me, onNavigate }) {
         {me.role === "AUDITOR" && <p className="muted small" role="note">Read-only: auditors see alerts but do not acknowledge them.</p>}
       </Card>
     </div>
+  );
+}
+
+// The escalation ladder for one alert: one rung per level up to this one. The last rung is this alert.
+function Ladder({ level, status }) {
+  return (
+    <span className={"ladder status-" + status.toLowerCase()} aria-hidden="true">
+      {Array.from({ length: level + 1 }, (_, i) => <i key={i} className={i === level ? "this" : undefined} />)}
+    </span>
   );
 }
