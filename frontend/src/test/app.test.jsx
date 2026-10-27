@@ -142,10 +142,15 @@ describe("dashboard", () => {
 });
 
 describe("regional officers", () => {
-  it("explain why the case list is not available instead of showing an empty list", async () => {
-    fakeServer({ "GET /api/applications": () => [403, { detail: "regional officers may only access their own region" }] });
+  it("list their own region's cases from the region-scoped case list", async () => {
+    const calls = fakeServer({
+      "GET /api/cases": { items: [{ case_id: "c0ffee00-0000-4000-8000-000000000001", route_id: "NEW_PROGRAMME", status: "IN_PROCESS",
+        stage: "SCRUTINY", stage_history: [{ entered_at: "2026-10-24T10:00:00Z" }] }], total: 1, offset: 0, limit: 100 },
+    });
     render(<ApplicationsView who={RO} me={ME(RO)} />);
-    expect(await screen.findByText(/refused by the server until it can be filtered to your region/)).toBeInTheDocument();
+    expect(await screen.findByText("New programme")).toBeInTheDocument();
+    expect(calls[0].url).toBe("/api/cases?region=Southern&limit=100");
+    expect(calls.some((c) => c.url === "/api/applications")).toBe(false);
   });
 });
 
@@ -486,11 +491,11 @@ describe("navigation matrix (mirrors backend/app/platform/policy.py)", () => {
   // Hiding a screen is not security - the server decides - but showing one the server always refuses is a defect.
   const EXPECTED = {
     INSTITUTION: ["overview", "applications", "inbox", "alerts", "documents", "compliance"],
-    SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "compliance"],
-    RO_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "compliance"],
+    SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance"],
+    RO_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance"],
     BUREAU_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
     BUREAU_HEAD: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
-    AUDITOR: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "compliance", "audit", "delivery", "scorecard"],
+    AUDITOR: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
   };
   for (const [role, keys] of Object.entries(EXPECTED)) {
     it(`${role} sees exactly its screens`, () => {

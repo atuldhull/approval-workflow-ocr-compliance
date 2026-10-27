@@ -20,8 +20,15 @@ const DEADLINES = [
     clock_kind: "LEGAL", status: "RUNNING", due_date: "2026-11-01", explanation: "7 days" },
 ];
 
+const CASE = {
+  case_id: APP.id, institution_id: who.institution, region: "Southern", stage: "SCRUTINY", status: "IN_PROCESS", version: 1,
+  route_id: "NEW_PROGRAMME", ruleset_key: "aph-2024-27@r1", preview_ruleset_key: null, route: APP.route, clause_citation: null,
+  stage_history: [], available_actions: [], assumption_status: "DEMO_ASSUMPTION",
+};
+
 function openCase(deadlines = DEADLINES) {
-  fakeServer({ [`GET /api/applications/${APP.id}`]: APP, "GET /api/deadlines": deadlines, [`GET /api/cases/${APP.id}/timeline`]: [] });
+  fakeServer({ [`GET /api/applications/${APP.id}`]: APP, [`GET /api/cases/${APP.id}`]: CASE, "GET /api/deadlines": deadlines,
+    [`GET /api/cases/${APP.id}/timeline`]: [] });
   render(<CaseDetail who={who} me={me} id={APP.id} onChanged={() => {}} />);
 }
 
