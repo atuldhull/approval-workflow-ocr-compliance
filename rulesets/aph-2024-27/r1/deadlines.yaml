@@ -58,3 +58,31 @@ rules:
     inputs: [lease_end_date, max_course_duration_years, ay_start_rule]
     # relative to the start of the stop academic year; demo assumption
     reminders: [-18mo, -12mo, -6mo]
+
+  # ---- compliance obligations created from an LoA (configurable demo assumptions) ----
+  # The clause numbers point at the handbook text the obligation comes from, but the anchor (the letter's issue
+  # date), the day-count convention and the durations below are demo assumptions until the team confirms them.
+
+  - id: LOA_DEPOSIT_AFFIDAVIT_15D
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    # security-deposit proof and the affidavit; anchored on the LoA issue date for the demo
+    source: {clause: "1.12", status: demo_assumption}
+    anchor: letter.issue_date
+    duration: {value: 15, unit: calendar_days}
+
+  - id: NO_ADMISSION_AFFIDAVIT_7D
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    # affidavit when no admissions were made after the LoA; opened only once that fact is recorded
+    source: {clause: "1.10(b)(i)", status: demo_assumption}
+    anchor: no_admission.recorded
+    duration: {value: 7, unit: calendar_days}
+
+  - id: LOA_VALIDITY_2Y
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    # "valid for two academic years"; approximated as 24 months from the issue date for the demo
+    source: {status: demo_assumption}
+    anchor: letter.issue_date
+    duration: {value: 24, unit: months, month_end: clamp}
