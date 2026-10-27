@@ -3,7 +3,7 @@ import { api } from "../api.js";
 import { useActionKey } from "../actionKey.js";
 import { ROLE_LABELS, sentence } from "../nav.js";
 import {
-  DEFICIENCY_ITEM_KEYS, LETTER_ACTIONS, WORKFLOW_REASONS, actionLabel, itemLabel, reasonText, refusal,
+  LETTER_ACTIONS, actionLabel, itemLabel, reasonText, refusal, workflowReasonLabel,
 } from "../workflowText.js";
 import { versionOptions, VersionPicker } from "./Checklist.jsx";
 import { stageLabel } from "./RouteJourney.jsx";
@@ -47,8 +47,23 @@ export function useCaseAction(who, caseRec, onChanged) {
 
 // The actions the server lists for the signed-in role at the case's current stage, each enabled or with the
 // guard's reason. Nothing is derived on the client: an action not in available_actions is not offered.
-export default function CaseActions({ who, me, caseRec, application, deficiencies, docs, committeeIds, onChanged }) {
+// The pinned ruleset's deficiency items and reason codes (GET /rulesets/{key}/deficiency-vocabulary). A draft has
+// no pinned ruleset yet, and none of its actions needs the vocabulary.
+function useVocabulary(who, rulesetKey) {
+  const [state, setState] = useState({ data: null, error: null });
+  useEffect(() => {
+    if (!rulesetKey) return undefined;
+    let live = true;
+    api(who, `/rulesets/${encodeURIComponent(rulesetKey)}/deficiency-vocabulary`)
+      .then((data) => live && setState({ data, error: null }), (error) => live && setState({ data: null, error }));
+    return () => { live = false; };
+  }, [who, rulesetKey]);
+  return state;
+}
+
+export default function CaseActions({ who, me, caseRec, application, deficiencies, docs, committees, onChanged }) {
   const [open, setOpen] = useState(null);
+  const vocabulary = useVocabulary(who, caseRec.ruleset_key);
   const act = useCaseAction(who, caseRec, onChanged);
   const listed = (caseRec.available_actions ?? []).filter((a) => !HANDLED_ELSEWHERE.has(a.action));
   const where = caseRec.stage ? stageLabel(caseRec.stage) : caseRec.status === "DRAFT" ? "draft" : "the end of the route";
@@ -80,7 +95,7 @@ export default function CaseActions({ who, me, caseRec, application, deficiencie
                 {!a.enabled && <p className="small action-reason">{reasonText(a.reason_code)}</p>}
                 {a.enabled && open === a.action && (
                   <ActionForm who={who} action={a} caseRec={caseRec} application={application} deficiencies={deficiencies}
-                    docs={docs} committeeIds={committeeIds} act={act} onDone={() => setOpen(null)} />
+                    docs={docs} committees={committees} vocabulary={vocabulary} act={act} onDone={() => setOpen(null)} />
                 )}
               </li>
             ))}
@@ -99,21 +114,27 @@ export default function CaseActions({ who, me, caseRec, application, deficiencie
   );
 }
 
-function ReasonPicker({ value, onChange, required }) {
+function ReasonPicker({ value, onChange, required, codes }) {
   return (
     <label>
       Reason{required ? "" : " (optional)"}
       <select value={value} onChange={(e) => onChange(e.target.value)} required={required}>
         <option value="">Choose a reason</option>
-        {WORKFLOW_REASONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+        {codes.map((code) => <option key={code} value={code}>{workflowReasonLabel(code)}</option>)}
       </select>
     </label>
   );
 }
 
-function ActionForm({ who, action, caseRec, application, deficiencies, docs, committeeIds, act, onDone }) {
+function ActionForm({ who, action, caseRec, application, deficiencies, docs, committees, vocabulary, act, onDone }) {
   const name = action.action;
-  const [reason, setReason] = useState(name === "record_deficiency" ? "DEMO_MISSING_EVIDENCE" : "");
+  const reasonCodes = vocabulary.data?.reason_codes ?? [];
+  const itemKeys = vocabulary.data?.item_keys ?? [];
+  const [picked, setPicked] = useState(null);
+  // A deficiency usually records missing evidence, so that reason is preselected when the ruleset has it.
+  const preset = name === "record_deficiency" ? (reasonCodes.includes("DEMO_MISSING_EVIDENCE") ? "DEMO_MISSING_EVIDENCE" : reasonCodes[0] ?? "") : "";
+  const reason = picked ?? preset;
+  const setReason = setPicked;
   const [note, setNote] = useState("");
   const [items, setItems] = useState([]);
   const [target, setTarget] = useState(action.targets?.[0] ?? "");
@@ -158,14 +179,15 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
       {name === "record_deficiency" && (
         <fieldset>
           <legend>Items the institution must answer</legend>
-          {DEFICIENCY_ITEM_KEYS.map((k) => (
+          {itemKeys.map((k) => (
             <label key={k} className="inline">
               <input type="checkbox" checked={items.includes(k)}
                 onChange={(e) => setItems((s) => (e.target.checked ? [...s, k] : s.filter((x) => x !== k)))} />
               {itemLabel(k)}
             </label>
           ))}
-          <p className="muted small">Item list and reasons are the ruleset's demo vocabulary (DEMO ASSUMPTION); the server validates them.</p>
+          {!vocabulary.data && !vocabulary.error && <p className="muted small">Loading the ruleset's items…</p>}
+          <p className="muted small">Items and reasons are the pinned ruleset's demo vocabulary (DEMO ASSUMPTION); the server validates them.</p>
         </fieldset>
       )}
       {name === "submit_compliance" && (
@@ -191,10 +213,13 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
         </label>
       )}
       {LETTER_ACTIONS[name] && (
-        <LetterFields who={who} committeeIds={committeeIds} letter={letter} setLetter={setLetter} application={application} />
+        <LetterFields committees={committees} letter={letter} setLetter={setLetter} application={application} />
       )}
       {(action.reason_codes_required || ["reject", "withdraw", "revert"].includes(name)) && (
-        <ReasonPicker value={reason} onChange={setReason} required={action.reason_codes_required} />
+        <>
+          <ReasonPicker value={reason} onChange={setReason} required={action.reason_codes_required} codes={reasonCodes} />
+          <ErrorBox error={refusal(vocabulary.error)} />
+        </>
       )}
       <label>
         Note (optional, stored as a protected note)
@@ -209,17 +234,10 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
   );
 }
 
-// A letter cites the committee decision it carries out: the latest report version of a committee on this case.
-function LetterFields({ who, committeeIds, letter, setLetter, application }) {
-  const [reports, setReports] = useState(null);
-  useEffect(() => {
-    let live = true;
-    Promise.all((committeeIds ?? []).map((id) => Promise.all([
-      api(who, `/committees/${id}`).catch(() => null), api(who, `/committees/${id}/reports`).catch(() => []),
-    ]))).then((all) => live && setReports(all
-      .map(([c, rs]) => (rs.length ? { ...rs[rs.length - 1], committee: c } : null)).filter(Boolean)));
-    return () => { live = false; };
-  }, [who, committeeIds]);
+// A letter cites the committee decision it carries out: the latest report version of a committee on this case
+// (GET /cases/{id}/committees lists each committee with its latest report).
+function LetterFields({ committees, letter, setLetter, application }) {
+  const reports = (committees ?? []).filter((c) => c.latest_report);
   return (
     <fieldset>
       <legend>Letter details</legend>
@@ -227,8 +245,8 @@ function LetterFields({ who, committeeIds, letter, setLetter, application }) {
         Decision cited
         <select value={letter.decision_ref} onChange={(e) => setLetter((l) => ({ ...l, decision_ref: e.target.value }))}>
           <option value="">Choose a committee report</option>
-          {(reports ?? []).map((r) => <option key={r.id} value={r.id}>
-            {r.committee ? `${sentence(r.committee.type)} committee` : `Committee ${r.committee_id.slice(0, 8)}`} · latest report, version {r.version_no}
+          {reports.map((c) => <option key={c.latest_report.id} value={c.latest_report.id}>
+            {sentence(c.type)} committee {c.ordinal} · latest report, version {c.latest_report.version_no}
           </option>)}
         </select>
       </label>

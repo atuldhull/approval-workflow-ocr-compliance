@@ -6,7 +6,7 @@ import { EVENT_TEXT, refusalText } from "../workflowText.js";
 import CaseActions from "./CaseActions.jsx";
 import CaseEvc from "./CaseEvc.jsx";
 import Checklist from "./Checklist.jsx";
-import CommitteeWorkspace, { committeeIdsFrom } from "./CommitteeWorkspace.jsx";
+import CommitteeWorkspace from "./CommitteeWorkspace.jsx";
 import Deficiencies from "./Deficiencies.jsx";
 import { Badge, Loading, dateIST, when } from "./ui.jsx";
 import RouteJourney, { stageLabel } from "./RouteJourney.jsx";
@@ -34,13 +34,14 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
     settled(api(who, `/cases/${id}/timeline`)),
     settled(api(who, `/cases/${id}/deficiencies`)),
     settled(api(who, `/applications/${id}/documents`)),
-  ]).then(([caseRec, a, d, t, def, docs]) => {
+    settled(api(who, `/cases/${id}/committees`)),
+  ]).then(([caseRec, a, d, t, def, docs, cm]) => {
     const app = a.value ?? {
       id, category: caseRec.route_id, academic_year: null, status: caseRec.status, current_stage: caseRec.stage,
       ruleset_rev: caseRec.ruleset_key, route: caseRec.route, submitted_at: caseRec.stage_history?.[0]?.entered_at ?? null,
     };
     setData({ caseRec, app, deadlines: d.value ?? [], timeline: t.value ?? [], deficiencies: def.value ?? null,
-      docs: docs.value ?? null });
+      docs: docs.value ?? null, committees: cm.value ?? null, committeesError: cm.error ?? null });
     onLoaded?.();
   }).catch(setError);
 
@@ -52,8 +53,7 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
   if (error) return <div className="alert error" role="alert">{refusalText(error)}</div>;
   if (!data) return <div className="card case case-loading"><Loading what="Opening the case" rows={5} /></div>;
 
-  const { caseRec, app, deadlines, timeline, deficiencies, docs } = data;
-  const committeeIds = committeeIdsFrom(timeline);
+  const { caseRec, app, deadlines, timeline, deficiencies, docs, committees, committeesError } = data;
   const stage = caseRec.stage ? stageLabel(caseRec.stage) : caseRec.status === "DRAFT" ? "Not submitted" : "Route finished";
   const sorted = [...deadlines].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
   return (
@@ -75,11 +75,11 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
         <Checklist who={who} me={me} appId={app.id} draft onChanged={changed} onNavigate={onNavigate} />
       ) : (
         <CaseActions who={who} me={me} caseRec={caseRec} application={app} deficiencies={deficiencies} docs={docs}
-          committeeIds={committeeIds} onChanged={changed} />
+          committees={committees} onChanged={changed} />
       )}
       <Deficiencies who={who} me={me} caseRec={caseRec} data={deficiencies} docs={docs} onChanged={changed} />
-      <CommitteeWorkspace who={who} me={me} caseRec={caseRec} timeline={timeline} demo={demo} onChanged={changed} />
-      <CaseEvc who={who} me={me} caseRec={caseRec} />
+      <CommitteeWorkspace who={who} me={me} caseRec={caseRec} list={committees} listError={committeesError} demo={demo} onChanged={changed} />
+      <CaseEvc who={who} caseRec={caseRec} />
       {caseRec.status !== "DRAFT" && <Checklist who={who} me={me} appId={app.id} draft={false} />}
       <div className="case-provenance">
         <p className="muted small status-note">{STATUS_NOTE}</p>

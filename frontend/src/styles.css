@@ -248,6 +248,7 @@ legend { padding: 0; }
 .table thead th { font: 600 var(--fs-xs)/1.3 var(--ui); color: var(--text-3); border-bottom-color: var(--line-strong); white-space: nowrap; }
 .table tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .table tr.current td { background: var(--brass-soft); }
+.table tr.current .muted { color: var(--text-2); } /* the selected row tint lowers muted text below 4.5:1 */
 .table td.num, .table th.num { text-align: right; }
 .table td.actions { display: table-cell; }
 .table td.actions > * { margin: 0 6px 4px 0; }

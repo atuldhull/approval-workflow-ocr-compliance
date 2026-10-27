@@ -137,6 +137,7 @@
 .row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .row-title { font-weight: 600; overflow-wrap: anywhere; }
 .row-sub { font-size: var(--fs-sm); color: var(--text-3); }
+.row.active .row-sub { color: var(--text-2); } /* keeps 4.5:1 on the selected row background */
 
 .case-loading { min-height: 320px; }
 .case-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; }

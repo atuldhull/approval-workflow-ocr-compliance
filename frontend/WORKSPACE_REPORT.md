@@ -121,7 +121,7 @@ The screens were built before the workflow, intake and EVC backends landed; this
 | Scrutiny committee | Case | Action list with guard reasons; committee workspace (form, assign task, observation, report version); record deficiency; re-scrutiny review per item; complete the expert visit |
 | Regional officer | Cases | List from `GET /cases?region=` (was refused) |
 | Regional officer | EVC scheduling | Queue of its region, panel preview, CP-SAT/EDF proposal, expert pool (register, availability, COI) |
-| Bureau officer / head | EVC scheduling | Same, plus publication of a proposal (also by reference); 409 conflicts in words |
+| Bureau officer / head | EVC scheduling | Same, plus publishing or discarding a proposed run from the server-side run list; 409 conflicts in words |
 | Bureau officer | Case | Reject, revert and the letter actions; letters read "switched off" while `WF_ENABLE_LETTER_ISSUANCE` is off, and offer a letter form (cited committee report, F. No.) when it is on |
 | Auditor | EVC scheduling | Read-only queue and pool |
 | Oversight | Scorecard | Routing line shows 22/22 with "Acceptance source unverified", taken from the answer key's own source text |
@@ -143,11 +143,30 @@ citing the EVC report, and the letter appeared under Compliance. No horizontal o
 
 Backend gaps met (reported, not worked around):
 
-- No read of the deficiency item or reason vocabulary: the pinned demo vocabulary is mirrored in `workflowText.js`.
-- No per-case committee list: committees are found from `wf.committee_formed` timeline events.
-- No list or read of EVC proposal runs: proposals are kept per tab, and the bureau can publish by run reference.
+- ~~No read of the deficiency item or reason vocabulary~~: resolved, items and reasons come from
+  `GET /rulesets/{key}/deficiency-vocabulary` of the case's pinned ruleset; `workflowText.js` keeps only the labels.
+- ~~No per-case committee list~~: resolved, `GET /cases/{id}/committees` (the letter form takes each committee's latest report
+  from it).
+- ~~No list or read of EVC proposal runs~~: resolved, runs come from `GET /evc/schedule/runs` and
+  `GET /evc/schedule/runs/{id}` (nothing is kept in the browser); the bureau publishes or discards a proposed run from its detail,
+  so publish-by-reference is gone. Unplanned requests show their `explanation_code` in plain words, and the run shows its daily cap,
+  slot capacity and CP-SAT candidate window.
 - No dry-run or compare endpoint: a second proposal only sees requests the first left queued, so the comparison table
   shows the input fingerprint and says when runs are not comparable.
-- No per-case EVC read: the case reads its row from the scoped queue (first 100 rows); the published visit date and
-  panel are only in the publish response.
+- ~~No per-case EVC read~~: resolved, the case uses `GET /applications/{id}/evc` and shows the published visit date,
+  half-day and panel references.
+- ~~Regional officers refused `GET /applications/{id}`~~: resolved server-side (own region only); the case screen reads it for every
+  role again. Their list still comes from `GET /cases?region=`.
 - No user directory: committee members other than yourself are demo accounts only; expert references are unverified.
+
+Accessibility and CSP check of the changed screens (production build served by `vite preview` with the nginx policy as a
+response header, local backend on a fresh synthetic database; axe-core WCAG 2 A/AA run in Chromium):
+
+- EVC scheduling as bureau officer, regional officer (Southern) and auditor; case screen as bureau officer, regional officer,
+  scrutiny committee and institution: 0 axe violations and 0 `securitypolicyviolation` events after two fixes.
+- Fixed: muted text on the selected run row and on the selected application row fell below 4.5:1 (`.table tr.current .muted`,
+  `.row.active .row-sub`).
+- Fixed: after switching demo identity the run list briefly kept the previous identity's rows, so a regional officer opened the
+  bureau's all-region run and got a 403. The list now remounts per identity and only opens the newest run once it has loaded.
+- Remaining console error: the existing 403 on `GET /applications` for regional officers (their list comes from
+  `GET /cases?region=`), as before.

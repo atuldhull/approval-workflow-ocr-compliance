@@ -4,7 +4,7 @@ import { useActionKey } from "../actionKey.js";
 import { sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
 import {
-  COI_CODES, SELECTOR_LABEL, SELECTOR_NOTE, SLOT_PARTS, evcStatusOf, refusal, slotPartLabel,
+  COI_CODES, SELECTOR_LABEL, SELECTOR_NOTE, SLOT_PARTS, evcStatusOf, explanationText, refusal, slotPartLabel,
 } from "../workflowText.js";
 import { Badge, Card, Empty, ErrorBox, Kpis, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
 
@@ -26,33 +26,14 @@ const addDays = (iso, n) => {
 };
 const short = (id) => String(id).slice(0, 8);
 
-// There is no endpoint that lists or reads proposal runs yet, so the proposals made in this browser tab are kept
-// in sessionStorage (a convenience only: a reload of the tab keeps them, nothing else does). A bureau officer
-// elsewhere publishes a run by its reference, which the planner passes on.
-const RUNS_KEY = "awoc.evc-runs";
-function readRuns() {
-  try {
-    const value = JSON.parse(sessionStorage.getItem(RUNS_KEY) ?? "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-function useRuns() {
-  const [runs, setState] = useState(readRuns);
-  const setRuns = (update) => setState((current) => {
-    const next = typeof update === "function" ? update(current) : update;
-    try { sessionStorage.setItem(RUNS_KEY, JSON.stringify(next.slice(0, 10))); } catch { /* convenience only */ }
-    return next;
-  });
-  return [runs, setRuns];
-}
-
 export default function EvcView({ who, me }) {
   const regional = me.role === "RO_OFFICER";
   const [region, setRegion] = useState(regional ? me.region : "");
-  const [runs, setRuns] = useRuns();
+  const [chosenRun, setChosenRun] = useState(null);
   const [tick, setTick] = useState(0);
+  // A run opened under one demo identity may be outside the next one's scope (an all-region run is not readable by a
+  // regional officer), so switching identity starts again from that identity's newest run.
+  useEffect(() => setChosenRun(null), [me.role, me.region, me.institution_id]);
   const refresh = () => setTick((t) => t + 1);
   const scope = regional ? me.region : region.trim();
 
@@ -71,10 +52,11 @@ export default function EvcView({ who, me }) {
       </div>
       <Queue who={who} me={me} region={scope} tick={tick} />
       {PLANNERS.has(me.role) && (
-        <Plan who={who} me={me} region={scope} runs={runs} setRuns={setRuns} onChanged={refresh} />
+        <Plan who={who} region={scope} onProposed={(id) => { setChosenRun(id); refresh(); }} />
       )}
-      {runs.length > 0 && <Runs who={who} me={me} runs={runs} setRuns={setRuns} onChanged={refresh} />}
-      {PUBLISHERS.has(me.role) && <PublishByReference who={who} setRuns={setRuns} onChanged={refresh} />}
+      {POOL_READERS.has(me.role) && (
+        <Runs key={`${who.key ?? who.mode}:${me.role}:${me.region ?? ""}`} who={who} me={me} region={scope} tick={tick} chosen={chosenRun} onChoose={setChosenRun} onChanged={refresh} />
+      )}
       {POOL_READERS.has(me.role) && <Pool who={who} me={me} region={scope} tick={tick} onChanged={refresh} />}
     </div>
   );
@@ -186,7 +168,7 @@ function PanelPreview({ who, request }) {
 
 // ---- propose ----
 
-function Plan({ who, me, region, runs, setRuns, onChanged }) {
+function Plan({ who, region, onProposed }) {
   const [algorithm, setAlgorithm] = useState("CPSAT");
   const [start, setStart] = useState(todayIST());
   const [end, setEnd] = useState(addDays(todayIST(), 13));
@@ -211,8 +193,7 @@ function Plan({ who, me, region, runs, setRuns, onChanged }) {
         const out = await api(who, "/evc/schedule:propose", { method: "POST", body, headers: { "Idempotency-Key": key.for(signature) } });
         key.settle(null);
         attempt.current = null;
-        setRuns((r) => [{ ...out, published: null }, ...r.filter((x) => x.run_id !== out.run_id)]);
-        onChanged();
+        onProposed(out.run_id);
       } catch (err) {
         key.settle(err);
         if (!key.pending()) attempt.current = null;
@@ -253,89 +234,173 @@ function Plan({ who, me, region, runs, setRuns, onChanged }) {
   );
 }
 
-// ---- runs: detail, comparison and publication ----
+// ---- runs: list, detail, comparison, publication and discard ----
 
-function Runs({ who, me, runs, setRuns, onChanged }) {
-  const latest = runs[0];
+const RUN_STATUS = {
+  PROPOSED: { tone: "info", label: "Proposed, not published" },
+  PUBLISHED: { tone: "ok", label: "Published" },
+  DISCARDED: { tone: "neutral", label: "Discarded" },
+};
+const runStatusOf = (s) => RUN_STATUS[s] ?? { tone: "neutral", label: sentence(s) || "Status not supplied" };
+const planner = (a) => (a === "CPSAT" ? "CP-SAT" : "EDF");
+
+// Proposal runs come from GET /evc/schedule/runs (scoped by the server: a regional officer sees the runs planned
+// for its own region). The run just proposed, or the newest one, opens in full from GET /evc/schedule/runs/{id}.
+function Runs({ who, me, region, tick, chosen, onChoose, onChanged }) {
+  const [status, setStatus] = useState("");
+  const [algorithm, setAlgorithm] = useState("");
+  const q = new URLSearchParams({ limit: "20" });
+  if (status) q.set("status", status);
+  if (algorithm) q.set("algorithm", algorithm);
+  if (region) q.set("region", region);
+  const list = useApi(who, `/evc/schedule/runs?${q}`);
+  useEffect(() => { if (tick) list.reload(); }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const runs = list.data?.items ?? [];
+  // While the list reloads it still holds the previous identity's rows; only open the newest run once it settles.
+  const open = chosen ?? (list.loading ? null : runs[0]?.run_id) ?? null;
   return (
     <>
-      <RunDetail who={who} me={me} run={latest} setRuns={setRuns} onChanged={onChanged} />
-      <section className="card" aria-labelledby="evc-compare-title">
-        <header className="card-head"><h2 id="evc-compare-title">Compare proposals</h2></header>
+      {open && <RunDetail key={open} who={who} me={me} runId={open} tick={tick} onChanged={onChanged} />}
+      <section className="card" aria-labelledby="evc-runs-title">
+        <header className="card-head">
+          <h2 id="evc-runs-title">Proposal runs {list.data && <span className="count num">{list.data.total}</span>}</h2>
+          <div className="inline-form">
+            <label className="inline">
+              State
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All</option>
+                {Object.entries(RUN_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </label>
+            <label className="inline">
+              Planner
+              <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
+                <option value="">Both</option>
+                <option value="CPSAT">CP-SAT</option>
+                <option value="EDF">EDF</option>
+              </select>
+            </label>
+          </div>
+        </header>
         <p className="muted small">
-          Every proposal made in this session, scored by the same metrics. Two runs are a fair comparison only when they planned the same
-          input (same fingerprint): a later run sees only requests the earlier one left queued, and a proposal cannot be discarded yet.
+          Every run is scored by the same metrics. Two runs are a fair comparison only when they planned the same input (same
+          fingerprint): a later run sees only the requests earlier runs left queued. Discarding a proposal puts its requests back in the queue.
         </p>
-        <div className="table-wrap">
-          <table className="table" tabIndex={0}>
-            <thead>
-              <tr>
-                <th scope="col">Planner</th><th scope="col">Input</th><th scope="col" className="num">Requests</th>
-                <th scope="col" className="num">Planned</th><th scope="col" className="num">Unplanned</th><th scope="col" className="num">Late</th>
-                <th scope="col" className="num">Total lateness (days)</th><th scope="col" className="num">Max lateness</th>
-                <th scope="col" className="num">Waiting (days)</th><th scope="col" className="num">Rule breaks</th><th scope="col">State</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.run_id}>
-                  <td>{r.algorithm === "CPSAT" ? "CP-SAT" : "EDF"}</td>
-                  <td><code title={r.input_fingerprint}>{r.input_fingerprint.slice(0, 10)}</code></td>
-                  <td className="num">{r.metrics.queue_count}</td>
-                  <td className="num">{r.metrics.scheduled}</td>
-                  <td className="num">{r.metrics.unscheduled}</td>
-                  <td className="num">{r.metrics.late_count}</td>
-                  <td className="num">{r.metrics.total_lateness}</td>
-                  <td className="num">{r.metrics.max_lateness}</td>
-                  <td className="num">{r.metrics.total_waiting}</td>
-                  <td className="num">{r.metrics.hard_constraint_violations}</td>
-                  <td>{r.published ? <Badge tone="ok">Published</Badge> : <Badge tone="info">Proposed</Badge>}</td>
+        {list.loading && !list.data && <Loading what="Loading proposal runs" rows={2} />}
+        <ErrorBox error={refusal(list.error)} onRetry={list.reload} />
+        {list.data && runs.length === 0 && <Empty>No proposal runs in this scope yet.</Empty>}
+        {runs.length > 0 && (
+          <div className="table-wrap">
+            <table className="table" tabIndex={0}>
+              <caption className="sr-only">Proposal runs, newest first</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Run</th><th scope="col">Planner</th><th scope="col">Scope</th><th scope="col">Input</th>
+                  <th scope="col" className="num">Requests</th><th scope="col" className="num">Planned</th><th scope="col" className="num">Unplanned</th>
+                  <th scope="col" className="num">Late</th><th scope="col" className="num">Total lateness (days)</th>
+                  <th scope="col" className="num">Waiting (days)</th><th scope="col" className="num">Rule breaks</th><th scope="col">State</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.run_id} className={open === r.run_id ? "current" : undefined}>
+                    <td className="nowrap">
+                      <button type="button" className="small secondary" aria-pressed={open === r.run_id} onClick={() => onChoose(r.run_id)}
+                        aria-label={`Open run ${short(r.run_id)}`}>
+                        {short(r.run_id)}
+                      </button>
+                      <span className="muted small"> {when(r.created_at)}</span>
+                    </td>
+                    <td>{planner(r.algorithm)}</td>
+                    <td>{r.region_scope ?? "All regions"}</td>
+                    <td><code title={r.input_fingerprint}>{r.input_fingerprint.slice(0, 10)}</code></td>
+                    <td className="num">{r.metrics.queue_count}</td>
+                    <td className="num">{r.metrics.scheduled}</td>
+                    <td className="num">{r.metrics.unscheduled}</td>
+                    <td className="num">{r.metrics.late_count}</td>
+                    <td className="num">{r.metrics.total_lateness}</td>
+                    <td className="num">{r.metrics.total_waiting}</td>
+                    <td className="num">{r.metrics.hard_constraint_violations}</td>
+                    <td><Badge tone={runStatusOf(r.status).tone}>{runStatusOf(r.status).label}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );
 }
 
-const PUBLISH_CONFLICTS = new Set(["EVC_EXPERT_DOUBLE_BOOKED", "EVC_SLOT_CAPACITY_EXHAUSTED", "EVC_PUBLISH_RECHECK_FAILED"]);
+const PUBLISH_CONFLICTS = new Set(["EVC_EXPERT_DOUBLE_BOOKED", "EVC_SLOT_CAPACITY_EXHAUSTED", "EVC_EXPERT_DAILY_CAP_EXCEEDED",
+  "EVC_PUBLISH_RECHECK_FAILED"]);
 
-function RunDetail({ who, me, run, setRuns, onChanged }) {
+function RunDetail({ who, me, runId, tick, onChanged }) {
+  const read = useApi(who, `/evc/schedule/runs/${runId}`);
+  useEffect(() => { if (tick) read.reload(); }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const [failure, setFailure] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(null);
   const key = useActionKey();
   const once = useSingleFlight();
-  const m = run.metrics;
+  const run = read.data;
 
-  const publish = () => once(async () => {
-    const body = { run_id: run.run_id };
-    setBusy(true);
+  // Publish and discard each send one Idempotency-Key per user action, reused if the same action is retried.
+  const command = (name, path, message) => once(async () => {
+    setBusy(name);
     setFailure(null);
+    setDone(null);
     try {
-      const out = await api(who, "/evc/schedule:publish", { method: "POST", body, headers: { "Idempotency-Key": key.for(run.run_id) } });
+      const out = await api(who, path, { method: "POST", body: { run_id: runId }, headers: { "Idempotency-Key": key.for(`${name} ${runId}`) } });
       key.settle(null);
-      setRuns((rs) => rs.map((r) => (r.run_id === run.run_id ? { ...r, published: out } : r)));
+      setDone(message(out));
       onChanged();
     } catch (err) {
       key.settle(err);
       setFailure(err);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   });
+  const publish = () => command("publish", "/evc/schedule:publish",
+    (x) => `Published ${x.published_count} visit${x.published_count === 1 ? "" : "s"}. The visits can now be completed on the cases.`);
+  const discard = () => command("discard", "/evc/schedule:discard",
+    (x) => `Discarded. ${x.discarded_count} request${x.discarded_count === 1 ? " is" : "s are"} back in the queue for a new proposal.`);
 
+  if (!run) {
+    return (
+      <section className="card" aria-label="Proposal run">
+        {read.loading && <Loading what="Opening the proposal run" rows={3} />}
+        <ErrorBox error={refusal(read.error)} onRetry={read.reload} />
+      </section>
+    );
+  }
+  const m = run.metrics;
+  const proposed = run.status === "PROPOSED";
+  const s = runStatusOf(run.status);
   return (
     <section className="card" aria-labelledby="evc-run-title">
       <header className="card-head">
-        <h2 id="evc-run-title">{run.algorithm === "CPSAT" ? "CP-SAT" : "EDF"} proposal · {dateIST(run.horizon_start)} to {dateIST(run.horizon_end)}</h2>
-        {run.published ? <Badge tone="ok">Published</Badge> : <Badge tone="info">Proposed, not published</Badge>}
+        <h2 id="evc-run-title">{planner(run.algorithm)} proposal · {dateIST(run.horizon_start)} to {dateIST(run.horizon_end)}</h2>
+        <Badge tone={s.tone}>{s.label}</Badge>
       </header>
       <p className="muted small">
         Run reference <code>{run.run_id}</code> · {run.region_scope ? `region ${run.region_scope}` : "all regions"} · made {when(run.created_at)} ·
         panels by the {run.selector_label} <Badge tone="sample">Simulated</Badge>
       </p>
+      <dl className="facts run-limits" aria-label="Planning limits used for this run">
+        <dt>Visits per expert per day</dt>
+        <dd>{run.expert_daily_cap ?? "Not recorded"} <Badge tone="sample">Demo assumption</Badge></dd>
+        <dt>Visits per half-day slot</dt>
+        <dd>{run.slot_capacity != null ? `${run.slot_capacity} in the slots this run created; existing slots kept theirs` : "Existing slots only"}</dd>
+        {run.algorithm === "CPSAT" && (
+          <>
+            <dt>Candidate window</dt>
+            <dd>{run.candidate_slots != null ? `The earliest ${run.candidate_slots} feasible slots per request, plus the baseline's own` : "Not recorded"}</dd>
+          </>
+        )}
+      </dl>
       <Kpis label="Proposal metrics" items={[
         { label: "Requests", value: m.queue_count },
         { label: "Planned", value: m.scheduled, tone: m.scheduled ? "ok" : undefined },
@@ -370,10 +435,18 @@ function RunDetail({ who, me, run, setRuns, onChanged }) {
           <h3>Not planned</h3>
           <ul className="round-items">
             {run.unscheduled.map((u) => (
-              <li key={u.request_id}>Request <code>{short(u.request_id)}</code>: no slot in the window had a full eligible panel. It stays queued.</li>
+              <li key={u.request_id}>
+                Case <code title={INTERNAL_REF_TITLE}>{internalRef(u.application_id)}</code>: {explanationText(u.explanation_code)} It stays queued.
+              </li>
             ))}
           </ul>
         </div>
+      )}
+      {!run.outcomes_recorded && <p className="muted small">This run was made before unplanned requests were recorded, so they are not listed.</p>}
+      {run.withdrawn?.length > 0 && (
+        <p className="muted small">
+          Returned to the queue by the discard: {run.withdrawn.map((w) => <code key={w.request_id} title={INTERNAL_REF_TITLE}>{internalRef(w.application_id)} </code>)}
+        </p>
       )}
       {run.solver && (
         <details className="solver">
@@ -381,59 +454,37 @@ function RunDetail({ who, me, run, setRuns, onChanged }) {
           <dl className="facts">
             <dt>Result</dt><dd>{SOLVER_STATUS[run.solver.solver_status] ?? run.solver.solver_status}</dd>
             <dt>Objective / best bound</dt><dd className="num">{run.solver.objective_value} / {run.solver.best_bound}</dd>
-            <dt>Candidate slots</dt><dd className="num">{run.solver.candidate_count}</dd>
+            <dt>Request and slot pairs modelled</dt><dd className="num">{run.solver.candidate_count}</dd>
             <dt>Repair rounds</dt><dd className="num">{run.solver.repair_rounds}</dd>
             <dt>EDF baseline planned</dt><dd className="num">{run.solver.edf_scheduled}</dd>
             <dt>Kept the EDF plan</dt><dd>{run.solver.fallback_to_edf ? "Yes, it scored better" : "No"}</dd>
           </dl>
         </details>
       )}
-      {run.published && (
-        <p className="ok" role="status">Published {run.published.published_count} visit{run.published.published_count === 1 ? "" : "s"}. The cases' visits can now be completed.</p>
+      {done && <p className="ok" role="status">{done}</p>}
+      <ErrorBox error={refusal(failure)} />
+      {failure && PUBLISH_CONFLICTS.has(failure.reason) && (
+        <p className="muted small">Discard this proposal and plan again once the conflict is resolved.</p>
       )}
-      {!run.published && PUBLISHERS.has(me.role) && run.proposals.length > 0 && (
-        <>
-          <ErrorBox error={refusal(failure)} />
-          {failure && PUBLISH_CONFLICTS.has(failure.reason) && <p className="muted small">Make a new proposal for the affected requests once the conflict is resolved.</p>}
-          <div className="actions">
-            <button onClick={publish} disabled={busy}>{busy ? "Publishing…" : "Publish this schedule"}</button>
-            <span className="muted small">Every visit is checked again against published visits; any conflict publishes nothing.</span>
-          </div>
-        </>
+      {proposed && PUBLISHERS.has(me.role) && (
+        <div className="actions">
+          {run.proposals.length > 0 && (
+            <button onClick={publish} disabled={Boolean(busy)}>{busy === "publish" ? "Publishing…" : "Publish this schedule"}</button>
+          )}
+          <button className="secondary" onClick={discard} disabled={Boolean(busy)}>{busy === "discard" ? "Discarding…" : "Discard this proposal"}</button>
+          <span className="muted small">
+            Publishing checks every visit again against published visits; any conflict publishes nothing. Discarding releases the
+            experts and slots and returns the requests to the queue.
+          </span>
+        </div>
       )}
-      {!run.published && !PUBLISHERS.has(me.role) && (
-        <p className="muted small">Only the bureau publishes a schedule. This proposal holds its experts and slots until then.</p>
+      {proposed && !PUBLISHERS.has(me.role) && (
+        <p className="muted small">Only the bureau publishes or discards a schedule. This proposal holds its experts and slots until then.</p>
       )}
     </section>
   );
 }
 
-// A run proposed elsewhere (for example by a regional officer) is published by its reference.
-function PublishByReference({ who, setRuns, onChanged }) {
-  const [ref, setRef] = useState("");
-  const w = usePost(who, onChanged);
-  const submit = async (e) => {
-    e.preventDefault();
-    const out = await w.post("/evc/schedule:publish", { run_id: ref.trim() },
-      (x) => `Published ${x.published_count} visit${x.published_count === 1 ? "" : "s"} of run ${short(x.run_id)}.`);
-    if (out) setRuns((rs) => rs.map((r) => (r.run_id === out.run_id ? { ...r, published: out } : r)));
-  };
-  return (
-    <Card title="Publish a proposal by reference">
-      <form className="inline-form" onSubmit={submit} aria-label="Publish a proposal by reference">
-        <label>
-          Run reference
-          <input value={ref} onChange={(e) => setRef(e.target.value)} required spellCheck={false} autoComplete="off"
-            pattern="[0-9a-fA-F\-]{36}" placeholder="The reference shown with the proposal" />
-        </label>
-        <button className="small" disabled={w.busy}>Publish</button>
-      </form>
-      <p className="muted small">For a proposal made by someone else, such as a regional officer. Every visit is checked again before anything is published.</p>
-      <ErrorBox error={refusal(w.failure)} />
-      {w.done && <p className="ok small" role="status">{w.done}</p>}
-    </Card>
-  );
-}
 
 // ---- expert pool ----
 

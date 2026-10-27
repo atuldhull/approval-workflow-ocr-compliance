@@ -22,20 +22,17 @@ export const missingText = (key) => key === "DSC"
   ? "The digital signature certificate (DSC) has not been confirmed. Tick the DSC box before submitting."
   : `"${itemLabel(key)}" is mandatory and has no document linked yet.`;
 
-// ---- deficiency vocabulary ----
-// Mirrors the pinned deficiency vocabulary of rulesets/aph-2024-27/r1/routes.yaml (DEMO ASSUMPTION). No endpoint
-// publishes it yet, so it lives here; the server still validates every key and code it receives.
-export const DEFICIENCY_ITEM_KEYS = [
-  "DEMO_CORE_REFERENCE", "DEMO_ADDITIONAL_REFERENCE", "DEMO_FACILITY_REFERENCE", "DEMO_STAFF_REFERENCE", "DEMO_SAFETY_REFERENCE",
-];
-export const WORKFLOW_REASONS = [
-  ["DEMO_MISSING_EVIDENCE", "Evidence is missing"],
-  ["DEMO_REASON", "Other recorded reason"],
-  ["DEMO_ACCEPTANCE", "Accepted on review"],
-  ["DEMO_RESPONSE_ACCEPTED", "The response is accepted"],
-  ["DEMO_RESPONSE_REJECTED", "The response is not sufficient"],
-];
-export const workflowReasonLabel = (code) => WORKFLOW_REASONS.find(([c]) => c === code)?.[1] ?? (code ? sentence(code) : "");
+// ---- deficiency vocabulary (GET /rulesets/{key}/deficiency-vocabulary) ----
+// The item keys and reason codes come from the case's pinned ruleset (DEMO ASSUMPTION). These are only the plain
+// labels for the codes known today; a code the server adds later is shown in readable words.
+const REASON_LABELS = {
+  DEMO_MISSING_EVIDENCE: "Evidence is missing",
+  DEMO_REASON: "Other recorded reason",
+  DEMO_ACCEPTANCE: "Accepted on review",
+  DEMO_RESPONSE_ACCEPTED: "The response is accepted",
+  DEMO_RESPONSE_REJECTED: "The response is not sufficient",
+};
+export const workflowReasonLabel = (code) => REASON_LABELS[code] ?? (code ? sentence(code) : "");
 
 // ---- case actions (available_actions on GET /cases/{id}) ----
 
@@ -109,6 +106,8 @@ export const REASONS = {
   INTAKE_RULESET_NOT_LOADED: "The checklist for this category is not loaded on the server.",
   ITEMS_LOCKED_AFTER_SUBMIT: "The checklist is locked once the application is submitted.",
   INVALID_APPLICATION_ITEMS: "An item sent is not on this category's checklist, or was sent twice.",
+  DOCUMENT_REF_UNKNOWN: "The linked document was not found among this application's documents. Link one of its own uploaded versions.",
+  DOCUMENT_REF_NOT_AVAILABLE: "The linked document has not passed its virus scan yet (or was rejected). Link a scanned-clean version.",
   COMMITTEE_MEMBERSHIP_REQUIRED: "Only a member of the committee may do this, and you must include yourself when forming one.",
   COMMITTEE_MEMBERS_DUPLICATED: "A member was listed twice.",
   COMMITTEE_CLOSED: "This committee is closed.",
@@ -121,6 +120,9 @@ export const REASONS = {
   EVC_SLOT_CAPACITY_EXHAUSTED: "A slot in this run is already full with published visits. Nothing was published.",
   EVC_PUBLISH_RECHECK_FAILED: "A proposed panel no longer passes the checks (availability, conflict of interest, region, expertise, panel size or visit window). Nothing was published.",
   EVC_RUN_NOT_PUBLISHABLE: "This run is not awaiting publication (it is already published, or not a proposal).",
+  EVC_RUN_NOT_DISCARDABLE: "Only a proposal that is not published can be discarded; this run is already published or discarded.",
+  EVC_EXPERT_DAILY_CAP_EXCEEDED: "An expert in this run would make more visits on one day than the daily limit allows. Nothing was published.",
+  SCHEDULE_REGION_UNKNOWN: "No expert or visit request names that region. Check the spelling.",
   EVC_RUN_EMPTY: "This run proposes no visits, so there is nothing to publish.",
   EVC_RUN_NOT_FOUND: "This proposal run was not found.",
   EVC_REQUEST_NOT_PROPOSED: "A request in this run is no longer proposed, so the run cannot be published.",
@@ -208,6 +210,18 @@ export const COI_CODES = [
 ];
 export const SLOT_PARTS = [["AM", "Morning"], ["PM", "Afternoon"]];
 export const slotPartLabel = (p) => SLOT_PARTS.find(([k]) => k === p)?.[1] ?? p;
+
+// Why a request was left out of a proposal (explanation_code, backend/app/evc/explanations.py), judged against the
+// final plan. Every unplanned request also carries the umbrella reason NO_FEASIBLE_SLOT.
+export const EXPLANATIONS = {
+  NO_AVAILABILITY: "no qualified expert declared any free half-day in its visit window.",
+  PANEL_INCOMPLETE: "some qualified experts are free, but never enough at the same date and half-day to form a full panel.",
+  COI_ONLY: "a full panel is free at some point, but conflicts of interest with the institution always leave it short.",
+  CAPACITY_EXHAUSTED: "a conflict-free panel exists, but the slots or the experts' time are taken by other visits.",
+  EXPERT_DAILY_CAP: "a free panel exists only if experts made more visits on one day than the daily limit allows.",
+  NO_FEASIBLE_SLOT: "no slot in its visit window could take it.",
+};
+export const explanationText = (code) => EXPLANATIONS[code] ?? (code ? `${sentence(code)}.` : EXPLANATIONS.NO_FEASIBLE_SLOT);
 
 // Timeline events written by the workflow, intake, committee and EVC modules.
 export const EVENT_TEXT = {

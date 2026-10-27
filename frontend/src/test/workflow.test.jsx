@@ -6,7 +6,7 @@ import { keepsKey } from "../actionKey.js";
 import CaseDetail from "../components/CaseDetail.jsx";
 import ScorecardView from "../views/ScorecardView.jsx";
 import EvcView from "../views/EvcView.jsx";
-import { REASONS, refusalText } from "../workflowText.js";
+import { REASONS, explanationText, refusalText } from "../workflowText.js";
 import { fakeServer } from "./fakeServer.js";
 
 const user = (key) => DEMO_USERS.find((u) => u.key === key);
@@ -115,6 +115,12 @@ describe("institution checklist and submission", () => {
   });
 });
 
+const RUN_REF = "cd6f635d-ae83-4362-a49a-553ecd807fc3";
+const VOCAB_PATH = "GET /api/rulesets/aph-2024-27%40r1/deficiency-vocabulary";
+const VOCAB = { ruleset_key: "aph-2024-27@r1", item_keys: ["DEMO_CORE_REFERENCE", "DEMO_FACILITY_REFERENCE"],
+  reason_codes: ["DEMO_REASON", "DEMO_MISSING_EVIDENCE"], response_rule_id: "INSTITUTION_RESPONSE", source_status: "DEMO_ASSUMPTION",
+  assumption_code: "DEFICIENCY_RESPONSE_WINDOW_UNCONFIRMED" };
+
 const act = (action, enabled, reason_code = null, extra = {}) => ({
   action, targets: [], enabled, reason_code, reason_codes_required: false, aliases: [], ...extra,
 });
@@ -198,12 +204,13 @@ describe("case actions follow the server's list for the role", () => {
     const calls = fakeServer({
       [`GET /api/cases/${ID}`]: caseRec({ available_actions: [act("record_deficiency", true, null, { reason_codes_required: true })] }),
       [`POST /api/cases/${ID}/actions`]: { case_id: ID },
+      [VOCAB_PATH]: VOCAB,
     });
     const u = userEvent.setup();
     render(<CaseDetail who={scrutiny} me={ME(scrutiny)} id={ID} />);
     await u.click(await screen.findByRole("button", { name: "Open" }));
     const form = screen.getByRole("form", { name: "Record a deficiency" });
-    await u.click(within(form).getByLabelText("Core reference document"));
+    await u.click(await within(form).findByLabelText("Core reference document"));
     await u.click(within(form).getByRole("button", { name: "Record a deficiency" }));
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
     expect(JSON.parse(calls.find((c) => c.method === "POST").body)).toEqual({
@@ -231,7 +238,76 @@ describe("case actions follow the server's list for the role", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
     expect(JSON.parse(calls.find((c) => c.method === "POST").body).payload).toEqual({ responses: [{ item_id: ITEM, response_ref: DOC }] });
   });
+it("offers the deficiency items and reasons the pinned ruleset publishes, not a mirrored list", async () => {
+    const scrutiny = user("scrutiny");
+    const calls = fakeServer({
+      [`GET /api/cases/${ID}`]: caseRec({ available_actions: [act("record_deficiency", true, null, { reason_codes_required: true })] }),
+      [VOCAB_PATH]: { ...VOCAB, item_keys: ["DEMO_CORE_REFERENCE", "DEMO_NEW_ITEM"], reason_codes: ["DEMO_REASON", "DEMO_NEW_REASON"] },
+    });
+    const u = userEvent.setup();
+    render(<CaseDetail who={scrutiny} me={ME(scrutiny)} id={ID} />);
+    await u.click(await screen.findByRole("button", { name: "Open" }));
+    const form = screen.getByRole("form", { name: "Record a deficiency" });
+    expect(await within(form).findByLabelText("Demo new item")).toBeInTheDocument();
+    expect(within(form).queryByLabelText("Safety reference document")).toBeNull();
+    const reasons = within(within(form).getByLabelText("Reason")).getAllByRole("option").map((o) => o.textContent);
+    expect(reasons).toEqual(["Choose a reason", "Other recorded reason", "Demo new reason"]);
+    expect(calls.some((c) => c.url === "/api/rulesets/aph-2024-27%40r1/deficiency-vocabulary")).toBe(true);
+  });
 });
+
+describe("case screen reads", () => {
+  it("shows the published visit date, half-day and panel references from the per-case EVC read", async () => {
+    const scrutiny = user("scrutiny");
+    const calls = fakeServer({
+      [`GET /api/cases/${ID}`]: caseRec({ stage: "EVC" }),
+      [`GET /api/applications/${ID}/evc`]: { application_id: ID, region: "Southern", current: null, requests: [{
+        id: "q1", status: "PUBLISHED", category: "NEW_PROGRAMME", requested_at: "2026-10-27T19:00:00Z", earliest_date: "2026-10-28",
+        due_by: "2026-11-04", closed_at: null, ruleset_key: "aph-2024-27@r1", rule_id: "EVC_PROCESSING", days_waiting: 1, duration_days: 7,
+        source_status: "DEMO_ASSUMPTION", assumption_code: "EVC_DURATION_UNCONFIRMED",
+        visit: { assignment_id: "a1", run_id: RUN_REF, algorithm: "CPSAT", date: "2026-10-30", slot_part: "PM", panel_role: "DEMO_PANEL",
+          expert_ids: ["11111111-aaaa-4000-8000-000000000001", "22222222-aaaa-4000-8000-000000000002"], simulation_status: "SIMULATED",
+          selector_label: "SIMULATED authorised selector (stand-in)" } }] },
+    });
+    render(<CaseDetail who={scrutiny} me={ME(scrutiny)} id={ID} />);
+    const zone = await screen.findByRole("region", { name: "Expert visit (EVC)" });
+    expect(await within(zone).findByText("Visit published")).toBeInTheDocument();
+    expect(within(zone).getByText(/30 Oct 2026 · Afternoon/)).toBeInTheDocument();
+    expect(within(zone).getByText("11111111")).toBeInTheDocument();
+    expect(within(zone).getByText("22222222")).toBeInTheDocument();
+    expect(calls.some((c) => c.url.startsWith("/api/evc/queue"))).toBe(false);
+  });
+
+  it("lists the case's committees from the per-case committee read, not from the timeline", async () => {
+    const scrutiny = user("scrutiny");
+    const C = "cccccccc-0000-4000-8000-000000000001";
+    fakeServer({
+      [`GET /api/cases/${ID}`]: caseRec(),
+      [`GET /api/cases/${ID}/timeline`]: [],
+      [`GET /api/cases/${ID}/committees`]: [{ id: C, application_id: ID, ordinal: 1, type: "SCRUTINY", status: "ACTIVE",
+        members: [{ user_ref: scrutiny.user, role: "CHAIR" }], task_count: 0, report_count: 0, latest_report: null, assumption_status: "DEMO_ASSUMPTION" }],
+      [`GET /api/committees/${C}`]: { id: C, application_id: ID, type: "SCRUTINY", status: "ACTIVE",
+        members: [{ user_ref: scrutiny.user, role: "CHAIR" }], tasks: [], report_count: 0, assumption_status: "DEMO_ASSUMPTION" },
+      [`GET /api/committees/${C}/reports`]: [],
+    });
+    render(<CaseDetail who={scrutiny} me={ME(scrutiny)} id={ID} />);
+    const zone = await screen.findByRole("region", { name: "Committee workspace" });
+    expect(await within(zone).findByRole("article", { name: "Scrutiny committee" })).toBeInTheDocument();
+    expect(within(zone).getByText("you (Chair)")).toBeInTheDocument();
+  });
+
+  it("opens a case for a regional officer with the application record (academic year)", async () => {
+    const ro = user("ro-southern");
+    const calls = fakeServer({
+      [`GET /api/cases/${ID}`]: caseRec(),
+      [`GET /api/applications/${ID}`]: { ...APP, status: "IN_PROCESS", current_stage: "SCRUTINY" },
+    });
+    render(<CaseDetail who={ro} me={ME(ro)} id={ID} />);
+    expect(await screen.findByText(/· 2027-28/)).toBeInTheDocument();
+    expect(calls.some((c) => c.url === `/api/applications/${ID}`)).toBe(true);
+  });
+});
+
 
 describe("plain wording for guard codes", () => {
   it.each(["ASSIGNMENT_REQUIRED", "EVC_SCHEDULE_NOT_PUBLISHED", "DECISION_NOT_AUTHORISED", "LETTER_DATA_NOT_CONFIRMED",
@@ -260,33 +336,67 @@ const QUEUE = { items: [{ id: "q1", application_id: ID, institution_ref: SUNRISE
   ruleset_key: "aph-2024-27@r1", rule_id: "EVC_PROCESSING", deadline_ref: "d", closed_at: null, days_waiting: 0, duration_days: 7 }],
   total: 1, offset: 0, limit: 100 };
 const POOL = { items: [], total: 0, offset: 0, limit: 100, ruleset_key: "aph-2024-27@r1", region_rule: "SAME_REGION" };
-const PROPOSAL = {
-  selector_label: "SIMULATED authorised selector (stand-in)", simulation_status: "SIMULATED", source_status: "DEMO_ASSUMPTION",
-  assumption_code: "EDF_PLANNING_UNCONFIRMED", run_id: "cd6f635d-ae83-4362-a49a-553ecd807fc3", algorithm: "CPSAT", status: "PROPOSED",
-  region_scope: "SOUTHERN", horizon_start: "2026-10-28", horizon_end: "2026-11-10", created_at: "2026-10-27T19:20:19Z",
-  input_fingerprint: "98818fce327d022e9e45f0dc", metrics: { queue_count: 1, scheduled: 1, unscheduled: 0, late_count: 0, total_lateness: 0,
-    max_lateness: 0, total_waiting: 0, hard_constraint_violations: 0, lateness_days: [0] },
-  solver: { solver_status: 4, objective_value: 6, best_bound: 6, repair_rounds: 0, candidate_count: 12, edf_scheduled: 1, fallback_to_edf: false },
-  proposals: [{ application_id: ID, request_id: "q1", assignment_id: "a1", slot_id: "s1", date: "2026-10-28", slot_part: "PM",
-    expert_ids: ["e1", "e2", "e3"], due_by: "2026-11-04", lateness_days: 0 }],
-  unscheduled: [{ request_id: "q2", reason_code: "NO_FEASIBLE_SLOT" }],
+const RUN = "cd6f635d-ae83-4362-a49a-553ecd807fc3";
+const LABELS = { selector_label: "SIMULATED authorised selector (stand-in)", simulation_status: "SIMULATED", source_status: "DEMO_ASSUMPTION",
+  assumption_code: "EDF_PLANNING_UNCONFIRMED" };
+const SUMMARY = {
+  ...LABELS, run_id: RUN, algorithm: "CPSAT", status: "PROPOSED", region_scope: "SOUTHERN", horizon_start: "2026-10-28",
+  horizon_end: "2026-11-10", created_at: "2026-10-27T19:20:19Z", input_fingerprint: "98818fce327d022e9e45f0dc",
+  metrics: { queue_count: 2, scheduled: 1, unscheduled: 1, late_count: 0, total_lateness: 0, max_lateness: 0, total_waiting: 0,
+    hard_constraint_violations: 0, lateness_days: [0, null] },
+  expert_daily_cap: 1, slot_capacity: 4, candidate_slots: 12, outcomes_recorded: true,
 };
+const OTHER = "eeeeeeee-0000-4000-8000-000000000002";
+const DETAIL = {
+  ...SUMMARY,
+  solver: { solver_status: 4, objective_value: 6, best_bound: 6, repair_rounds: 0, candidate_count: 12, edf_scheduled: 1,
+    fallback_to_edf: false, candidate_slots: 12 },
+  proposals: [{ application_id: ID, request_id: "q1", assignment_id: "a1", slot_id: "s1", date: "2026-10-28", slot_part: "PM",
+    expert_ids: ["e1", "e2", "e3"], due_by: "2026-11-04", lateness_days: 0, published: false }],
+  unscheduled: [{ request_id: "q2", application_id: OTHER, reason_code: "NO_FEASIBLE_SLOT", explanation_code: "COI_ONLY" }],
+  withdrawn: [],
+};
+const PROPOSAL = { ...DETAIL, proposals: DETAIL.proposals.map(({ published, ...p }) => p) };
+const page = (items) => ({ items, total: items.length, offset: 0, limit: 20 });
 
-function evcServer(extra = {}) {
-  return fakeServer({ "GET /api/evc/queue": QUEUE, "GET /api/evc/experts": POOL, "GET /api/institutions": [], ...extra });
+// The run list and run read follow what the fake server has stored: nothing until a proposal is made.
+function evcServer(extra = {}, { runs = [] } = {}) {
+  const stored = { list: runs };
+  const routes = {
+    "GET /api/evc/queue": QUEUE, "GET /api/evc/experts": POOL, "GET /api/institutions": [],
+    "GET /api/evc/schedule/runs": () => [200, page(stored.list.map(({ solver, proposals, unscheduled, withdrawn, ...r }) => r))],
+    [`GET /api/evc/schedule/runs/${RUN}`]: () => {
+      const run = stored.list.find((r) => r.run_id === RUN);
+      return run ? [200, run] : [404, { error: "NotFound", detail: "EVC_RUN_NOT_FOUND" }];
+    },
+    ...extra,
+  };
+  const propose = routes["POST /api/evc/schedule:propose"];
+  if (propose) {
+    routes["POST /api/evc/schedule:propose"] = async (init) => {
+      const [status, body] = await propose(init);
+      if (status === 201) stored.list = [DETAIL];
+      return [status, body];
+    };
+  }
+  const calls = fakeServer(routes);
+  calls.stored = stored;
+  return calls;
 }
 
 describe("EVC scheduling", () => {
-  it("labels the simulated selector and scopes a regional officer's queue to its region", async () => {
+  it("labels the simulated selector and scopes a regional officer's queue and runs to its region", async () => {
     const ro = user("ro-southern");
     const calls = evcServer();
     render(<EvcView who={ro} me={ME(ro)} />);
     expect(await screen.findByText("Queued: no visit planned yet")).toBeInTheDocument();
     expect(screen.getByText(/real selection of experts happens on AICTE's own portal/)).toBeInTheDocument();
     expect(calls.find((c) => c.url.startsWith("/api/evc/queue")).url).toContain("region=Southern");
+    expect(await screen.findByText("No proposal runs in this scope yet.")).toBeInTheDocument();
+    expect(calls.find((c) => c.url.startsWith("/api/evc/schedule/runs")).url).toContain("region=Southern");
   });
 
-  it("proposes with CP-SAT and shows metrics, proposals, unplanned requests and solver details", async () => {
+  it("proposes with CP-SAT, then reads the run back with its limits, unplanned reasons and solver details", async () => {
     const ro = user("ro-southern");
     const calls = evcServer({ "POST /api/evc/schedule:propose": () => [201, PROPOSAL] });
     const u = userEvent.setup();
@@ -296,12 +406,18 @@ describe("EVC scheduling", () => {
     const body = JSON.parse(calls.find((c) => c.method === "POST").body);
     expect(body).toMatchObject({ algorithm: "CPSAT", region: "Southern" });
     expect(body.run_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(calls.some((c) => c.url === `/api/evc/schedule/runs/${RUN}`)).toBe(true);
     expect(screen.getByText("Optimal")).toBeInTheDocument();
-    expect(screen.getByText(/no slot in the window had a full eligible panel/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Compare proposals" })).toBeInTheDocument();
-    // regional officers propose but never publish
+    expect(screen.getByText(/conflicts of interest with the institution always leave it short/)).toBeInTheDocument();
+    const limits = screen.getByLabelText("Planning limits used for this run");
+    expect(within(limits).getByText("Visits per expert per day")).toBeInTheDocument();
+    expect(within(limits).getByText(/The earliest 12 feasible slots per request/)).toBeInTheDocument();
+    expect(within(limits).getByText(/4 in the slots this run created/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Proposal runs/ })).toBeInTheDocument();
+    // regional officers propose but never publish or discard
     expect(screen.queryByRole("button", { name: "Publish this schedule" })).toBeNull();
-    expect(screen.getByText(/Only the bureau publishes a schedule/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard this proposal" })).toBeNull();
+    expect(screen.getByText(/Only the bureau publishes or discards a schedule/)).toBeInTheDocument();
   });
 
   it("retries a lost proposal with the same run id and key", async () => {
@@ -319,32 +435,78 @@ describe("EVC scheduling", () => {
     expect(b.headers["Idempotency-Key"]).toBe(a.headers["Idempotency-Key"]);
   });
 
-  it("lets the bureau publish and explains a double booking in plain words", async () => {
+  it("lists runs made elsewhere so the bureau can publish one, and explains a double booking in plain words", async () => {
     const bureau = user("bureau-officer");
-    const calls = evcServer({
-      "POST /api/evc/schedule:propose": () => [201, PROPOSAL],
-      "POST /api/evc/schedule:publish": () => [409, { error: "Conflict", detail: "EVC_EXPERT_DOUBLE_BOOKED" }],
-    });
+    const calls = evcServer({ "POST /api/evc/schedule:publish": () => [409, { error: "Conflict", detail: "EVC_EXPERT_DOUBLE_BOOKED" }] },
+      { runs: [DETAIL] });
     const u = userEvent.setup();
     render(<EvcView who={bureau} me={ME(bureau)} />);
-    await u.click(await screen.findByRole("button", { name: "Propose schedule" }));
+    const runs = await screen.findByRole("table", { name: "Proposal runs, newest first" });
+    expect(within(runs).getByText("SOUTHERN")).toBeInTheDocument();
+    expect(within(runs).getByText("Proposed, not published")).toBeInTheDocument();
     await u.click(await screen.findByRole("button", { name: "Publish this schedule" }));
     expect(await screen.findByText(REASONS.EVC_EXPERT_DOUBLE_BOOKED)).toBeInTheDocument();
     const publish = calls.find((c) => c.url === "/api/evc/schedule:publish");
-    expect(JSON.parse(publish.body)).toEqual({ run_id: PROPOSAL.run_id });
+    expect(JSON.parse(publish.body)).toEqual({ run_id: RUN });
+    expect(publish.headers["Idempotency-Key"]).toBeTruthy();
+    expect(screen.queryByRole("form", { name: "Publish a proposal by reference" })).toBeNull();
   });
 
   it("shows a published schedule once the bureau publishes it", async () => {
     const bureau = user("bureau-officer");
-    evcServer({
-      "POST /api/evc/schedule:propose": () => [201, PROPOSAL],
-      "POST /api/evc/schedule:publish": { ...PROPOSAL, status: "PUBLISHED", published_count: 1, assignments: [] },
-    });
+    const calls = evcServer({
+      "POST /api/evc/schedule:publish": () => {
+        calls.stored.list = [{ ...DETAIL, status: "PUBLISHED", proposals: DETAIL.proposals.map((p) => ({ ...p, published: true })) }];
+        return [200, { ...LABELS, run_id: RUN, algorithm: "CPSAT", status: "PUBLISHED", published_count: 1, assignments: [] }];
+      },
+    }, { runs: [DETAIL] });
     const u = userEvent.setup();
     render(<EvcView who={bureau} me={ME(bureau)} />);
-    await u.click(await screen.findByRole("button", { name: "Propose schedule" }));
     await u.click(await screen.findByRole("button", { name: "Publish this schedule" }));
     expect(await screen.findByText(/Published 1 visit\./)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Discard this proposal" })).toBeNull());
+    expect(screen.getAllByText("Published").length).toBeGreaterThan(0);
+  });
+
+  it("lets the bureau discard a proposed run and explains a refusal", async () => {
+    const bureau = user("bureau-officer");
+    let attempt = 0;
+    const calls = evcServer({
+      "POST /api/evc/schedule:discard": () => (++attempt === 1
+        ? [409, { error: "Conflict", detail: "EVC_RUN_NOT_DISCARDABLE" }]
+        : [200, { ...LABELS, run_id: RUN, algorithm: "CPSAT", status: "DISCARDED", discarded_count: 1,
+          withdrawn: [{ application_id: ID, request_id: "q1", assignment_id: "a1" }] }]),
+    }, { runs: [DETAIL] });
+    const u = userEvent.setup();
+    render(<EvcView who={bureau} me={ME(bureau)} />);
+    await u.click(await screen.findByRole("button", { name: "Discard this proposal" }));
+    expect(await screen.findByText(REASONS.EVC_RUN_NOT_DISCARDABLE)).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Discard this proposal" }));
+    expect(await screen.findByText(/Discarded\. 1 request is back in the queue/)).toBeInTheDocument();
+    const posts = calls.filter((c) => c.url === "/api/evc/schedule:discard");
+    expect(JSON.parse(posts[0].body)).toEqual({ run_id: RUN });
+    expect(posts[1].headers["Idempotency-Key"]).not.toBe(posts[0].headers["Idempotency-Key"]); // a 409 is final
+  });
+
+  it("shows a discarded run's withdrawn requests and says when outcomes were not recorded", async () => {
+    const auditor = user("auditor");
+    evcServer({}, { runs: [{ ...DETAIL, status: "DISCARDED", proposals: [], unscheduled: [], outcomes_recorded: false,
+      withdrawn: [{ request_id: "q1", application_id: ID }] }] });
+    render(<EvcView who={auditor} me={ME(auditor)} />);
+    expect(await screen.findByText(/Returned to the queue by the discard/)).toBeInTheDocument();
+    expect(screen.getByText(/made before unplanned requests were recorded/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard this proposal" })).toBeNull();
+  });
+
+  it.each([
+    ["NO_AVAILABILITY", /no qualified expert declared any free half-day/],
+    ["PANEL_INCOMPLETE", /never enough at the same date and half-day/],
+    ["CAPACITY_EXHAUSTED", /taken by other visits/],
+    ["EXPERT_DAILY_CAP", /more visits on one day than the daily limit/],
+    ["NO_FEASIBLE_SLOT", /no slot in its visit window/],
+    ["SOMETHING_NEW", /^Something new\.$/],
+  ])("explains unplanned code %s in plain words", (code, text) => {
+    expect(explanationText(code)).toMatch(text);
   });
 
   it.each([

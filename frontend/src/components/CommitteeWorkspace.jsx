@@ -11,10 +11,6 @@ import { Badge, ErrorBox, Loading, useSingleFlight, when } from "./ui.jsx";
 const WRITERS = new Set(["SCRUTINY_COMMITTEE", "BUREAU_OFFICER"]);
 const OFFICER_ROLES = new Set(["SCRUTINY_COMMITTEE", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]);
 
-// Committees formed for a case are found from its audit timeline (wf.committee_formed carries the id); there is no
-// per-case committee list endpoint yet.
-export const committeeIdsFrom = (timeline) => [...new Set((timeline ?? [])
-  .filter((e) => e.event_type === "wf.committee_formed" && e.payload?.committee_id).map((e) => e.payload.committee_id))];
 
 function personName(ref, me, demo) {
   if (ref === me.user_id) return "you";
@@ -47,8 +43,10 @@ function useWrite(who, onDone) {
   return { send, busy, failureFor: (name) => (failure?.name === name ? refusal(failure.error) : null) };
 }
 
-export default function CommitteeWorkspace({ who, me, caseRec, timeline, demo, onChanged }) {
-  const ids = committeeIdsFrom(timeline);
+// The case's committees come from GET /cases/{id}/committees (loaded with the case, in formation order); each one's
+// tasks, observations and report history are then read from the committee itself.
+export default function CommitteeWorkspace({ who, me, caseRec, list, listError, demo, onChanged }) {
+  const ids = (list ?? []).map((c) => c.id);
   const [committees, setCommittees] = useState(null);
   const [reports, setReports] = useState({});
   const [error, setError] = useState(null);
@@ -57,6 +55,7 @@ export default function CommitteeWorkspace({ who, me, caseRec, timeline, demo, o
   const write = useWrite(who, () => { reload(); onChanged?.(caseRec.case_id); });
 
   useEffect(() => {
+    if (!list) return undefined;
     let live = true;
     Promise.all(ids.map((id) => Promise.all([api(who, `/committees/${id}`), api(who, `/committees/${id}/reports`)])))
       .then((rows) => {
@@ -66,7 +65,7 @@ export default function CommitteeWorkspace({ who, me, caseRec, timeline, demo, o
       })
       .catch((e) => live && setError(e));
     return () => { live = false; };
-  }, [who, ids.join(","), tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [who, list, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!OFFICER_ROLES.has(me.role) && me.role !== "AUDITOR") return null;
   const canWrite = WRITERS.has(me.role) && caseRec.status === "IN_PROCESS";
@@ -81,8 +80,8 @@ export default function CommitteeWorkspace({ who, me, caseRec, timeline, demo, o
           : "No committee staffs the case at its current stage."}{" "}
         Observations and reports are stored as protected notes; only their fingerprints are shown.
       </p>
-      <ErrorBox error={refusal(error)} />
-      {!committees && !error && <Loading what="Loading committees" rows={2} />}
+      <ErrorBox error={refusal(listError ?? error)} />
+      {!committees && !error && !listError && <Loading what="Loading committees" rows={2} />}
       {committees?.length === 0 && <p className="muted">No committee has been formed for this case.</p>}
       {committees?.map((c) => (
         <Committee key={c.id} committee={c} reports={reports[c.id] ?? []} me={me} demo={demo}
