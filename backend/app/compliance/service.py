@@ -24,9 +24,10 @@ ACADEMIC_YEAR = re.compile(r"^[0-9]{4}-[0-9]{2}$")
 MAX_F_NO = 100
 MAX_NOTE = 4000
 
-# Document versions that may be offered as evidence. The documents module has no scan-clean state yet (its
-# versions are QUARANTINED or REJECTED), so until a scanner marks versions CLEAN no evidence can be submitted.
-EVIDENCE_READY_STATUSES = frozenset({"CLEAN"})
+# Document versions that may be offered as evidence: only a version the scanner found CLEAN, which the documents
+# module marks AVAILABLE (the same gate its OCR uses). Its schema allows only QUARANTINED and REJECTED today, so
+# evidence submission stays closed until the scanner integration lands.
+EVIDENCE_READY_STATUSES = frozenset({"AVAILABLE"})
 REVIEWED_FACT_STATES = frozenset({FactState.CONFIRMED.value, FactState.CORRECTED.value})
 NON_HUMAN_ROLES = frozenset({Role.SYSTEM})
 
@@ -208,7 +209,7 @@ def submit_evidence(uow: UnitOfWork, obligation_id: UUID, document_version_id: U
     if version is None or version.application_id != ob.application_id or version.institution_id != ob.institution_id:
         raise ValidationFailed("document_version_id is not a document of this obligation's application")
     if version.status not in EVIDENCE_READY_STATUSES:
-        raise ValidationFailed(f"document version is {version.status}; only scanned clean versions can be evidence")
+        raise ValidationFailed(f"document version is {version.status}; only scanner-approved versions can be evidence")
     if session.scalar(select(Evidence.id).where(Evidence.obligation_id == ob.id,
                                                 Evidence.document_version_id == version.document_version_id)):
         raise Conflict("this document version was already submitted for this obligation")
