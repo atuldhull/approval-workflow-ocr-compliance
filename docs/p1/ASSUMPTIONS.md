@@ -1,5 +1,13 @@
 # P1 assumptions
 
+## EVC scheduling — 3.5, 27 October 2026
+
+- EVC_SCHEDULING_POLICY_UNCONFIRMED — DEMO ASSUMPTION: one visit per expert per calendar date, slot capacity 4 visits per date/AM-PM (set when a canonical slot row is first created), lateness allowance 0 days beyond the EVC_PROCESSING due date, and AM/PM as the only parts. None is an APH figure; all are request parameters recorded numerically in schedule_run. Panels are the SIMULATED authorised selector (stand-in)'s result; EDF/CP-SAT choose dates and parts only, consistent with APH 1.8(a) web-portal automated selection being outside P1.
+- SCHED-001 — objective order is scheduled count, then total lateness days, then start offset (earlier first). CP-SAT uses one worker, seed 7 and a deterministic time limit 2.0; the 60 s wall-clock limit is only a safety cap and may make a much slower machine stop at a different point. The EDF plan is kept if CP-SAT plus selector panel formation would ever be worse. Runtime is measured only in the benchmark; no wall-clock value is stored.
+- SCHED-002 — live drafts of other requests reserve time during proposal (as in conservative eligibility); drafts of the requests being rescheduled are deleted and an emptied run becomes SUPERSEDED. Publication rechecks against published commitments only and needs bureau authority; RO users propose for their own region only. Explanation codes classify each candidate slot by relaxing COI/commitments; CAPACITY_EXHAUSTED also covers losing to more urgent requests in the same run.
+- SCHED-003 — cancelling a QUEUED or PROPOSED request withdraws its unpublished drafts; cancellation after publication still fails closed. EvcPort.status reports PUBLISHED for a complete_evc guard; the guard itself is owned by workflow and not changed here.
+- The two event schemas and the regenerated OpenAPI await three-way approval (contract request 2026-10-27_evc_scheduling). The benchmark queue is synthetic and seeded; experts/availability/COIs are the existing fictional seed.
+
 ## SIMULATED authorised selector (stand-in) — 3.4, 27 October 2026
 
 - SELECTOR_POLICY_UNCONFIRMED — DEMO ASSUMPTION: panel_size=3, default required expertise tag DEMO, minimum match count 1 and empty category-specific overrides are configurable YAML demonstration policy, not APH-confirmed panel composition or qualification requirements. The work pack references APH 1.8(a) as automated selection; the underlying official clause/report is absent. Every selector result is labelled SIMULATED authorised selector (stand-in) and SIMULATED; identities remain P3_USER_REF_UNVERIFIED.
