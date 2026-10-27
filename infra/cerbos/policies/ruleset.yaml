@@ -88,6 +88,7 @@ resourcePolicy:
     - evc.coi.record
     - evc.expert.read
     - evc.expert.register
+    - evc.schedule.propose
     - institution.list
     - notification.inbox
     - ruleset.read
@@ -136,6 +137,8 @@ resourcePolicy:
     - evc.coi.record
     - evc.expert.read
     - evc.expert.register
+    - evc.schedule.propose
+    - evc.schedule.publish
     - institution.list
     - ledger.verify
     - notification.inbox
@@ -171,6 +174,8 @@ resourcePolicy:
     - evc.coi.record
     - evc.expert.read
     - evc.expert.register
+    - evc.schedule.propose
+    - evc.schedule.publish
     - institution.list
     - ledger.verify
     - notification.inbox
