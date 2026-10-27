@@ -1547,6 +1547,87 @@
         "title": "DeficienciesOut",
         "type": "object"
       },
+      "DiscardBody": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "DiscardBody",
+        "type": "object"
+      },
+      "DiscardOut": {
+        "properties": {
+          "algorithm": {
+            "enum": [
+              "EDF",
+              "CPSAT"
+            ],
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "assumption_code": {
+            "const": "EDF_PLANNING_UNCONFIRMED",
+            "title": "Assumption Code",
+            "type": "string"
+          },
+          "discarded_count": {
+            "title": "Discarded Count",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "selector_label": {
+            "const": "SIMULATED authorised selector (stand-in)",
+            "title": "Selector Label",
+            "type": "string"
+          },
+          "simulation_status": {
+            "const": "SIMULATED",
+            "title": "Simulation Status",
+            "type": "string"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "const": "DISCARDED",
+            "title": "Status",
+            "type": "string"
+          },
+          "withdrawn": {
+            "items": {
+              "$ref": "#/components/schemas/WithdrawnAssignment"
+            },
+            "title": "Withdrawn",
+            "type": "array"
+          }
+        },
+        "required": [
+          "selector_label",
+          "simulation_status",
+          "source_status",
+          "assumption_code",
+          "run_id",
+          "algorithm",
+          "status",
+          "discarded_count",
+          "withdrawn"
+        ],
+        "title": "DiscardOut",
+        "type": "object"
+      },
       "DocumentOut": {
         "properties": {
           "application_id": {
@@ -3323,6 +3404,11 @@
             "title": "Created At",
             "type": "string"
           },
+          "expert_daily_cap": {
+            "description": "Pinned expert_pool.scheduler.expert_daily_cap used for this run (visits per expert per date, DEMO ASSUMPTION).",
+            "title": "Expert Daily Cap",
+            "type": "integer"
+          },
           "horizon_end": {
             "format": "date",
             "title": "Horizon End",
@@ -3415,6 +3501,7 @@
           "created_at",
           "input_fingerprint",
           "metrics",
+          "expert_daily_cap",
           "solver",
           "proposals",
           "unscheduled"
@@ -4493,6 +4580,11 @@
             "title": "Candidate Count",
             "type": "integer"
           },
+          "candidate_slots": {
+            "description": "Pinned expert_pool.scheduler.cpsat_candidate_slots: earliest feasible slots modelled per request, plus EDF's own (DEMO ASSUMPTION).",
+            "title": "Candidate Slots",
+            "type": "integer"
+          },
           "edf_scheduled": {
             "title": "Edf Scheduled",
             "type": "integer"
@@ -4521,7 +4613,8 @@
           "repair_rounds",
           "candidate_count",
           "edf_scheduled",
-          "fallback_to_edf"
+          "fallback_to_edf",
+          "candidate_slots"
         ],
         "title": "SolverOut",
         "type": "object"
@@ -4920,8 +5013,22 @@
       },
       "Unscheduled": {
         "properties": {
+          "explanation_code": {
+            "description": "Specific cause judged against the final plan: NO_AVAILABILITY, PANEL_INCOMPLETE, COI_ONLY, CAPACITY_EXHAUSTED (slot capacity or expert time taken), EXPERT_DAILY_CAP, or NO_FEASIBLE_SLOT when no slot exists in the window or no specific cause applies.",
+            "enum": [
+              "NO_AVAILABILITY",
+              "PANEL_INCOMPLETE",
+              "COI_ONLY",
+              "CAPACITY_EXHAUSTED",
+              "EXPERT_DAILY_CAP",
+              "NO_FEASIBLE_SLOT"
+            ],
+            "title": "Explanation Code",
+            "type": "string"
+          },
           "reason_code": {
             "const": "NO_FEASIBLE_SLOT",
+            "description": "Shared umbrella reason for every unscheduled request.",
             "title": "Reason Code",
             "type": "string"
           },
@@ -4933,7 +5040,8 @@
         },
         "required": [
           "request_id",
-          "reason_code"
+          "reason_code",
+          "explanation_code"
         ],
         "title": "Unscheduled",
         "type": "object"
@@ -5277,6 +5385,32 @@
           "assumption_code"
         ],
         "title": "WindowOut",
+        "type": "object"
+      },
+      "WithdrawnAssignment": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_id",
+          "request_id",
+          "assignment_id"
+        ],
+        "title": "WithdrawnAssignment",
         "type": "object"
       },
       "app__documents__api__ReviewIn": {
@@ -12920,9 +13054,136 @@
         ]
       }
     },
+    "/api/evc/schedule:discard": {
+      "post": {
+        "description": "Withdraw an unpublished PROPOSED run so its requests can be re-planned: its draft assignments are deleted, their requests return to QUEUED and the run becomes DISCARDED, with one evc.schedule_discarded event. Published or already discarded runs are 409 EVC_RUN_NOT_DISCARDABLE. Bureau only (evc.schedule.publish). Optional Idempotency-Key.",
+        "operationId": "schedule_discard_api_evc_schedule_discard_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscardBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schedule Discard",
+        "tags": [
+          "evc",
+          "evc"
+        ]
+      }
+    },
     "/api/evc/schedule:propose": {
       "post": {
-        "description": "Plan dates/AM-PM slots for QUEUED requests in scope with the EDF baseline (default) or CP-SAT over the same locked input; both are scored by the same metrics. Panels come from the SIMULATED authorised selector (stand-in); optimisation never picks experts. Writes a schedule_run, unpublished DEMO_PANEL assignments (which reserve their experts and slot capacity) and PROPOSED requests; unscheduled requests stay QUEUED. run_id is chosen by the caller and conflicts if reused. slot_capacity (DEMO ASSUMPTION) creates missing AM/PM slot rows in the horizon. RO users are limited to their own region. Optional Idempotency-Key.",
+        "description": "Plan dates/AM-PM slots for QUEUED requests in scope with the EDF baseline (default) or CP-SAT over the same locked input; both are scored by the same metrics. Panels come from the SIMULATED authorised selector (stand-in); optimisation never picks experts. Writes a schedule_run, unpublished DEMO_PANEL assignments (which reserve their experts and slot capacity) and PROPOSED requests; unscheduled requests stay QUEUED with the umbrella reason NO_FEASIBLE_SLOT and a specific explanation_code. Each expert takes at most the pinned expert_daily_cap visits per date (DEMO ASSUMPTION, default 1). run_id is chosen by the caller and conflicts if reused. slot_capacity (DEMO ASSUMPTION, the demo path for slots) only creates AM/PM slot rows for horizon date/parts that have none; existing slot rows and their capacity are never changed. RO users are limited to their own region (another region is 403); a bureau region no expert or request names is 422 SCHEDULE_REGION_UNKNOWN. Regions match case-insensitively. Optional Idempotency-Key.",
         "operationId": "schedule_propose_api_evc_schedule_propose_post",
         "parameters": [
           {
@@ -13049,7 +13310,7 @@
     },
     "/api/evc/schedule:publish": {
       "post": {
-        "description": "Publish every proposal of one run in a single transaction after rechecking eligibility, COI, activity, expertise, panel size, window and slot capacity against published commitments. Any double booking or failed recheck returns 409 and publishes nothing. Requests become PUBLISHED, which EvcPort.status reports. Optional Idempotency-Key.",
+        "description": "Publish every proposal of one run in a single transaction after rechecking eligibility, COI, activity, expertise, panel size, window, slot capacity and the expert daily cap against published commitments. Any double booking (EVC_EXPERT_DOUBLE_BOOKED), exhausted slot (EVC_SLOT_CAPACITY_EXHAUSTED), exceeded daily cap (EVC_EXPERT_DAILY_CAP_EXCEEDED) or other failed recheck returns 409 and publishes nothing. Requests become PUBLISHED, which EvcPort.status reports. Optional Idempotency-Key.",
         "operationId": "schedule_publish_api_evc_schedule_publish_post",
         "parameters": [
           {
