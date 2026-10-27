@@ -10,6 +10,6 @@
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "verdict": {"type": "string", "enum": ["CLEAN", "INFECTED"]},
     "scanner": {"type": "string", "enum": ["clamav"]},
-    "signature": {"type": "string", "maxLength": 200, "description": "malware signature name; only when INFECTED"}
+    "signature": {"type": "string", "pattern": "^[A-Za-z0-9._:/-]{1,200}$", "description": "malware signature name; only when INFECTED"}
   }
 }
