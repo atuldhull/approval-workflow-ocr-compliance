@@ -1,5 +1,5 @@
-import World from '../operations/World.jsx';
-import { Badge, Card, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
+import { Badge, ErrorBox, Kpis, Loading, useApi, when } from "../components/ui.jsx";
+
 
 // How each line was measured (the method badge, always neutral) is kept apart from what was found (the verdict
 // badge and the card colour, from outcomeTone), so a check that ran and failed is never shown green.
@@ -89,38 +89,64 @@ export function outcomeTone(item) {
   return null;
 }
 
+const TONE_WORD = { ok: "Pass", warn: "Needs attention", bad: "Fail" };
+
+// The scorecard as an evaluation instrument: one row per check, read left to right as
+// check → how it was measured → what was found → outcome. Each column keeps one kind of statement, so a method
+// is never read as a result and a measurement without a verdict is never coloured as one.
 export default function ScorecardView({ who }) {
   const { data, error, loading, reload } = useApi(who, "/analytics/scorecard");
   if (loading && !data) return <Loading what="Computing scorecard" />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
+  const tally = (pred) => data.items.filter(pred).length;
   return (
-    <div>
-      <World kind="scorecard" records={data.items.map(i=>({id:i.key,label:i.title,state:outcomeTone(i)||"unknown",detail:KIND[i.kind]?.[1]||i.kind,facts:[["Result",i.finding||(i.result?JSON.stringify(i.result):"Not evaluated")],["Method",i.method||"Not supplied"],["Evidence",i.source||i.note||"No source supplied"],["Ruleset",i.ruleset||"Not supplied"]]}))} />
-      <p className="muted">
-        Generated {when(data.generated_at)}. Each line says how it was measured; nothing is shown for parts not yet evaluated.
-      </p>
-      <div className="grid cards">
+    <div className="scorecard">
+      <div className="freshness">
+        <span className="muted small">
+          Generated {when(data.generated_at)}. Each line says how it was measured; nothing is shown for parts not yet evaluated.
+        </span>
+        <button className="ghost small" onClick={reload}>Refresh</button>
+      </div>
+      <Kpis label="Scorecard summary" items={[
+        { label: "Checks", value: data.items.length },
+        { label: "Pass", value: tally((i) => outcomeTone(i) === "ok"), tone: tally((i) => outcomeTone(i) === "ok") ? "ok" : undefined },
+        { label: "Needs attention", value: tally((i) => outcomeTone(i) === "warn"), tone: tally((i) => outcomeTone(i) === "warn") ? "attention" : undefined },
+        { label: "Fail", value: tally((i) => outcomeTone(i) === "bad"), tone: tally((i) => outcomeTone(i) === "bad") ? "bad" : undefined },
+        { label: "Measured, no verdict", value: tally((i) => i.result && !outcomeTone(i)) },
+        { label: "Not evaluated", value: tally((i) => i.kind === "NOT_EVALUATED") },
+      ]} />
+      <div className="instrument" role="list" aria-label="Evaluation checks">
+        <div className="instrument-head" aria-hidden="true">
+          <span>Check</span><span>How it was measured</span><span>What was found</span><span>Outcome</span>
+        </div>
         {data.items.map((item) => {
           const [kindTone, label] = KIND[item.kind] ?? ["neutral", item.kind];
           const tone = outcomeTone(item) ?? (item.kind === "NOT_EVALUATED" ? "neutral" : kindTone);
           const verdict = OUTCOME[item.outcome];
+          const measuredTone = outcomeTone(item);
           return (
-            <Card key={item.key} title={item.title} className={`score tone-${tone}`}>
-              <p className="badges">
-                <Badge tone="neutral">{label}</Badge>
-                {verdict && <Badge tone={verdict[0]}>{verdict[1]}</Badge>}
-              </p>
-              {item.method && (
-                <p className="method">
-                  <strong>How it was measured:</strong> {item.method}
-                </p>
-              )}
+            <article key={item.key} className={`score tone-${tone}`} role="listitem" aria-labelledby={`score-${item.key}`}>
+              <div className="score-check">
+                <h2 id={`score-${item.key}`}>{item.title}</h2>
+                <p className="badges"><Badge tone="neutral">{label}</Badge></p>
+              </div>
+              <div className="score-method">
+                {item.method ? (
+                  <p className="method"><strong>How it was measured:</strong> {item.method}</p>
+                ) : <p className="muted small">Method not supplied.</p>}
+                {item.source && <p className="source">Answer key: {item.source}</p>}
+                {item.ruleset && <p className="source">Ruleset <code>{item.ruleset}</code></p>}
+              </div>
               <div className="found">
                 <strong>{item.result ? "What was found:" : "Why it is not evaluated:"}</strong>
                 <Result item={item} />
               </div>
-              {item.source && <p className="source">Answer key: {item.source}</p>}
-            </Card>
+              <div className="score-outcome">
+                {verdict ? <Badge tone={verdict[0]}>{verdict[1]}</Badge>
+                  : measuredTone ? <span className={`derived tone-${measuredTone}`}>{TONE_WORD[measuredTone]} <span className="muted small">(from the result)</span></span>
+                    : <span className="muted small">{item.result ? "No verdict: a measurement" : "Not evaluated"}</span>}
+              </div>
+            </article>
           );
         })}
       </div>
