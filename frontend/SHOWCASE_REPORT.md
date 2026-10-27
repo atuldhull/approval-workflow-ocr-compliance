@@ -148,7 +148,7 @@ on navigation. Text colours on ink: stone `#c5bba9` and dim `#a39882` are both a
 ## Screenshots
 
 Saved outside the repository in
-`C:\Users\atuld\AppData\Local\Temp\claude\C--Users-atuld\913a34d1-2fd8-42f1-81d6-a907658f84a4\scratchpad\showcase-shots\`:
+`D:\awoc-review-shots\showcase-shots\`:
 
 - Before: `before-root-1440.png`, `before-root-390.png` (API down, connection screen).
 - Hero 1440×900 at 0/25/50/75/100 % of the hero: `hero-final1440-{0,25,50,75,100}.png` (iterations `hero-w1440*`).

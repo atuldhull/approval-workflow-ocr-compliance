@@ -82,8 +82,8 @@ Browser checks (Chromium via playwright-cli, local backend on 8051 with syntheti
 - Before: `opsui-shots/before/` — `{1440|390}-{role}-{screen}.png` and `-full.png` (180 files)
 - After: `opsui-shots/after/` — same names (180 files)
 
-Roles: sunrise (institution), scrutiny, ro-southern, bureau-officer, bureau-head, auditor. The folders sit in the
-session scratchpad; they are not committed.
+Roles: sunrise (institution), scrutiny, ro-southern, bureau-officer, bureau-head, auditor. The folders are kept outside the repository in
+`D:\awoc-review-shots\opsui-shots\`; they are not committed.
 
 ## Backend gaps met (not worked around)
 
