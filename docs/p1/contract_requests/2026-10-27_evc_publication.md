@@ -1,6 +1,6 @@
 # EVC publication event and scheduling routes — three-way approval request
 
-Date: 27 October 2026. P1. Status: **pending three-way approval (P1, P2, P3)**. The schema and the regenerated OpenAPI are committed on their own so they can be reviewed, approved or reverted independently of the scheduler code.
+Date: 27 October 2026. P1. Status: **pending three-way approval (P1, P2, P3)**. P1 accepted the schema as-is on 28 October 2026 (plan 3.7); P2 and P3 approval are still pending. The schema and the regenerated OpenAPI are committed on their own so they can be reviewed, approved or reverted independently of the scheduler code.
 
 ## Why this is needed
 

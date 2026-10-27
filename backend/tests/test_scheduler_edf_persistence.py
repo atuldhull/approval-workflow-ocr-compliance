@@ -36,6 +36,7 @@ def ref(token):
 
 
 ACTOR = Principal(ref("officer"), Role.BUREAU_OFFICER)
+DAILY_CAP = 1  # pinned r1 expert_pool.scheduler.expert_daily_cap (DEMO ASSUMPTION)
 
 
 def command(token="run", region=None):
@@ -91,7 +92,7 @@ def snapshot():
                          for row in session.scalars(select(EvcRequest).where(EvcRequest.status == "QUEUED")))
         slots = tuple(SchedulingSlot(s.id, s.date, s.slot_part, s.capacity) for s in session.scalars(select(Slot)))
         existing = tuple(Allocation(a.evc_request_id, a.slot_id, tuple(a.expert_ids)) for a in session.scalars(select(Assignment)))
-    return SchedulingProblem(requests, slots, existing, DAY, END, AT)
+    return SchedulingProblem(requests, slots, existing, DAY, END, AT, DAILY_CAP)
 
 
 def state():
@@ -107,24 +108,30 @@ def test_forty_request_proposal_persists_exact_plan_metrics_and_audit(edf_env):
     problem = snapshot()
     due_before = {row.id: row.selector.eligibility.due_by for row in problem.requests}
     result = propose_edf(ACTOR, command())
-    assert result.plan.metrics.scheduled == 40 and result.plan.metrics.hard_constraint_violations == 0
+    # 21 eligible experts at one visit per day fit 36 three-expert panels in six days; the rest wait, explained.
+    assert result.plan.metrics.scheduled == 36 and result.plan.metrics.hard_constraint_violations == 0
+    assert result.expert_daily_cap == DAILY_CAP and len(result.unscheduled_reasons) == 4
+    assert {code for _, code in result.unscheduled_reasons} == {"EXPERT_DAILY_CAP"}
     with new_session() as session:
         run = session.get(ScheduleRun, ref("run"))
         assert run.algorithm == "EDF" and run.status == "PROPOSED" and run.created_at == AT
         assignments = session.scalars(select(Assignment).where(Assignment.schedule_run_id == run.run_id)).all()
         actual = tuple(Allocation(a.evc_request_id, a.slot_id, tuple(a.expert_ids)) for a in assignments)
-        assert len(actual) == len(result.assignment_ids) == 40 and not any(a.published for a in assignments)
+        assert len(actual) == len(result.assignment_ids) == 36 and not any(a.published for a in assignments)
         assert {a.panel_role for a in assignments} == {"DEMO_PANEL"}
         assert evaluate_schedule(problem, actual).metrics.numeric_json() == run.metrics == result.plan.metrics.numeric_json()
         assert bytes(run.parameters["input_fingerprint_bytes"]).hex() == problem.fingerprint == result.plan.input_fingerprint
         rows = session.scalars(select(EvcRequest).where(EvcRequest.id.in_(request_ids))).all()
-        assert all(r.status == "PROPOSED" and r.ruleset_key == "aph-2024-27@r1" and r.due_by == due_before[r.id] for r in rows)
-        assert session.scalar(select(func.count()).select_from(AssignmentExpert)) == 120
+        waiting = {request_id for request_id, _ in result.unscheduled_reasons}
+        assert all(r.status == ("QUEUED" if r.id in waiting else "PROPOSED") and r.ruleset_key == "aph-2024-27@r1"
+                   and r.due_by == due_before[r.id] for r in rows)
+        assert run.parameters["expert_daily_cap"] == DAILY_CAP
+        assert session.scalar(select(func.count()).select_from(AssignmentExpert)) == 108
         events = session.scalars(select(DomainEvent).where(DomainEvent.event_type.like("evc.%")).order_by(DomainEvent.seq)).all()
-        assert [e.event_type for e in events] == ["evc.schedule_proposed"] + ["evc.assignment_proposed"] * 40
+        assert [e.event_type for e in events] == ["evc.schedule_proposed"] + ["evc.assignment_proposed"] * 36
         assert events[0].payload["metrics"] == run.metrics
         assert [UUID(e.payload["request_id"]) for e in events[1:]] == [a.request_id for a in result.plan.allocations]
-        app = rows[0].application_id
+        app = next(r.application_id for r in rows if r.id not in waiting)
     timeline = edf_env.client.get(f"/api/cases/{app}/timeline", headers=headers("AUDITOR"))
     assert "evc.assignment_proposed" in [e["event_type"] for e in timeline.json()]
     assert edf_env.client.get("/api/ledger/verify", headers=headers("AUDITOR")).json()["ok"]

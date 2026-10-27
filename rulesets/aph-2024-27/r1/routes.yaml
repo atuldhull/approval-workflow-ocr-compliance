@@ -26,9 +26,12 @@ expert_pool:
   source_status: DEMO_ASSUMPTION
   assumption_code: EXPERT_POLICY_UNCONFIRMED
   # DEMO ASSUMPTION: capacity counts panels; original due_by stays unchanged for lateness/escalation.
+  # expert_daily_cap: visits per expert per date; cpsat_candidate_slots: earliest feasible slots CP-SAT models per request.
   scheduler:
     capacity_unit: PANELS
     allow_late: true
+    expert_daily_cap: 1
+    cpsat_candidate_slots: 12
     source_status: DEMO_ASSUMPTION
     assumption_code: EDF_PLANNING_UNCONFIRMED
   # SIMULATED authorised selector (stand-in); DEMO ASSUMPTION, not an official panel policy.

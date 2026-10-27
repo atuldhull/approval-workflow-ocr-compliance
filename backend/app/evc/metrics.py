@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.evc.eligibility import eligible_experts
-from app.evc.scheduling import Allocation, SchedulingMetrics, SchedulingPlan, SchedulingProblem, earliest_date, logical_date, selector_at, slot_order
+from app.evc.scheduling import (Allocation, SchedulingMetrics, SchedulingPlan, SchedulingProblem, commitments, earliest_date,
+                                logical_date, selector_at, slot_order, visits_per_day)
 from contracts.errors import ValidationFailed
 
 
@@ -33,6 +34,19 @@ def evaluate_schedule(problem: SchedulingProblem, allocations: tuple[Allocation,
     for slot_id, count in occupancy.items():
         violations["CAPACITY_EXCEEDED"] += max(0, count - slots[slot_id].capacity)
     violations["EXPERT_DOUBLE_BOOKED"] += sum(max(0, count - 1) for count in booked.values())
+    if problem.expert_daily_cap is not None:
+        # Only visits added by `allocations` can exceed the pinned cap; earlier commitments are the baseline.
+        base = visits_per_day(commitments(problem))
+        added = defaultdict(set)
+        for allocation in allocations:
+            slot = slots.get(allocation.slot_id)
+            if slot:
+                for expert in set(allocation.expert_ids):
+                    if slot.slot_part not in base.get((expert, slot.date), ()):
+                        added[(expert, slot.date)].add(slot.slot_part)
+        for key, parts in added.items():
+            excess = len(base.get(key, ())) + len(parts) - problem.expert_daily_cap
+            violations["EXPERT_DAILY_CAP"] += min(len(parts), max(0, excess))
     for allocation in allocations:
         if allocation.request_id not in requests:
             violations["UNKNOWN_REQUEST"] += 1
@@ -48,7 +62,7 @@ def evaluate_schedule(problem: SchedulingProblem, allocations: tuple[Allocation,
         if len(allocation.expert_ids) != request.selector.policy.panel_size:
             violations["PANEL_SIZE"] += 1
         violations["DUPLICATE_EXPERT"] += len(allocation.expert_ids) - len(set(allocation.expert_ids))
-        snapshot = selector_at(problem, request, ())
+        snapshot = selector_at(problem, request, (), daily_cap=False)
         eligible = {expert.id: expert for expert in eligible_experts(snapshot.eligibility, slot.date, slot.slot_part)}
         tags = set(snapshot.policy.tags_for(snapshot.category))
         for expert_id in set(allocation.expert_ids):

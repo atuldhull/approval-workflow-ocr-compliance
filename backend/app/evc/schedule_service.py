@@ -1,9 +1,10 @@
-"""EVC scheduling commands behind the HTTP API: propose a run (EDF or CP-SAT) and publish it.
+"""EVC scheduling commands behind the HTTP API: propose a run (EDF or CP-SAT), publish it or discard it.
 
 Proposal is scheduler_edf.handle (one SchedulingProblem, plan_edf or solve_cpsat,
 persisted as unpublished DEMO_PANEL assignments). Publication rechecks every
 draft of one run with the shared metrics against published commitments and
-publishes all of them or none. Panels come only from the SIMULATED authorised
+publishes all of them or none. Discarding withdraws an unpublished run so its
+requests can be re-planned. Panels come only from the SIMULATED authorised
 selector (stand-in). No commits here: the caller owns the unit of work.
 """
 from collections import Counter
@@ -11,13 +12,13 @@ from dataclasses import replace
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.evc.metrics import evaluate_schedule
 from app.evc.models import Assignment, AssignmentExpert, EvcRequest, ScheduleRun, Slot
 from app.evc.pool import policy
-from app.evc.scheduler_edf import ScheduleCommand, _scheduler_policy, handle
+from app.evc.scheduler_edf import ScheduleCommand, combined_policy, default_scheduler_policy, handle, scheduler_policy
 from app.evc.scheduling import Allocation, SchedulingProblem, SchedulingRequest, SchedulingSlot
 from app.evc.selector import SELECTOR_LABEL
 from app.evc.selector_service import selector_request
@@ -50,8 +51,9 @@ def propose(uow: UnitOfWork, command: ScheduleCommand) -> dict:
                 region_scope=command.region.upper() if command.region else None,
                 horizon_start=date.fromordinal(run.parameters["horizon_start_ordinal"]), horizon_end=command.horizon_end,
                 input_fingerprint=plan.input_fingerprint, metrics=plan.metrics.numeric_json(), proposals=proposals,
-                unscheduled=[dict(request_id=request_id, reason_code=plan.unscheduled_reason) for request_id in plan.unscheduled],
-                solver=solver or None, created_at=run.created_at, **LABELS)
+                unscheduled=[dict(request_id=request_id, reason_code=plan.unscheduled_reason, explanation_code=code)
+                             for request_id, code in result.unscheduled_reasons],
+                expert_daily_cap=result.expert_daily_cap, solver=solver or None, created_at=run.created_at, **LABELS)
 
 
 def _memberships(session, *, exclude_run: UUID):
@@ -87,7 +89,7 @@ def publish(uow: UnitOfWork, run_id: UUID) -> dict:
     for m, request_id in published:
         if m.slot_id in slots:
             existing.setdefault(m.assignment_id, (request_id, m.slot_id, []))[2].append(m.expert_id)
-    requests = []
+    requests, pinned = [], []
     for row in rows.values():
         if row.status != "PROPOSED":
             raise Conflict("EVC_REQUEST_NOT_PROPOSED")
@@ -100,8 +102,8 @@ def publish(uow: UnitOfWork, run_id: UUID) -> dict:
         snapshot = selector_request(session, row.id, planning_until=end)
         # Recheck against published commitments only: this run's own drafts must not block themselves.
         facts = replace(snapshot.eligibility, reservations=frozenset(r for r in taken if row.earliest_date <= r[1] <= end))
-        requests.append(SchedulingRequest(replace(snapshot, eligibility=facts), row.requested_at,
-                                          _scheduler_policy(rules.expert_pool.get("scheduler"))))
+        pinned.append(scheduler_policy(rules.expert_pool.get("scheduler")))
+        requests.append(SchedulingRequest(replace(snapshot, eligibility=facts), row.requested_at, pinned[-1].allow_late))
     for draft in drafts:
         slot = slots[draft.slot_id]
         if any((expert, slot.date, slot.slot_part) in taken for expert in draft.expert_ids):
@@ -112,11 +114,13 @@ def publish(uow: UnitOfWork, run_id: UUID) -> dict:
     try:
         problem = SchedulingProblem(tuple(requests), tuple(SchedulingSlot(s.id, s.date, s.slot_part, s.capacity) for s in slots.values()),
                                     tuple(Allocation(request_id, slot_id, tuple(experts)) for request_id, slot_id, experts in existing.values()),
-                                    start, end, now)
+                                    start, end, now, (combined_policy(pinned) or default_scheduler_policy()).expert_daily_cap)
     except ValidationFailed:
         raise Conflict("EVC_PUBLISH_RECHECK_FAILED") from None
     check = evaluate_schedule(problem, tuple(Allocation(d.evc_request_id, d.slot_id, tuple(d.expert_ids)) for d in drafts))
     if check.metrics.hard_constraint_violations:
+        if {code for code, _ in check.violation_counts} == {"EXPERT_DAILY_CAP"}:
+            raise Conflict("EVC_EXPERT_DAILY_CAP_EXCEEDED")
         raise Conflict("EVC_PUBLISH_RECHECK_FAILED")
     try:
         session.execute(update(Assignment).where(Assignment.id.in_([d.id for d in drafts])).values(published=True))
@@ -143,3 +147,39 @@ def publish(uow: UnitOfWork, run_id: UUID) -> dict:
         result.append(entry)
     return dict(run_id=run_id, algorithm=run.algorithm, status="PUBLISHED", published_count=len(result),
                 assignments=result, **LABELS)
+
+
+def discard(uow: UnitOfWork, run_id: UUID) -> dict:
+    """Withdraw an unpublished PROPOSED run: drafts deleted, its requests QUEUED again, run DISCARDED."""
+    session, principal = uow.session, uow.principal
+    port(AuthzPort).check(principal, "evc.schedule.publish", ResourceRef("evc", run_id))
+    run = session.get(ScheduleRun, run_id, with_for_update=True)
+    if run is None:
+        raise NotFound("EVC_RUN_NOT_FOUND")
+    if run.status != "PROPOSED":
+        raise Conflict("EVC_RUN_NOT_DISCARDABLE")
+    drafts = list(session.scalars(select(Assignment).where(Assignment.schedule_run_id == run_id).order_by(Assignment.id)
+                                  .with_for_update()))
+    if any(draft.published for draft in drafts):
+        raise Conflict("EVC_RUN_NOT_DISCARDABLE")
+    rows = list(session.scalars(select(EvcRequest).where(EvcRequest.id.in_({d.evc_request_id for d in drafts}))
+                                .order_by(EvcRequest.id).with_for_update()))
+    for row in rows:
+        case = port(CasePort).lookup(session, row.application_id)
+        port(AuthzPort).check(principal, "evc.schedule.publish", ResourceRef("application", case.application_id,
+                              case.institution_id, case.region))
+        if row.status != "PROPOSED":
+            raise Conflict("EVC_REQUEST_NOT_PROPOSED")
+    session.execute(delete(Assignment).where(Assignment.id.in_([d.id for d in drafts])))
+    for row in rows:
+        row.status = "QUEUED"
+    run.status = "DISCARDED"
+    session.flush()
+    by_request = {draft.evc_request_id: draft.id for draft in drafts}
+    withdrawn = [dict(application_id=row.application_id, request_id=row.id, assignment_id=by_request[row.id])
+                 for row in sorted(rows, key=lambda row: by_request[row.id])]
+    port(LedgerPort).append(uow, EventIn(aggregate_type="evc_schedule_run", aggregate_id=run_id,
+        event_type="evc.schedule_discarded", payload=dict(run_id=run_id, algorithm=run.algorithm, discarded_count=len(withdrawn),
+            withdrawn=withdrawn, request_status="QUEUED", simulation_status="SIMULATED", source_status="DEMO_ASSUMPTION")))
+    return dict(run_id=run_id, algorithm=run.algorithm, status="DISCARDED", discarded_count=len(withdrawn),
+                withdrawn=withdrawn, **LABELS)

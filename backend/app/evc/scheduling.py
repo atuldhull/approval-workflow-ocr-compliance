@@ -1,4 +1,5 @@
-"""Immutable comparison inputs shared by EDF, metrics and the future CP-SAT planner."""
+"""Immutable comparison inputs shared by EDF, metrics and the CP-SAT planner."""
+from collections import defaultdict
 from dataclasses import asdict, dataclass, fields, is_dataclass, replace
 from datetime import date, datetime, timezone
 from hashlib import sha256
@@ -71,9 +72,13 @@ class SchedulingProblem:
     horizon_start: date
     horizon_end: date
     clock_at: datetime
+    # Pinned expert_pool.scheduler.expert_daily_cap (DEMO ASSUMPTION): visits per expert per date; None = uncapped.
+    expert_daily_cap: int | None = None
 
     def __post_init__(self) -> None:
         logical_date(self.clock_at)
+        if self.expert_daily_cap is not None and (type(self.expert_daily_cap) is not int or self.expert_daily_cap < 1):
+            raise ValidationFailed("SCHEDULER_DAILY_CAP_INVALID")
         if self.horizon_end < self.horizon_start:
             raise ValidationFailed("SCHEDULER_HORIZON_INVALID")
         if len({r.id for r in self.requests}) != len(self.requests) or len({s.id for s in self.slots}) != len(self.slots):
@@ -119,8 +124,41 @@ def earliest_date(problem: SchedulingProblem, request: SchedulingRequest) -> dat
                request.selector.eligibility.earliest_date)
 
 
-def selector_at(problem: SchedulingProblem, request: SchedulingRequest, planned: tuple[Allocation, ...]) -> SelectorRequest:
-    """Reuse the same pinned selector with explicit current reservations and workload."""
+def commitments(problem: SchedulingProblem, allocations: tuple[Allocation, ...] = ()) -> set[tuple[UUID, date, str]]:
+    """Every known (expert, date, part) commitment: request reservations, existing allocations and `allocations`."""
+    slots = {slot.id: slot for slot in problem.slots}
+    result = set()
+    for request in problem.requests:
+        result.update(request.selector.eligibility.reservations)
+    for allocation in (*problem.existing, *allocations):
+        slot = slots.get(allocation.slot_id)
+        if slot:
+            result.update((expert, slot.date, slot.slot_part) for expert in allocation.expert_ids)
+    return result
+
+
+def visits_per_day(reserved) -> dict[tuple[UUID, date], set[str]]:
+    days = defaultdict(set)
+    for expert, day, part in reserved:
+        days[(expert, day)].add(part)
+    return days
+
+
+def daily_cap_reservations(problem: SchedulingProblem, reserved) -> set[tuple[UUID, date, str]]:
+    """An expert already at the pinned daily cap is reserved for every part of that date."""
+    if problem.expert_daily_cap is None:
+        return set()
+    return {(expert, day, part) for (expert, day), used in visits_per_day(reserved).items()
+            if len(used) >= problem.expert_daily_cap for part in PART_ORDER}
+
+
+def selector_at(problem: SchedulingProblem, request: SchedulingRequest, planned: tuple[Allocation, ...], *,
+                daily_cap: bool = True) -> SelectorRequest:
+    """Reuse the same pinned selector with explicit current reservations and workload.
+
+    With daily_cap (the default) an expert at the problem's daily cap on a date is excluded from that date;
+    evaluate_schedule turns it off and counts the cap as its own violation instead.
+    """
     slots = {slot.id: slot for slot in problem.slots}
     end = problem.horizon_end if request.allow_late else min(problem.horizon_end, request.selector.eligibility.due_by)
     reservations = set(request.selector.eligibility.reservations)
@@ -128,6 +166,8 @@ def selector_at(problem: SchedulingProblem, request: SchedulingRequest, planned:
         slot = slots.get(allocation.slot_id)
         if slot:
             reservations.update((expert, slot.date, slot.slot_part) for expert in allocation.expert_ids)
+    if daily_cap:
+        reservations |= daily_cap_reservations(problem, reservations)
     history = list(request.selector.assignments)
     for allocation in planned:
         slot = slots.get(allocation.slot_id)

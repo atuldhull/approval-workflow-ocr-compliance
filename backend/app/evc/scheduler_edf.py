@@ -9,8 +9,9 @@ from datetime import date, timedelta
 from typing import Literal
 from uuid import UUID, NAMESPACE_URL, uuid5
 
-from sqlalchemy import select, text
+from sqlalchemy import exists, func, or_, select, text
 
+from app.evc.explanations import explain_unscheduled
 from app.evc.metrics import evaluate_schedule
 from app.evc.models import Assignment, EvcRequest, Expert, ScheduleRun, Slot
 from app.evc.pool import policy
@@ -76,14 +77,50 @@ class ProposedSchedule:
     plan: SchedulingPlan
     assignment_ids: tuple[UUID, ...]
     status: str = "PROPOSED"
+    # (request_id, code) per unscheduled request, from explanations.explain_unscheduled; API response only.
+    unscheduled_reasons: tuple[tuple[UUID, str], ...] = ()
+    expert_daily_cap: int | None = None
 
 
-def _scheduler_policy(raw: dict) -> bool:
-    if (not isinstance(raw, dict) or set(raw) != {"capacity_unit", "allow_late", "source_status", "assumption_code"}
+@dataclass(frozen=True)
+class SchedulerPolicy:
+    """Pinned expert_pool.scheduler (DEMO ASSUMPTION EDF_PLANNING_UNCONFIRMED)."""
+    allow_late: bool
+    expert_daily_cap: int = 1
+    cpsat_candidate_slots: int = 12
+
+
+SCHEDULER_REQUIRED = {"capacity_unit", "allow_late", "source_status", "assumption_code"}
+SCHEDULER_OPTIONAL = {"expert_daily_cap": (1, 10), "cpsat_candidate_slots": (1, 200)}
+
+
+def scheduler_policy(raw: dict) -> SchedulerPolicy:
+    if (not isinstance(raw, dict) or not SCHEDULER_REQUIRED <= set(raw) <= SCHEDULER_REQUIRED | set(SCHEDULER_OPTIONAL)
         or raw["capacity_unit"] != "PANELS" or type(raw["allow_late"]) is not bool
         or raw["source_status"] != "DEMO_ASSUMPTION" or raw["assumption_code"] != "EDF_PLANNING_UNCONFIRMED"):
         raise ValidationFailed("SCHEDULER_POLICY_UNAVAILABLE")
-    return raw["allow_late"]
+    defaults = SchedulerPolicy(raw["allow_late"])
+    values = {key: raw.get(key, getattr(defaults, key)) for key in SCHEDULER_OPTIONAL}
+    if any(type(value) is not int or not SCHEDULER_OPTIONAL[key][0] <= value <= SCHEDULER_OPTIONAL[key][1]
+           for key, value in values.items()):
+        raise ValidationFailed("SCHEDULER_POLICY_UNAVAILABLE")
+    return SchedulerPolicy(raw["allow_late"], **values)
+
+
+def _scheduler_policy(raw: dict) -> bool:
+    return scheduler_policy(raw).allow_late
+
+
+def combined_policy(policies: list[SchedulerPolicy]) -> SchedulerPolicy | None:
+    """One run, one cap: the strictest pinned daily cap and the widest pinned CP-SAT candidate window."""
+    if not policies:
+        return None
+    return SchedulerPolicy(False, min(p.expert_daily_cap for p in policies), max(p.cpsat_candidate_slots for p in policies))
+
+
+def default_scheduler_policy() -> SchedulerPolicy:
+    rules, _ = policy()
+    return scheduler_policy(rules.expert_pool.get("scheduler"))
 
 
 def ensure_slots(session, start: date, end: date, capacity: int) -> None:
@@ -120,6 +157,12 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
     if command.horizon_end < start:
         raise ValidationFailed("SCHEDULER_HORIZON_BEFORE_CLOCK")
     session = uow.session
+    if command.region is not None and uow.principal.role != Role.RO_OFFICER:
+        # No region taxonomy exists; a region is known once an expert or an EVC request names it (any case).
+        name = command.region.upper()
+        if not session.scalar(select(or_(exists().where(func.upper(Expert.region) == name),
+                                         exists().where(func.upper(EvcRequest.region) == name)))):
+            raise ValidationFailed("SCHEDULE_REGION_UNKNOWN")
     session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": SCHEDULING_LOCK})
     if session.get(ScheduleRun, command.run_id) is not None:
         raise Conflict("SCHEDULE_RUN_ALREADY_EXISTS")
@@ -144,31 +187,34 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
     slots = session.scalars(select(Slot).where(Slot.date.between(start, command.horizon_end))
                             .order_by(Slot.id).with_for_update()).all()
     locked_experts = {expert.id for expert in session.scalars(select(Expert).order_by(Expert.id).with_for_update())}
-    requests = []
+    requests, pinned = [], []
     for row in selected:
         if not row.ruleset_key:
             raise Conflict("EVC_REQUEST_METADATA_UNAVAILABLE")
         rules, expert_policy = policy(row.ruleset_key)
         if uow.principal.role == Role.RO_OFFICER and expert_policy.region_rule != "SAME_REGION":
             raise Forbidden("SCHEDULE_CROSS_REGION_SCOPE_FORBIDDEN")
-        allow_late = _scheduler_policy(rules.expert_pool.get("scheduler"))
+        pinned.append(scheduler_policy(rules.expert_pool.get("scheduler")))
+        allow_late = pinned[-1].allow_late
         snapshot = selector_request(session, row.id, planning_until=command.horizon_end)
         # A newly registered expert appearing after the lock snapshot waits for the next run.
         facts = replace(snapshot.eligibility, experts=tuple(e for e in snapshot.eligibility.experts if e.id in locked_experts))
         requests.append(SchedulingRequest(replace(snapshot, eligibility=facts), row.requested_at, allow_late))
     existing = tuple(Allocation(row.evc_request_id, row.slot_id, tuple(row.expert_ids)) for row in session.scalars(
         select(Assignment).where(Assignment.slot_id.in_([slot.id for slot in slots])).order_by(Assignment.id)))
+    run_policy = combined_policy(pinned) or default_scheduler_policy()
     problem = SchedulingProblem(tuple(requests), tuple(SchedulingSlot(s.id, s.date, s.slot_part, s.capacity) for s in slots),
-                                existing, start, command.horizon_end, now)
+                                existing, start, command.horizon_end, now, run_policy.expert_daily_cap)
     solver = {}
     if command.algorithm == "CPSAT":
-        from app.evc.scheduler_cpsat import solve_cpsat  # imports plan_edf from here
-        solved = solve_cpsat(problem)
+        from app.evc.scheduler_cpsat import CpSatParameters, solve_cpsat  # imports plan_edf from here
+        solved = solve_cpsat(problem, CpSatParameters(max_candidate_slots=run_policy.cpsat_candidate_slots))
         plan, solver = solved.plan, solved.numeric()
     else:
         plan = plan_edf(problem)
     parameters = dict(horizon_start_ordinal=start.toordinal(), horizon_end_ordinal=command.horizon_end.toordinal(),
         simulated_selector=True, capacity_counts_panels=True, demo_assumptions=True,
+        expert_daily_cap=run_policy.expert_daily_cap,
         input_fingerprint_bytes=list(bytes.fromhex(plan.input_fingerprint)), **solver)
     if command.slot_capacity is not None:
         parameters["default_slot_capacity"] = command.slot_capacity
@@ -196,7 +242,8 @@ def handle(uow: UnitOfWork, command: ScheduleCommand) -> ProposedSchedule:
                 expert_ids=list(allocation.expert_ids), ruleset_key=row.ruleset_key, request_status="PROPOSED",
                 simulation_status="SIMULATED", selector_policy_version="DEMO_SELECTOR_V1", source_status="DEMO_ASSUMPTION")))
         assignment_ids.append(assignment_id)
-    return ProposedSchedule(command.run_id, plan, tuple(assignment_ids))
+    return ProposedSchedule(command.run_id, plan, tuple(assignment_ids), unscheduled_reasons=explain_unscheduled(problem, plan),
+                            expert_daily_cap=run_policy.expert_daily_cap)
 
 
 def propose_edf(principal: Principal, command: ScheduleCommand) -> ProposedSchedule:

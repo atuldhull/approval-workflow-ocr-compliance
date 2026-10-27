@@ -1,7 +1,7 @@
 """CP-SAT date/slot planner over the same SchedulingProblem, selector and metrics as the EDF baseline.
 
 CP-SAT chooses a slot per request only. Per-expert variables are a feasibility
-witness (a complete panel can exist); the real panel is always the SIMULATED
+witness (a complete panel can exist, within the pinned per-expert daily cap); the real panel is always the SIMULATED
 authorised selector (stand-in)'s result, formed through selector_at in slot
 order. A slot the selector cannot fill is forbidden and the model re-solved.
 The result is scored with evaluate_schedule; if EDF scores better on the shared
@@ -15,8 +15,8 @@ from dataclasses import dataclass
 
 from app.evc.metrics import comparison_key, evaluate_schedule
 from app.evc.scheduler_edf import plan_edf
-from app.evc.scheduling import (Allocation, SchedulingPlan, SchedulingProblem, earliest_date, logical_date,
-                                request_order, selector_at, slot_order)
+from app.evc.scheduling import (Allocation, SchedulingPlan, SchedulingProblem, commitments, earliest_date, logical_date,
+                                request_order, selector_at, slot_order, visits_per_day)
 from app.evc.selector import select_panel
 from contracts.errors import ValidationFailed
 
@@ -30,6 +30,7 @@ class CpSatParameters:
     random_seed: int = 7
     max_repair_rounds: int = 5
     # Earliest feasible slots modelled per request (plus EDF's own slot), so wide late horizons stay solvable.
+    # Propose passes the pinned expert_pool.scheduler.cpsat_candidate_slots (DEMO ASSUMPTION, default 12).
     max_candidate_slots: int = 12
 
     def __post_init__(self) -> None:
@@ -50,13 +51,14 @@ class CpSatResult:
     candidate_count: int
     edf_scheduled: int
     fallback_to_edf: bool
+    candidate_slots: int = 12
 
     def numeric(self) -> dict:
         """Solver facts for schedule_run.parameters (numeric/boolean only)."""
         return dict(cpsat_solver_status=self.solver_status, cpsat_objective_value=self.objective_value,
                     cpsat_best_bound=self.best_bound, cpsat_repair_rounds=self.repair_rounds,
                     cpsat_candidate_count=self.candidate_count, cpsat_edf_scheduled=self.edf_scheduled,
-                    cpsat_fallback_to_edf=self.fallback_to_edf)
+                    cpsat_fallback_to_edf=self.fallback_to_edf, cpsat_candidate_slots=self.candidate_slots)
 
 
 def _witnesses(problem: SchedulingProblem, limit: int, keep: set) -> dict:
@@ -126,6 +128,11 @@ def solve_cpsat(problem: SchedulingProblem, params: CpSatParameters = CpSatParam
     max_weight = sum(worst_wait.values()) + 1
     late_weight = max_weight * (max_late_bound + 1)
     count_weight = late_weight * (sum(worst_late.values()) + 1)
+    # Daily cap: visits an expert may still take per date beyond existing commitments (None = uncapped).
+    remaining_day = None
+    if problem.expert_daily_cap is not None:
+        used = visits_per_day(commitments(problem))
+        remaining_day = lambda expert, day: max(problem.expert_daily_cap - len(used.get((expert, day), ())), 0)
     forbidden: set = set()
     rounds = status = objective = bound = 0
     while True:
@@ -141,17 +148,21 @@ def solve_cpsat(problem: SchedulingProblem, params: CpSatParameters = CpSatParam
                 model.add_implication(var, x[key])
                 members.append(var)
             model.add(sum(members) == requests[key[0]].selector.policy.panel_size * x[key])
-        per_request, per_slot, per_time = {}, {}, {}
+        per_request, per_slot, per_time, per_day = {}, {}, {}, {}
         for key, var in x.items():
             per_request.setdefault(key[0], []).append(var)
             per_slot.setdefault(key[1], []).append(var)
         for (request_id, slot_id, expert), var in y.items():
             slot = slots[slot_id]
             per_time.setdefault((expert, slot.date, slot.slot_part), []).append(var)
+            per_day.setdefault((expert, slot.date), []).append(var)
         for group in (*per_request.values(), *per_time.values()):
             model.add_at_most_one(group)
         for slot_id, group in per_slot.items():
             model.add(sum(group) <= max(slots[slot_id].capacity - occupancy[slot_id], 0))
+        if remaining_day is not None:
+            for (expert, day), group in per_day.items():
+                model.add(sum(group) <= remaining_day(expert, day))
         worst = model.new_int_var(0, max_late_bound, "")
         for key, var in x.items():
             if lateness[key]:
@@ -189,7 +200,8 @@ def solve_cpsat(problem: SchedulingProblem, params: CpSatParameters = CpSatParam
     done = {row.request_id for row in allocations}
     plan = SchedulingPlan("CPSAT", allocations, tuple(r.id for r in problem.ordered_requests if r.id not in done),
                           result.metrics, problem.fingerprint)
-    return CpSatResult(plan, status, objective, bound, rounds, len(witnesses), edf.metrics.scheduled, fallback)
+    return CpSatResult(plan, status, objective, bound, rounds, len(witnesses), edf.metrics.scheduled, fallback,
+                       params.max_candidate_slots)
 
 
 def plan_cpsat(problem: SchedulingProblem, params: CpSatParameters = CpSatParameters()) -> SchedulingPlan:
