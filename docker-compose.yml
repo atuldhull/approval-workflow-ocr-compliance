@@ -33,6 +33,9 @@ x-backend-env: &backend-env
   CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
   CLAMAV_PORT: ${CLAMAV_PORT:-3310}
   DOCUMENT_TEXT_ENGINE: ${DOCUMENT_TEXT_ENGINE:-local}
+  # the documents module has no built-in page or pixel limits; these are demo values (an A4 scan at 300 dpi is ~9 MP)
+  DOCUMENT_MAX_PDF_PAGES: ${DOCUMENT_MAX_PDF_PAGES:-20}
+  DOCUMENT_MAX_IMAGE_PIXELS: ${DOCUMENT_MAX_IMAGE_PIXELS:-25000000}
 
 services:
   db:
