@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { useSingleFlight } from "./ui.jsx";
+import { stageLabel } from "./RouteJourney.jsx";
 
 export default function NewApplication({ who, institution, onChanged }) {
   const [routes, setRoutes] = useState([]);
@@ -49,8 +50,9 @@ export default function NewApplication({ who, institution, onChanged }) {
   }
 
   return (
-    <form className="card" onSubmit={create}>
-      <h2>New application</h2>
+    <form className="card new-application" onSubmit={create} aria-labelledby="new-app-title">
+      <h2 id="new-app-title">New application</h2>
+      <div className="new-app-fields">
       <label>
         Nature of application
         <select value={category} onChange={edited(setCategory)}>
@@ -65,13 +67,14 @@ export default function NewApplication({ who, institution, onChanged }) {
         Academic year
         <input name="academic_year" autoComplete="off" spellCheck={false} value={year} onChange={edited(setYear)} pattern="[0-9]{4}-[0-9]{2}" required />
       </label>
+      <button disabled={busy}>{busy ? "Creating…" : "Create draft"}</button>
+      </div>
       {route && (
-        <p className="muted">
-          Route: {route.stages.map((s) => (s.when === "as_applicable" ? `(${s.stage})` : s.stage)).join(" → ")}
+        <p className="muted small">
+          Prescribed route: {route.stages.map((s) => (s.when === "as_applicable" ? `${stageLabel(s.stage)} (if applicable)` : stageLabel(s.stage))).join(" → ")}
         </p>
       )}
       {error && <p className="error" role="alert">{error}</p>}
-      <button disabled={busy}>{busy ? "Creating…" : "Create draft"}</button>
     </form>
   );
 }

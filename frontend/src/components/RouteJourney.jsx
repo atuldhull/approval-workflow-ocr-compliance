@@ -1,6 +1,3 @@
-import { useEffect, useRef, useState } from "react";
-import { useReducedMotion, useScrollProgress } from "../motion.js";
-
 // Plain names for the stages of an approval route (APH 2024-27 routes).
 export const STAGE_LABEL = {
   SELF_DISCLOSURE: "Self-disclosure",
@@ -15,64 +12,51 @@ export const STAGE_LABEL = {
 
 export const stageLabel = (s) => STAGE_LABEL[s] ?? s?.replaceAll("_", " ").toLowerCase() ?? "—";
 
-// 3D (CSS): the route as a stair of stage planes in depth. The current stage stands raised toward the
-// viewer, finished stages sink behind, later stages wait ahead. The plane tilts from 46° to 10° as it
-// scrolls into view (a camera descending onto the route) and follows the pointer by a few degrees.
-// The same route is an ordered list underneath, which is what screen readers, phones and reduced
-// motion get.
-export default function RouteJourney({ route, current, status }) {
-  const ref = useRef(null);
-  const progress = useScrollProgress(ref);
-  const reduced = useReducedMotion();
-  const [pointer, setPointer] = useState({ x: 0, y: 0 });
-  const [arrived, setArrived] = useState(false);   // starts high, then the camera settles onto the route
-  useEffect(() => {
-    const t = setTimeout(() => setArrived(true), 80);
-    return () => clearTimeout(t);
-  }, []);
-  if (!route?.length) return null;
-
+// Route position only. A stage before the current one is "before current", never "done": the API does not
+// report per-stage completion, and a conditional stage may have been skipped.
+function positionOf(route, current, status) {
   const at = route.findIndex((s) => s.stage === current);
-  const state = (i) => (status === "DRAFT" || at < 0 ? "ahead" : i < at ? "done" : i === at ? "current" : "ahead");
-  const word = { done: "Before current (completion not supplied)", current: "Here now", ahead: "Ahead" };
-  const tilt = reduced ? 0 : arrived ? 46 - 36 * progress : 58;
+  return (i) => (status === "DRAFT" || at < 0 ? "ahead" : i < at ? "done" : i === at ? "current" : "ahead");
+}
 
-  const onMove = (e) => {
-    if (reduced) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    setPointer({ x: (e.clientX - r.left) / r.width - 0.5, y: (e.clientY - r.top) / r.height - 0.5 });
-  };
+const WORD = { done: "Before current (completion not supplied)", current: "Here now", ahead: "Ahead" };
 
+// The case's prescribed route as a stepper: exactly one step per stage the API returned, the current one marked,
+// conditional stages drawn with a dashed outline. It is an ordered list, so it reads the same to screen readers,
+// and it wraps to a vertical list on narrow screens.
+export default function RouteJourney({ route, current, status }) {
+  if (!route?.length) return null;
+  const state = positionOf(route, current, status);
   return (
-    <div className="journey" ref={ref} onPointerMove={onMove} onPointerLeave={() => setPointer({ x: 0, y: 0 })}>
-      <div className="journey-stage" aria-hidden="true"
-        style={{ "--tilt": `${tilt}deg`, "--py": `${pointer.x * 8}deg`, "--px": `${pointer.y * -4}deg` }}>
-        <div className="journey-plane">
-          <svg className="journey-path" viewBox={`0 0 ${route.length * 100} 40`} preserveAspectRatio="none">
-            <line x1="50" y1="20" x2={route.length * 100 - 50} y2="20" />
-            {at > 0 && <line className="walked" x1="50" y1="20" x2={at * 100 + 50} y2="20" />}
-          </svg>
-          {route.map((s, i) => (
-            <div key={s.stage} className={`stage-plane ${state(i)}`} style={{ "--i": i, "--n": route.length }}>
-              <span className="stage-dot" />
-              <span className="stage-name">{stageLabel(s.stage)}</span>
-              <span className="stage-state">{s.when === "as_applicable" && state(i) === "ahead" ? "If applicable" : word[state(i)]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <ol className="journey-list">
+    <div className="journey">
+      <ol className="journey-list" style={{ "--n": route.length }}>
         {route.map((s, i) => (
-          <li key={s.stage} className={state(i)} aria-current={state(i) === "current" ? "step" : undefined}>
-            <span className="stage-dot" aria-hidden="true" />
+          <li key={s.stage} className={`${state(i)}${s.when === "as_applicable" ? " conditional" : ""}`}
+            aria-current={state(i) === "current" ? "step" : undefined}>
+            <span className="stage-dot" aria-hidden="true">{i + 1}</span>
             <span className="stage-name">{stageLabel(s.stage)}</span>
             <span className="stage-state">
-              {word[state(i)]}
+              {WORD[state(i)]}
               {s.when === "as_applicable" ? " · if applicable" : ""}
             </span>
           </li>
         ))}
       </ol>
     </div>
+  );
+}
+
+// A one-line version for lists: one segment per returned stage, the current one named.
+export function RouteTrack({ route, current, status }) {
+  const state = positionOf(route, current, status);
+  return (
+    <ol className="route-track" aria-label={`Route: ${route.map((s) => stageLabel(s.stage)).join(", ")}${current ? `; now at ${stageLabel(current)}` : ""}`}>
+      {route.map((s, i) => (
+        <li key={s.stage} className={`${state(i)}${s.when === "as_applicable" ? " conditional" : ""}`}>
+          <span className="track-seg" aria-hidden="true" />
+          <span className="track-name">{stageLabel(s.stage)}</span>
+        </li>
+      ))}
+    </ol>
   );
 }

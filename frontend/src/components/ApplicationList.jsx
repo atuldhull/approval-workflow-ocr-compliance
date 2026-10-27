@@ -10,15 +10,18 @@ const FILTERS = [
   ["DRAFT", "Drafts"],
 ];
 
-// The case list as an operations table: a reference to tell cases apart, the stage in words, the date
-// filed. Filters and sort re-order the rows; the counts on the chips are computed from the rows shown.
+// The case list: a reference to tell cases apart, the stage in words, the date filed. Status filters and a text
+// filter narrow the rows; counts on the chips are computed from the rows the server returned.
 export default function ApplicationList({ apps, selected, onSelect }) {
   const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
   const [newestFirst, setNewestFirst] = useState(true);
   const rows = useMemo(() => {
-    const kept = apps.filter((a) => filter === "all" || a.status === filter);
-    return [...kept].sort((a, b) => (newestFirst ? -1 : 1) * a.created_at.localeCompare(b.created_at));
-  }, [apps, filter, newestFirst]);
+    const q = query.trim().toLowerCase();
+    const kept = apps.filter((a) => (filter === "all" || a.status === filter)
+      && (!q || internalRef(a.id).includes(q) || sentence(a.category).toLowerCase().includes(q) || String(a.academic_year).includes(q)));
+    return [...kept].sort((a, b) => (newestFirst ? -1 : 1) * String(a.created_at).localeCompare(String(b.created_at)));
+  }, [apps, filter, query, newestFirst]);
   const count = (f) => (f === "all" ? apps.length : apps.filter((a) => a.status === f).length);
 
   return (
@@ -29,26 +32,35 @@ export default function ApplicationList({ apps, selected, onSelect }) {
           {newestFirst ? "Newest first" : "Oldest first"}
         </button>
       </header>
-      <div className="chips" role="group" aria-label="Filter by status">
-        {FILTERS.map(([key, label]) => (
-          <button key={key} className={`chip${filter === key ? " on" : ""}`} aria-pressed={filter === key} onClick={() => setFilter(key)}>
-            {label} <span className="num">{count(key)}</span>
-          </button>
-        ))}
+      <div className="list-tools">
+        <div className="chips" role="group" aria-label="Filter by status">
+          {FILTERS.map(([key, label]) => (
+            <button key={key} className={`chip${filter === key ? " on" : ""}`} aria-pressed={filter === key} onClick={() => setFilter(key)}>
+              {label} <span className="num">{count(key)}</span>
+            </button>
+          ))}
+        </div>
+        {apps.length > 3 && (
+          <label className="list-search">
+            <span className="sr-only">Find a case by reference, category or year</span>
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find by reference, category or year" autoComplete="off" />
+          </label>
+        )}
       </div>
       {apps.length === 0 && <p className="empty">None yet.</p>}
-      {apps.length > 0 && rows.length === 0 && <p className="muted">No applications with this status.</p>}
-      <ul className="list" key={`${filter}-${newestFirst}`}>
+      {apps.length > 0 && rows.length === 0 && <p className="muted small">No applications match.</p>}
+      <ul className="list case-rows" key={`${filter}-${newestFirst}`}>
         {rows.map((a, i) => (
           <li key={a.id} style={{ "--row": i }}>
             <button className={a.id === selected ? "row active" : "row"} aria-pressed={a.id === selected} onClick={() => onSelect(a.id)}>
+              <span className={`row-status ${a.status === "DRAFT" ? "draft" : "live"}`} aria-hidden="true" />
               <span className="row-main">
                 <span className="row-title">{sentence(a.category)}</span>
-                <span className="row-sub muted">
+                <span className="row-sub">
                   <code title={INTERNAL_REF_TITLE}>{internalRef(a.id)}</code> · {a.academic_year} · filed {dateIST(a.created_at)}
                 </span>
               </span>
-              <span className={`badge ${a.status === "DRAFT" ? "draft" : "in_process"}`}>
+              <span className={`badge ${a.status === "DRAFT" ? "draft" : "info"}`}>
                 {a.current_stage ? stageLabel(a.current_stage) : sentence(a.status)}
               </span>
             </button>
