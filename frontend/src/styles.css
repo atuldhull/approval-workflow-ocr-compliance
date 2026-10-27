@@ -663,10 +663,14 @@ p.four-eyes svg { flex: none; margin-top: 2px; color: var(--warning); }
 .obligation-detail { position: sticky; top: 76px; }
 .motion .obligation-detail { animation: arrive-slide var(--dur-2) var(--ease-out); }
 
+.compliance-layout.has-detail { grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); }
+.table td.nowrap { white-space: nowrap; }
 @media (max-width: 1100px) {
   .obligation-detail { position: static; }
+  .compliance-layout.has-detail { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .alert-row { grid-template-columns: 1fr; }
   .alert-row .actions { justify-content: flex-start; }
 }
+.table .badge { white-space: nowrap; }

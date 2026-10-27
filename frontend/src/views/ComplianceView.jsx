@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
-import { sentence } from "../nav.js";
+import { ROLE_LABELS, sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, deadlineSource, internalRef } from "../provenance.js";
 import {
   LETTER_TYPES, ORIGIN, REASON_CODES, checklistLabel, evidenceStatusOf, letterLabel, obligationStatusOf, reasonLabel,
@@ -37,7 +37,7 @@ export default function ComplianceView({ who, me }) {
         <LetterTable state={letters} />
         {REGISTRARS.has(me.role) && <RegisterLetter who={who} onRegistered={refresh} />}
       </Card>
-      <div className={`grid${openId ? " two" : ""}`}>
+      <div className={`grid compliance-layout${openId ? " has-detail" : ""}`}>
         <Card title="Obligations">
           <div className="chips" role="group" aria-label="Show obligations">
             {FILTERS.map(([key, label]) => (
@@ -103,7 +103,7 @@ function ObligationTable({ state, openId, onOpen }) {
             <tr key={o.id} className={openId === o.id ? "current" : undefined}>
               <td>{sentence(o.kind)}</td>
               <td><code title={INTERNAL_REF_TITLE}>{internalRef(o.application_id)}</code></td>
-              <td>{o.due_date ? dateIST(o.due_date) : "No due date"}</td>
+              <td className="nowrap">{o.due_date ? dateIST(o.due_date) : "No due date"}</td>
               <td><Badge tone={s.tone}>{s.label}</Badge></td>
               <td>
                 <button className="secondary small" aria-expanded={openId === o.id} onClick={() => onOpen(openId === o.id ? null : o.id)}
@@ -162,7 +162,7 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
                   </p>
                   <p className="muted small">
                     Submitted {when(e.submitted_at)}
-                    {e.verified_at && <> · decided {when(e.verified_at)} by a {sentence(e.verified_role).toLowerCase()}</>}
+                    {e.verified_at && <> · decided {when(e.verified_at)} by the {(ROLE_LABELS[e.verified_role] ?? sentence(e.verified_role)).toLowerCase()}</>}
                     {e.reason_code && <> · reason: {reasonLabel(e.reason_code)}</>}
                     {e.has_note && <> · a note is on file</>}
                   </p>
