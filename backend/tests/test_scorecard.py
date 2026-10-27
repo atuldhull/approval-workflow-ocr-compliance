@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from app.deadlines.wiring import clock
 from app.platform.db import get_engine
 from app.platform.demo_seed import seed_directory
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from conftest import SUNRISE, headers
 from document_fakes import CleanScanner, configure_documents, pdf
 
@@ -36,9 +37,11 @@ def items(client) -> dict:
 
 
 def submitted(client) -> str:
+    ensure_intake_rules(client)
     app_id = client.post("/api/applications", headers=INST, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
-    assert client.post(f"/api/applications/{app_id}/submit", headers=INST).status_code == 200
+    provide_fixture_items(app_id)
+    assert client.post(f"/api/applications/{app_id}/submit", headers=INST, json={"dsc_present": True}).status_code == 200
     return app_id
 
 

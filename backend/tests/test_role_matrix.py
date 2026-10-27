@@ -15,6 +15,7 @@ import pytest
 from app.deadlines.wiring import clock
 from app.platform import auth
 from app.platform.demo_seed import seed_directory
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from conftest import NORTHFIELD, SUNRISE, headers
 from document_fakes import CleanScanner, configure_documents, pdf
 
@@ -248,9 +249,11 @@ def case(client, tmp_path):
     scanner = CleanScanner()
     reset = configure_documents(tmp_path, scanner)
     h = ROLES["inst_sunrise"]
+    ensure_intake_rules(client)
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(SUNRISE), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
-    client.post(f"/api/applications/{app_id}/submit", headers=h)
+    provide_fixture_items(app_id)
+    assert client.post(f"/api/applications/{app_id}/submit", headers=h, json={"dsc_present": True}).status_code == 200
     yield World(client, app_id, scanner)
     reset()
 

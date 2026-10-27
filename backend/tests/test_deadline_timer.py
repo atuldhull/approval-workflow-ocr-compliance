@@ -19,6 +19,7 @@ from app.platform.models import DomainEvent, Notification, Outbox
 from app.platform.notifier import Notifier
 from app.platform.providers import TRANSIENT, FakeProvider
 from app.platform.recipients import directory, group_ref
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from conftest import NORTHFIELD, SUNRISE, headers
 from contracts.enums import Role
 from contracts.types import Anchor, Principal, SubjectRef
@@ -40,9 +41,11 @@ def env(client):
 
 
 def submit(client, inst=SUNRISE, h=INST):
+    ensure_intake_rules(client)
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(inst), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
-    assert client.post(f"/api/applications/{app_id}/submit", headers=h).status_code == 200
+    provide_fixture_items(app_id)
+    assert client.post(f"/api/applications/{app_id}/submit", headers=h, json={"dsc_present": True}).status_code == 200
     return UUID(app_id)
 
 
@@ -491,6 +494,7 @@ def test_an_obligation_alert_names_the_application_it_belongs_to(env):
     from app.compliance.demo_seed import seed_letters
     from app.compliance.models import Obligation
 
+    ensure_intake_rules(env)
     seed_letters()  # one of the demo letters is already overdue
     worker().run_once()
     with new_session() as s:

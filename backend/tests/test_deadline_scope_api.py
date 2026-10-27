@@ -8,6 +8,7 @@ from app.deadlines.models import Deadline
 from app.platform import policy
 from app.platform.db import new_session
 from app.platform.demo_seed import seed_directory
+from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
 from conftest import NORTHFIELD, SUNRISE, headers
 from contracts.enums import Role
 from contracts.types import Principal, ResourceRef
@@ -26,9 +27,11 @@ def env(client):
 
 
 def submit(client, inst=SUNRISE, h=INST):
+    ensure_intake_rules(client)
     app_id = client.post("/api/applications", headers=h, json={
         "institution_id": str(inst), "category": "NEW_PROGRAMME", "academic_year": "2027-28"}).json()["id"]
-    assert client.post(f"/api/applications/{app_id}/submit", headers=h).status_code == 200
+    provide_fixture_items(app_id)
+    assert client.post(f"/api/applications/{app_id}/submit", headers=h, json={"dsc_present": True}).status_code == 200
     return UUID(app_id)
 
 
