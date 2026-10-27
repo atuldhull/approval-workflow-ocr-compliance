@@ -62,6 +62,18 @@ describe("documents: role-based screens", () => {
     expect(screen.getByRole("button", { name: /Run the malware scan again for version 3/ })).toBeInTheDocument();
   });
 
+  it("opens on the case it was reached from (#documents?case=...)", async () => {
+    const OTHER_APP = "aaaaaaaa-0000-4000-8000-000000000002";
+    const calls = fakeServer({
+      "GET /api/applications": [{ ...APPS[0], id: OTHER_APP, academic_year: "2026-27" }, ...APPS],
+      [`GET /api/applications/${APP}/documents`]: DOCS, [`GET /api/applications/${OTHER_APP}/documents`]: [],
+    });
+    render(<DocumentsView who={SUNRISE} me={ME(SUNRISE)} focusCase={APP} />);
+    expect(await screen.findByText("Scanned clean")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Application" })).toHaveValue(APP);
+    expect(calls.some((c) => c.url.includes(`${OTHER_APP}/documents`))).toBe(false);
+  });
+
   it("gives officers the documents in their scope without an upload form", async () => {
     const calls = fakeServer({ "GET /api/documents": DOCS });
     render(<DocumentsView who={RO} me={ME(RO)} />);

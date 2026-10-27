@@ -176,7 +176,7 @@ export function Workspace({ who, me, config, identityControl }) {
           </header>
           {View && (
             <View key={`${shown}-${me.user_id}`} who={who} me={me} onNavigate={navigate}
-              focusCase={shown === "applications" ? focusCase : undefined}
+              focusCase={shown === "applications" || shown === "documents" ? focusCase : undefined}
               focusObligation={shown === "compliance" ? focusObligation : undefined} />
           )}
         </main>

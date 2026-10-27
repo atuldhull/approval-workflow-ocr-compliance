@@ -28,8 +28,8 @@ export function ScanBadge({ version }) {
   return <Badge tone={s.tone}>{s.label}</Badge>;
 }
 
-export default function DocumentsView({ who, me }) {
-  return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} /> : <ScopeDocuments who={who} canScan={RESCANNERS.has(me.role)} />;
+export default function DocumentsView({ who, me, focusCase }) {
+  return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} focusCase={focusCase} /> : <ScopeDocuments who={who} canScan={RESCANNERS.has(me.role)} />;
 }
 
 // The version shown on the reading surface: the one chosen, else the first version that passed the scan.
@@ -41,11 +41,13 @@ function previewVersion(docs, id) {
 
 // ---- institution: its own applications, upload, versions and confirmed facts ----
 
-function InstitutionDocuments({ who }) {
+// Opened from a case's checklist (#documents?case=...), the list starts on that case.
+function InstitutionDocuments({ who, focusCase }) {
   const apps = useApi(who, "/applications");
   const [appId, setAppId] = useState(null);
   const [previewId, setPreviewId] = useState(null);
-  const chosen = appId ?? apps.data?.[0]?.id ?? null;
+  const focused = apps.data?.some((a) => a.id === focusCase) ? focusCase : null;
+  const chosen = appId ?? focused ?? apps.data?.[0]?.id ?? null;
   const docs = useApi(who, chosen ? `/applications/${chosen}/documents` : null);
   const polls = useRef(0);
   const pending = (docs.data ?? []).some((d) => d.versions.some(isQuarantined));

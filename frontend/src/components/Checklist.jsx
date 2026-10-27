@@ -179,7 +179,7 @@ export default function Checklist({ who, me, appId, draft, onChanged, onNavigate
           {options.every((o) => !o.available) && (
             <p className="muted small">
               No scanned-clean document yet. Upload the documents under{" "}
-              {onNavigate ? <button type="button" className="link-button" onClick={() => onNavigate("documents")}>My documents</button> : "My documents"},
+              {onNavigate ? <button type="button" className="link-button" onClick={() => onNavigate("documents", { caseId: appId })}>My documents</button> : "My documents"},
               then link them here.
             </p>
           )}
