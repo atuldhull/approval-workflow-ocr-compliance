@@ -1,5 +1,5 @@
-import World, { DeadlineTimeline } from '../nebula/World.jsx';
-import { applicationRecords } from '../nebula/semanticData.js';
+import World, { DeadlineTimeline } from '../operations/World.jsx';
+import { applicationRecords } from '../operations/semanticData.js';
 import { INTERNAL_REF_TITLE, internalRef } from "../provenance.js";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
@@ -43,7 +43,6 @@ export default function OverviewView({ who, onNavigate }) {
 
   return (
     <div className="overview">
-      <World kind="overview" records={applicationRecords(apps)} onSelect={id=>onNavigate?.("applications",{caseId:id})} />
       <section className="figure-strip" data-reveal aria-label="Your applications in figures">
         <div><span className="stat-label">Applications</span><span className="stat-value num">{apps.length}</span></div>
         <div><span className="stat-label">In process</span><span className="stat-value num">{inProcess.length}</span></div>
@@ -54,6 +53,7 @@ export default function OverviewView({ who, onNavigate }) {
           {next && <span className="stat-hint">{sentence(next.rule_id)}</span>}
         </div>
       </section>
+      <World kind="overview" records={applicationRecords(apps)} onSelect={id=>onNavigate?.("applications",{caseId:id})} />
 
       <Card title="Where your applications are">
         {stages.length === 0 ? (

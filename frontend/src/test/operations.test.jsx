@@ -2,7 +2,7 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Workspace } from '../App.jsx';
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { DEMO_USERS } from '../api.js';
 import { fakeServer } from './fakeServer.js';
 import ApplicationsView from '../views/ApplicationsView.jsx';
@@ -21,7 +21,7 @@ it('remembers the standard-view preference and provides readable empty state',as
   const user=userEvent.setup();render(<World kind="audit" records={[]}/>);
   expect(screen.getByText('No records to explore')).toBeVisible();
   await user.click(screen.getByRole('button',{name:'Standard view'}));
-  expect(localStorage.getItem('nebula.flat')).toBe('true');expect(screen.getByRole('button',{name:'Spatial view'})).toBeVisible();
+  expect(localStorage.getItem('operations.flat')).toBe('true');expect(screen.getByRole('button',{name:'Spatial view'})).toBeVisible();
 });
 
 it('opens an allowed deep link and restores browser navigation without losing the shell',async()=>{

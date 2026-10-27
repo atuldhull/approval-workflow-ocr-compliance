@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { useState } from "react";
 import { api } from "../api.js";
 import { Badge, Card, Empty, ErrorBox, Loading, StatTile, useApi, useSingleFlight, when } from "../components/ui.jsx";
@@ -113,7 +113,7 @@ export default function DeliveryView({ who, me }) {
         {outbox.loading && !outbox.data && <Loading />}
         {outbox.data?.length === 0 && <Empty>{status ? `No ${status.toLowerCase()} messages.` : "No messages yet."}</Empty>}
         {outbox.data?.length > 0 && (
-          <table className="table">
+          <table className="table" tabIndex={0}>
             <thead>
               <tr>
                 <th scope="col">Queued</th>

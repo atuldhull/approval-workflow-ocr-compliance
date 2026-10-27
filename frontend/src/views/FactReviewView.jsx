@@ -1,4 +1,4 @@
-import World from "../nebula/World.jsx";
+import World from "../operations/World.jsx";
 import { useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";

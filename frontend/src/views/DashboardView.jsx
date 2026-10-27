@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { useEffect } from "react";
 import { Icon } from "../components/Icons.jsx";
 import { Badge, BarList, Card, ErrorBox, Loading, NotAvailable, StatTile, useApi, when } from "../components/ui.jsx";

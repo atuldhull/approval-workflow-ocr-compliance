@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DEMO_USERS, api } from "../api.js";
-import { DeadlineTimeline } from "../nebula/World.jsx";
+import { DeadlineTimeline } from "../operations/World.jsx";
 
 const who = DEMO_USERS[0];
 

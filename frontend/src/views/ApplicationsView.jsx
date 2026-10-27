@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import World from '../nebula/World.jsx';
-import { applicationRecords } from '../nebula/semanticData.js';
+import World from '../operations/World.jsx';
+import { applicationRecords } from '../operations/semanticData.js';
 import { sentence } from '../nav.js';
 import { prefersReducedMotion } from "../motion.js";
 import ApplicationList from "../components/ApplicationList.jsx";

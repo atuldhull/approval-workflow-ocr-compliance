@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { Badge, Card, PreviewBanner } from "../components/ui.jsx";
 import { EVC_SAMPLE } from "../fixtures/previews.js";
 

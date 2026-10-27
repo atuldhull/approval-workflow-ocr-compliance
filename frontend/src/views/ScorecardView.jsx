@@ -1,4 +1,4 @@
-import World from '../nebula/World.jsx';
+import World from '../operations/World.jsx';
 import { Badge, Card, ErrorBox, Loading, useApi, when } from "../components/ui.jsx";
 
 // How each line was measured (the method badge, always neutral) is kept apart from what was found (the verdict

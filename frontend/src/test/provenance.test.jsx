@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import CaseDetail from "../components/CaseDetail.jsx";
 import { DEMO_USERS } from "../api.js";
-import { auditRecords } from "../nebula/semanticData.js";
+import { auditRecords } from "../operations/semanticData.js";
 import { deadlineSource, internalRef } from "../provenance.js";
 import { fakeServer } from "./fakeServer.js";
 

@@ -96,7 +96,7 @@ export function Workspace({ who, me, config, identityControl }) {
 
   useEffect(() => {
     const rememberScroll = () => {
-      if (!restoringScroll.current) history.replaceState({ ...history.state, nebulaScroll: window.scrollY }, '');
+      if (!restoringScroll.current) history.replaceState({ ...history.state, operationsScroll: window.scrollY }, '');
     };
     window.addEventListener('scroll', rememberScroll, { passive: true });
     return () => { window.removeEventListener('scroll', rememberScroll); cancelAnimationFrame(scrollFrame.current); };
@@ -113,7 +113,7 @@ export function Workspace({ who, me, config, identityControl }) {
       setFocusCase(params.get('case'));
       setFocusObligation(params.get('obligation'));
       requestAnimationFrame(() => contentRef.current?.focus({ preventScroll: true }));
-      const top = event.state?.nebulaScroll || 0;
+      const top = event.state?.operationsScroll || 0;
       const started = performance.now();
       restoringScroll.current = true;
       const restorePosition = () => {
@@ -133,8 +133,8 @@ export function Workspace({ who, me, config, identityControl }) {
     setFocusObligation(opts.obligationId || null);
     const query = opts.caseId ? '?case=' + encodeURIComponent(opts.caseId)
       : opts.obligationId ? '?obligation=' + encodeURIComponent(opts.obligationId) : '';
-    history.replaceState({ ...history.state, nebulaScroll: window.scrollY }, '');
-    history.pushState({ nebulaScroll: 0 }, '', `#${key}${query}`);
+    history.replaceState({ ...history.state, operationsScroll: window.scrollY }, '');
+    history.pushState({ operationsScroll: 0 }, '', `#${key}${query}`);
     setView(key);
     clearTimeout(timer.current);
     if (key === shown) { setPhase('in'); return; }
@@ -171,7 +171,7 @@ export function Workspace({ who, me, config, identityControl }) {
         <TopBar me={me} who={who} config={config} identityControl={identityControl} title={navTitle} view={view} />
         <main className={`content world-${world.motion} phase-${phase}`} id="content" tabIndex={-1} ref={contentRef}>
           <header className="page-head" key={`head-${shown}`}>
-            <h1>{title}</h1>
+            <p className="page-eyebrow">AICTE / APPROVAL OPERATIONS</p><h1>{title}</h1>
             {SUBTITLES[shown] && <p className="page-sub">{SUBTITLES[shown]}</p>}
           </header>
           {View && (
@@ -244,8 +244,8 @@ export function SignIn({ config, message }) {
   return (
     <div className="sign-in">
       <div className="card">
-        <h1>Approval Workflow</h1>
-        <p className="muted">Compliance monitoring and alerts</p>
+        <h1>AICTE Approval Operations</h1>
+        <p className="muted">Approval workflow, document review and compliance</p>
         {message && <div className="alert error" role="alert">{message}</div>}
         <button onClick={() => signIn(config)}>Sign in</button>
         <p className="muted small">You will be sent to the identity provider and returned here.</p>

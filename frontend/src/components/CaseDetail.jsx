@@ -1,5 +1,5 @@
-import World, { DeadlineTimeline } from '../nebula/World.jsx';
-import { routeRecords } from '../nebula/semanticData.js';
+import World, { DeadlineTimeline } from '../operations/World.jsx';
+import { routeRecords } from '../operations/semanticData.js';
 import { Fragment, useEffect, useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { humanise, sentence } from "../nav.js";
