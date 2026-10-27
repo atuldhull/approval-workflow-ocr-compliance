@@ -2,22 +2,26 @@ import World from "../nebula/World.jsx";
 import { useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
+import ViewDocument from "../components/ViewDocument.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import { internalRef } from "../provenance.js";
-import { checklistLabel, explain, factStatusOf, fieldLabel } from "../recordText.js";
+import { actorText, checklistLabel, explain, factStatusOf, fieldLabel, isAvailable } from "../recordText.js";
 
 // Type before reveal, then four eyes (backend/app/documents/README.md):
 //   1. the reviewer types their own reading; the server records it before returning the machine suggestion,
 //   2. only then is the suggestion shown, and the reviewer accepts, corrects or rejects it,
 //   3. a different officer confirms the reviewed value. The server refuses a confirmation by the reviewer.
 // The machine value never reaches the screen for a reviewer before step 1: the server withholds it, and this
-// screen renders it only from the server's answer.
+// screen renders it only from the server's answer. The server says who acted only as {role, is_you}, and returns
+// the caller's own blind entry (my_entry), so a reload mid-review picks up where the reviewer was.
 
 const REVIEWERS = new Set(["SCRUTINY_COMMITTEE", "RO_OFFICER"]);
 const CONFIRMERS = new Set(["SCRUTINY_COMMITTEE", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]);
 
 export const FOUR_EYES_MESSAGE =
   "You reviewed this value, so you cannot also confirm it. A different officer must confirm it (four-eyes rule).";
+export const FOUR_EYES_AHEAD =
+  "After you record your review, a different officer must confirm it. You cannot confirm your own review (four-eyes rule).";
 const EXTRACT_ERRORS = { 503: "No text reader is configured on the server yet, so facts cannot be extracted from this document." };
 const CONFIRM_CODES = { FourEyesViolation: FOUR_EYES_MESSAGE };
 const DECISION_TEXT = { ACCEPTED: "Machine reading accepted", CORRECTED: "Corrected by the reviewer", REJECTED: "Rejected" };
@@ -26,7 +30,7 @@ function cleanVersions(docs) {
   const out = [];
   for (const d of docs ?? []) {
     for (const v of d.versions) {
-      if (v.scan_status !== "clean") continue;
+      if (!isAvailable(v)) continue;
       out.push({ id: v.version_id, label: `${checklistLabel(d.doc_type)} · v${v.version_no} · case ${internalRef(d.application_id)}`,
         filename: v.original_filename });
     }
@@ -39,6 +43,7 @@ export default function FactReviewView({ who, me }) {
   const [picked, setPicked] = useState(null);
   const versions = cleanVersions(docs.data);
   const versionId = picked ?? versions[0]?.id ?? null;
+  const current = versions.find((v) => v.id === versionId);
   const facts = useApi(who, versionId ? `/document-versions/${versionId}/facts` : null);
   const canReview = REVIEWERS.has(me.role);
   const canConfirm = CONFIRMERS.has(me.role);
@@ -66,22 +71,25 @@ export default function FactReviewView({ who, me }) {
                 {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
               </select>
             </label>
+            <div className="actions">
+              {current && <ViewDocument who={who} versionId={current.id} filename={current.filename} />}
+            </div>
             <p className="muted small">
-              Read each value from the original document. The page image is not served by this system yet, and the
-              machine reading stays hidden until you commit your own.
+              Read each value from the original document: open it in its own tab. The machine reading stays hidden
+              until you commit your own.
             </p>
           </>
         )}
       </Card>
       {versionId && (
-        <FactList key={versionId} who={who} me={me} versionId={versionId} state={facts}
+        <FactList key={versionId} who={who} versionId={versionId} state={facts}
           canReview={canReview} canConfirm={canConfirm} />
       )}
     </div>
   );
 }
 
-function FactList({ who, me, versionId, state, canReview, canConfirm }) {
+function FactList({ who, versionId, state, canReview, canConfirm }) {
   const [extractError, setExtractError] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const once = useSingleFlight();
@@ -103,6 +111,9 @@ function FactList({ who, me, versionId, state, canReview, canConfirm }) {
   if (state.error) return <ErrorBox error={state.error} onRetry={state.reload} />;
   if (!state.data) return null;
   const readOnly = !canReview && !canConfirm;
+  if (state.data.version_status && state.data.version_status !== "AVAILABLE") {
+    return <Card title="Facts from this version"><Empty>This version is no longer available, so its facts cannot be reviewed.</Empty></Card>;
+  }
 
   return (
     <Card title="Facts from this version">
@@ -120,25 +131,31 @@ function FactList({ who, me, versionId, state, canReview, canConfirm }) {
         </>
       )}
       {state.data.facts.map((f) => (
-        <FactCard key={f.fact_id} fact={f} who={who} me={me} canReview={canReview} canConfirm={canConfirm} onChanged={state.reload} />
+        <FactCard key={f.fact_id} fact={f} who={who} canReview={canReview} canConfirm={canConfirm} onChanged={state.reload} />
       ))}
     </Card>
   );
 }
 
 const shownValue = (s) => s?.normalized_value ?? s?.candidate_text ?? null;
+const sentenceCase = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 
-export function FactCard({ fact, who, me, canReview, canConfirm, onChanged }) {
+export function FactCard({ fact, who, canReview, canConfirm, onChanged }) {
   const [reading, setReading] = useState("");
-  const [committed, setCommitted] = useState(null); // what this reviewer typed, kept for this page view
+  const [typed, setTyped] = useState(null); // what this reviewer typed in this page view
   const [suggestion, setSuggestion] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
   const once = useSingleFlight();
   const legend = fieldLabel(fact.field_key);
   const status = factStatusOf(fact.status);
+  // The reviewer's own entry: from this page view, or as the server recorded it (after a reload).
+  const mine = fact.my_entry ?? null;
+  const committed = typed ?? mine?.value ?? null;
   // The server says whether this caller may see the machine reading; for reviewers, only after their own entry.
   const visible = suggestion ?? (fact.suggestion_visible ? fact : null);
+  // An in-review fact names who entered its reading; only that reviewer may reveal and review it.
+  const enteredByMe = mine != null || fact.entered_by?.is_you === true;
 
   const run = (name, fn) => once(async () => {
     setBusy(name);
@@ -158,7 +175,7 @@ export function FactCard({ fact, who, me, canReview, canConfirm, onChanged }) {
     if (!value) return undefined;
     return run("entry", async () => {
       const s = await api(who, `/document-facts/${fact.fact_id}/entry`, { method: "POST", body: { value } });
-      setCommitted(value);
+      setTyped(value);
       setSuggestion(s);
       onChanged?.();
     });
@@ -190,15 +207,23 @@ export function FactCard({ fact, who, me, canReview, canConfirm, onChanged }) {
         </form>
       )}
 
-      {canReview && fact.status === "in_review" && !visible && (
+      {canReview && fact.status === "in_review" && !visible && enteredByMe && (
         <div>
           <p className="small">
-            A reviewer's reading is recorded. Only that reviewer can see the machine reading and complete the review.
+            Your reading{committed != null && <> <strong>{committed}</strong></>} is recorded
+            {mine?.entered_at && <> ({when(mine.entered_at)})</>}. Open the machine reading to complete your review.
           </p>
           <button className="secondary small" onClick={reveal} disabled={busy !== null}>
-            {busy === "reveal" ? "Opening…" : "I entered it: show the machine reading again"}
+            {busy === "reveal" ? "Opening…" : "Show the machine reading"}
           </button>
         </div>
+      )}
+
+      {canReview && fact.status === "in_review" && !visible && !enteredByMe && (
+        <p className="small" role="note">
+          {fact.entered_by ? `${sentenceCase(actorText(fact.entered_by))} entered a reading` : "A reviewer's reading is recorded"}.
+          Only that reviewer can see the machine reading and complete the review.
+        </p>
       )}
 
       {visible && (fact.status === "proposed" || fact.status === "in_review") && (
@@ -213,12 +238,14 @@ export function FactCard({ fact, who, me, canReview, canConfirm, onChanged }) {
         <dl className="facts">
           <dt>Decision</dt><dd>{DECISION_TEXT[fact.review_decision] ?? status.label}</dd>
           {fact.status !== "rejected" && <><dt>Reviewed value</dt><dd><strong>{fact.reviewed_value ?? "—"}</strong></dd></>}
-          <dt>Reviewed</dt><dd>{when(fact.reviewed_at)}{fact.reviewed_by === me.user_id ? " · by you" : ""}</dd>
-          {fact.status === "confirmed" && <><dt>Confirmed</dt><dd>{when(fact.confirmed_at)}{fact.confirmed_by === me.user_id ? " · by you" : ""}</dd></>}
+          <dt>Reviewed</dt><dd>{when(fact.reviewed_at)}{fact.reviewed_by && ` · by ${actorText(fact.reviewed_by)}`}</dd>
+          {fact.status === "confirmed" && (
+            <><dt>Confirmed</dt><dd>{when(fact.confirmed_at)}{fact.confirmed_by && ` · by ${actorText(fact.confirmed_by)}`}</dd></>
+          )}
         </dl>
       )}
 
-      {canConfirm && fact.status === "reviewed" && <ConfirmFact fact={fact} who={who} me={me} onChanged={onChanged} />}
+      {canConfirm && fact.status === "reviewed" && <ConfirmFact fact={fact} who={who} onChanged={onChanged} />}
       <ErrorBox error={error} />
     </fieldset>
   );
@@ -313,18 +340,19 @@ function ReviewDecision({ fact, who, suggestion, committed, onChanged }) {
         Note (optional, kept in the note store)
         <textarea value={note} onChange={edited(setNote)} rows={2} maxLength={4000} />
       </label>
+      <p className="muted small four-eyes-ahead" role="note"><Icon name="lock" /> {FOUR_EYES_AHEAD}</p>
       <ErrorBox error={error} />
       <button disabled={!valid || busy}>{busy ? "Saving…" : "Record my review"}</button>
     </form>
   );
 }
 
-function ConfirmFact({ fact, who, me, onChanged }) {
+function ConfirmFact({ fact, who, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const pendingKey = useRef(null);
   const once = useSingleFlight();
-  const ownReview = fact.reviewed_by != null && fact.reviewed_by === me.user_id;
+  const ownReview = fact.reviewed_by?.is_you === true;
 
   const confirm = () => once(async () => {
     setBusy(true);

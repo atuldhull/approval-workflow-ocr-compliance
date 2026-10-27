@@ -45,12 +45,16 @@ verification cards) follow below, unchanged in behaviour.
    is never combined into a stronger claim.
 5. Fact review keeps type-before-reveal: a reviewer's machine reading is rendered only from the server's
    answer to their own entry, and a second officer confirms (the reviewer is told up front they cannot).
+   Who acted is shown only as "you" or "another officer" with their role (`is_you`), never a user id, and the
+   reviewer's own entry (`my_entry`) is restored after a reload.
 6. EVC scheduling is labelled **PREVIEW · SAMPLE** until its API exists. Documents, fact review,
    compliance and alerts run on the real APIs.
 7. Missing data produces an explicit empty or unavailable state, never filler.
 8. All data in this project is synthetic; the top bar always says so.
-9. Scan states, fact states, obligation and alert states are shown in words (`src/recordText.js`), never
-   as raw codes. A 503 is explained per service (scanner, storage, text reader), not as a security outage.
+9. Scan states, fact states, obligation and alert states, and deadline rules are shown in words
+   (`src/recordText.js`), never as raw codes. What a version may be used for follows its `status`
+   (only `AVAILABLE` versions are viewed, reviewed or offered as evidence). A 503 is explained per service
+   (scanner, storage, text reader), not as a security outage.
 10. Every write that the server makes idempotent sends an Idempotency-Key, created once per user action
     and reused when that same action is retried after a lost answer or a server error.
 
