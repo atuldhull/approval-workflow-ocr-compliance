@@ -9,7 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.platform.auth import current_principal
-from app.platform.db import new_session, unit_of_work
+from app.platform.db import new_session
+from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from app.workflow.case_service import projection, scope
 from app.workflow.case_api_models import CaseErrorOut, CaseInputErrorOut
@@ -261,28 +262,48 @@ def reports(session: Session, committee_id: UUID, principal: Principal) -> list[
     return [_report_out(version, by_id.get(version.parent_version)) for version in rows]
 
 
-@router.post("/cases/{application_id}/committees", response_model=CommitteeOut, status_code=201, responses=ERROR_RESPONSES)
-def create_committee(application_id: UUID, body: CommitteeIn, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return form(uow, application_id, body)
+IDEMPOTENT = "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422."
 
 
-@router.post("/committees/{committee_id}/tasks", response_model=TaskOut, status_code=201, responses=ERROR_RESPONSES)
-def create_task(committee_id: UUID, body: TaskIn, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return assign(uow, committee_id, body)
+def _json(model: BaseModel):
+    return model.model_dump(mode="json")
 
 
-@router.post("/tasks/{task_id}/observations", response_model=ObservationOut, status_code=201, responses=ERROR_RESPONSES)
-def create_observation(task_id: UUID, body: ObservationIn, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return observe(uow, task_id, body)
+@router.post("/cases/{application_id}/committees", response_model=CommitteeOut, status_code=201, responses=ERROR_RESPONSES,
+             description=IDEMPOTENT)
+def create_committee(application_id: UUID, body: CommitteeIn, principal: Principal = Depends(current_principal),
+                     key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/cases/{application_id}/committees",
+        {"application_id": str(application_id)}, body.model_dump(mode="json"),
+        lambda uow: form(uow, application_id, body), _json, status_code=201)
 
 
-@router.post("/committees/{committee_id}/reports", response_model=ReportOut, status_code=201, responses=ERROR_RESPONSES)
-def create_report(committee_id: UUID, body: ReportIn, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return append_report(uow, committee_id, body)
+@router.post("/committees/{committee_id}/tasks", response_model=TaskOut, status_code=201, responses=ERROR_RESPONSES,
+             description=IDEMPOTENT)
+def create_task(committee_id: UUID, body: TaskIn, principal: Principal = Depends(current_principal),
+                key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/committees/{committee_id}/tasks",
+        {"committee_id": str(committee_id)}, body.model_dump(mode="json"),
+        lambda uow: assign(uow, committee_id, body), _json, status_code=201)
+
+
+@router.post("/tasks/{task_id}/observations", response_model=ObservationOut, status_code=201, responses=ERROR_RESPONSES,
+             description=IDEMPOTENT)
+def create_observation(task_id: UUID, body: ObservationIn, principal: Principal = Depends(current_principal),
+                       key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/tasks/{task_id}/observations",
+        {"task_id": str(task_id)}, body.model_dump(mode="json"),
+        lambda uow: observe(uow, task_id, body), _json, status_code=201)
+
+
+@router.post("/committees/{committee_id}/reports", response_model=ReportOut, status_code=201, responses=ERROR_RESPONSES,
+             description=IDEMPOTENT)
+def create_report(committee_id: UUID, body: ReportIn, principal: Principal = Depends(current_principal),
+                  key: str | None = Depends(idempotency_key)):
+    # exclude_unset keeps "parent_version omitted" (append to head) distinct from an explicit null parent.
+    return idempotent_response(principal, key, "POST", "/committees/{committee_id}/reports",
+        {"committee_id": str(committee_id)}, body.model_dump(mode="json", exclude_unset=True),
+        lambda uow: append_report(uow, committee_id, body), _json, status_code=201)
 
 
 @router.get("/committees/{committee_id}", response_model=CommitteeOut, responses=ERROR_RESPONSES)

@@ -10,7 +10,8 @@ from sqlalchemy import select
 from app.evc.models import AssignmentExpert, Availability, Expert
 from app.evc.pool import authorize, policy, record_coi, register_expert, set_availability
 from app.platform.auth import current_principal
-from app.platform.db import new_session, unit_of_work
+from app.platform.db import new_session
+from app.platform.idempotency import idempotency_key, idempotent_response
 from contracts.enums import Role
 from contracts.errors import ValidationFailed
 from contracts.types import Principal
@@ -129,26 +130,32 @@ class ExpertPage(BaseModel):
     assumption_code: Literal["EXPERT_POLICY_UNCONFIRMED"] = "EXPERT_POLICY_UNCONFIRMED"
 
 
+IDEMPOTENT = " Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422."
+
+
 @router.post("/evc/experts", response_model=ExpertOut, status_code=201,
              description="Register an opaque P3 user_ref. User-master existence/role validation is pending P3's lookup port. "
-             "Optional personal details are stored exclusively through PersonalDataPort. Duplicate user_ref returns 409.")
-def create_expert(body: ExpertCreate, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return expert_result(register_expert(uow, body))
+             "Optional personal details are stored exclusively through PersonalDataPort. Duplicate user_ref returns 409." + IDEMPOTENT)
+def create_expert(body: ExpertCreate, principal: Principal = Depends(current_principal),
+                  key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/evc/experts", {}, body.model_dump(mode="json"),
+        lambda uow: expert_result(register_expert(uow, body)), lambda out: out.model_dump(mode="json"), status_code=201)
 
 
 @router.post("/evc/experts/{id}/availability", response_model=AvailabilityResult,
-             description="Set up to 732 unique date/AM-PM entries atomically. Identical repeats are no-ops without new events.")
-def availability(id: UUID, body: AvailabilitySet, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return set_availability(uow, id, body)
+             description="Set up to 732 unique date/AM-PM entries atomically. Identical repeats are no-ops without new events." + IDEMPOTENT)
+def availability(id: UUID, body: AvailabilitySet, principal: Principal = Depends(current_principal),
+                 key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/evc/experts/{id}/availability", {"id": str(id)},
+        body.model_dump(mode="json"), lambda uow: set_availability(uow, id, body),
+        lambda out: AvailabilityResult.model_validate(out).model_dump(mode="json"))
 
 
 @router.post("/evc/coi", response_model=CoiResult,
-             description="Manager records a controlled COI, including recusal on behalf of the expert. Identical repeats are no-ops.")
-def coi(body: CoiCreate, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return record_coi(uow, body)
+             description="Manager records a controlled COI, including recusal on behalf of the expert. Identical repeats are no-ops." + IDEMPOTENT)
+def coi(body: CoiCreate, principal: Principal = Depends(current_principal), key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/evc/coi", {}, body.model_dump(mode="json"),
+        lambda uow: record_coi(uow, body), lambda out: CoiResult.model_validate(out).model_dump(mode="json"))
 
 
 @router.get("/evc/experts", response_model=ExpertPage,

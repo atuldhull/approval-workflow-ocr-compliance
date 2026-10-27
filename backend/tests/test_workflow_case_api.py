@@ -172,10 +172,17 @@ def test_collection_scopes_filters_and_pages_before_counting(api):
 
 def test_http_errors_replay_and_payload_actor_are_safe(api):
     case_id = create(api)
-    assert act(api, case_id, "submit", 1).status_code == 200
+    first = act(api, case_id, "submit", 1)
+    assert first.status_code == 200 and "Idempotent-Replayed" not in first.headers
     before = api.get(f"/api/cases/{case_id}/timeline", headers=headers("INSTITUTION", SUNRISE)).json()
+    # Same key and body: the stored response, not a second submission.
     replay = act(api, case_id, "submit", 1)
-    assert replay.status_code == 409 and replay.json()["detail"] == "VERSION_CONFLICT"
+    assert replay.status_code == 200 and replay.headers["Idempotent-Replayed"] == "true"
+    assert replay.json() == first.json()
+    # Without the key, the consumed expected_version still conflicts.
+    retry = api.post(f"/api/cases/{case_id}/actions", headers=headers("INSTITUTION", SUNRISE),
+                     json={"action": "submit", "expected_version": 1, "payload": {"dsc_present": True}})
+    assert retry.status_code == 409 and retry.json()["detail"] == "VERSION_CONFLICT"
     invalid = act(api, case_id, "not_an_action", 2)
     assert invalid.status_code in {403, 422}  # unknown policy fails closed before transition evaluation
     bad = api.post(f"/api/cases/{case_id}/actions", headers=headers("INSTITUTION", SUNRISE), json={
@@ -205,7 +212,13 @@ def test_unknown_guard_facts_reject_without_leaving_partial_adoption(api, monkey
     assert act(api, case_id, "submit", 1).status_code == 200
     before = api.get(f"/api/cases/{case_id}/timeline", headers=headers("INSTITUTION", SUNRISE)).json()
     monkeypatch.setattr(guards, "_fact_loader", None)
+    # The trusted server loader finds no committee membership for this actor.
     response = act(api, case_id, "scrutinise", 2, "SCRUTINY_COMMITTEE")
+    assert response.status_code == 422 and response.json()["detail"] == "ASSIGNMENT_REQUIRED"
+    # Without any loader at all, guards fail closed.
+    monkeypatch.setattr(guards, "_default_fact_loader", None)
+    response = api.post(f"/api/cases/{case_id}/actions", headers=headers("SCRUTINY_COMMITTEE"),
+                        json={"action": "scrutinise", "expected_version": 2})
     assert response.status_code == 422 and response.json()["detail"] == "GUARD_CONTEXT_UNAVAILABLE"
     assert api.get(f"/api/cases/{case_id}/timeline", headers=headers("INSTITUTION", SUNRISE)).json() == before
 
@@ -215,7 +228,7 @@ def test_openapi_header_and_api_shapes(api):
     operation = document["paths"]["/api/cases/{application_id}/actions"]["post"]
     header = next(p for p in operation["parameters"] if p["name"] == "Idempotency-Key")
     assert header["in"] == "header" and not header["required"]
-    assert "not enforced" in header["description"]
+    assert "Idempotent-Replayed" in operation["description"]
     assert {"403", "404", "409", "422"} <= operation["responses"].keys()
     assert document == json.loads((ROOT / "contracts/openapi.json").read_text(encoding="utf-8"))
 

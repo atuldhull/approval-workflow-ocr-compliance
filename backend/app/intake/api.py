@@ -10,7 +10,8 @@ from app.intake.models import Application, Institution
 from app.intake.rules import SubmissionBlocked, plan
 from app.intake.shapes import ItemIn, ItemsIn, ItemsOut, SubmissionIn, SubmissionErrorOut, SubmissionInputErrorOut
 from app.platform.auth import current_principal
-from app.platform.db import new_session, unit_of_work
+from app.platform.db import new_session
+from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from contracts.enums import Role
 from contracts.errors import NotFound
@@ -86,37 +87,52 @@ def list_institutions(principal: Principal = Depends(current_principal)):
         return [InstitutionOut(id=i.id, name=i.name, ro_region=i.ro_region, is_demo=i.is_demo) for i in rows]
 
 
+IDEMPOTENT = "Optional Idempotency-Key: same key and body replays (Idempotent-Replayed: true), a different body is 422."
+
+
+def _json(model: BaseModel):
+    return model.model_dump(mode="json")
+
+
 @router.post("/applications", response_model=SubmissionOut | ApplicationOut, status_code=status.HTTP_201_CREATED,
-             responses={422: {"model": SubmissionErrorOut | SubmissionInputErrorOut}})
-def create(body: ApplicationIn, principal: Principal = Depends(current_principal)):
+             responses={422: {"model": SubmissionErrorOut | SubmissionInputErrorOut}}, description=IDEMPOTENT)
+def create(body: ApplicationIn, principal: Principal = Depends(current_principal),
+           key: str | None = Depends(idempotency_key)):
+    def command(uow):
+        app = service.create_application(uow, body.institution_id, body.category, body.academic_year)
+        if body.items:
+            service.mark_items(uow, app.id, body.items)
+        if body.submit:
+            app = service.submit_application(uow, app.id, dsc_present=body.dsc_present)
+            return _submitted(app, uow.session)
+        return _out(app)
     try:
-        with unit_of_work(principal) as uow:
-            app = service.create_application(uow, body.institution_id, body.category, body.academic_year)
-            if body.items:
-                service.mark_items(uow, app.id, body.items)
-            if body.submit:
-                app = service.submit_application(uow, app.id, dsc_present=body.dsc_present)
-                return _submitted(app, uow.session)
-            return _out(app)
+        return idempotent_response(principal, key, "POST", "/applications", {}, body.model_dump(mode="json"),
+                                   command, _json, status_code=status.HTTP_201_CREATED)
     except SubmissionBlocked as exc:
         return _blocked(exc)
 
 
 @router.post("/applications/{application_id}/submit", response_model=SubmissionOut,
-             responses={422: {"model": SubmissionErrorOut | SubmissionInputErrorOut}})
-def submit(application_id: UUID, body: SubmissionIn | None = None, principal: Principal = Depends(current_principal)):
+             responses={422: {"model": SubmissionErrorOut | SubmissionInputErrorOut}}, description=IDEMPOTENT)
+def submit(application_id: UUID, body: SubmissionIn | None = None, principal: Principal = Depends(current_principal),
+           key: str | None = Depends(idempotency_key)):
+    def command(uow):
+        app = service.submit_application(uow, application_id, dsc_present=body.dsc_present if body else False)
+        return _submitted(app, uow.session)
     try:
-        with unit_of_work(principal) as uow:
-            app = service.submit_application(uow, application_id, dsc_present=body.dsc_present if body else False)
-            return _submitted(app, uow.session)
+        return idempotent_response(principal, key, "POST", "/applications/{application_id}/submit",
+            {"application_id": str(application_id)}, body.model_dump(mode="json") if body else None, command, _json)
     except SubmissionBlocked as exc:
         return _blocked(exc)
 
 
-@router.post("/applications/{application_id}/items", response_model=ItemsOut)
-def provide_items(application_id: UUID, body: ItemsIn, principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return service.mark_items(uow, application_id, body.items)
+@router.post("/applications/{application_id}/items", response_model=ItemsOut, description=IDEMPOTENT)
+def provide_items(application_id: UUID, body: ItemsIn, principal: Principal = Depends(current_principal),
+                  key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/applications/{application_id}/items",
+        {"application_id": str(application_id)}, body.model_dump(mode="json"),
+        lambda uow: service.mark_items(uow, application_id, body.items), _json)
 
 
 @router.get("/applications", response_model=list[ApplicationOut])
@@ -138,3 +154,4 @@ def get_application(application_id: UUID, principal: Principal = Depends(current
         port(AuthzPort).check(principal, "application.read",
                               ResourceRef("application", a.id, owner_institution_id=a.institution_id))
         return _out(a)
+

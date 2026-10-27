@@ -1,11 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.platform.auth import current_principal
-from app.platform.db import new_session, unit_of_work
+from app.platform.db import new_session
+from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from app.workflow.loader import sync_at_startup
 from app.workflow import case_service
@@ -18,6 +19,12 @@ from contracts.ports import AuthzPort, RulesetPort
 from contracts.types import Principal, ResourceRef
 
 router = APIRouter()
+
+
+def _json(model: BaseModel):
+    return model.model_dump(mode="json")
+
+
 router.include_router(committee.router)
 router.add_event_handler("startup", sync_at_startup)
 
@@ -37,11 +44,12 @@ def get_rescrutiny(application_id: UUID, principal: Principal = Depends(current_
 
 
 @router.post("/cases/{application_id}/deficiencies/{deficiency_id}/review", response_model=deficiency.DeficienciesOut,
-             tags=["deficiencies"], responses=ERROR_RESPONSES)
+             tags=["deficiencies"], responses=ERROR_RESPONSES, description="Optional Idempotency-Key (replay/422/409).")
 def review_deficiency(application_id: UUID, deficiency_id: UUID, body: deficiency.ReviewIn,
-                      principal: Principal = Depends(current_principal)):
-    with unit_of_work(principal) as uow:
-        return deficiency.review(uow, application_id, deficiency_id, body)
+                      principal: Principal = Depends(current_principal), key: str | None = Depends(idempotency_key)):
+    return idempotent_response(principal, key, "POST", "/cases/{application_id}/deficiencies/{deficiency_id}/review",
+        {"application_id": str(application_id), "deficiency_id": str(deficiency_id)}, body.model_dump(mode="json"),
+        lambda uow: deficiency.review(uow, application_id, deficiency_id, body), _json)
 
 
 class StageOut(BaseModel):
@@ -83,16 +91,17 @@ def list_rulesets(principal: Principal = Depends(current_principal)):
 
 
 @router.post("/cases/{application_id}/actions", response_model=CaseActionOut, tags=["cases"], responses=ERROR_RESPONSES,
-             description="Apply one versioned action atomically. Idempotency-Key is accepted for future P3 middleware; "
-                         "this handler does not cache/replay responses. Reusing a consumed expected_version returns 409. "
-                         "Guard facts must come from trusted server providers; unavailable facts reject the action.")
-def case_action(application_id: UUID, body: ActionIn,
-                idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=1, max_length=200,
-                    description="Reserved for P3 idempotency middleware; not enforced by this handler."),
-                principal: Principal = Depends(current_principal)):
+             description="Apply one versioned action atomically. Optional Idempotency-Key: a retry with the same key and "
+                         "body replays the stored response with Idempotent-Replayed: true; the same key with a different "
+                         "body is 422, and 409 while the first request still holds the key. Without a key, reusing a "
+                         "consumed expected_version returns 409. Guard facts come only from trusted server records; "
+                         "unavailable facts reject the action.")
+def case_action(application_id: UUID, body: ActionIn, principal: Principal = Depends(current_principal),
+                key: str | None = Depends(idempotency_key)):
     try:
-        with unit_of_work(principal) as uow:
-            return case_service.apply_action(uow, application_id, body)
+        return idempotent_response(principal, key, "POST", "/cases/{application_id}/actions",
+            {"application_id": str(application_id)}, body.model_dump(mode="json"),
+            lambda uow: case_service.apply_action(uow, application_id, body), _json)
     except WorkflowValidationFailed as exc:
         if exc.reason_code != "MANDATORY_ITEMS_MISSING":
             raise
