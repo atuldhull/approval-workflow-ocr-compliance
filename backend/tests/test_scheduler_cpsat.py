@@ -87,7 +87,8 @@ def test_deterministic_order_insensitive_and_baseline_validated():
 
 
 @pytest.mark.parametrize("field,value", [("random_seed", -1), ("max_repair_rounds", 21), ("deterministic_time_limit", 0),
-                                         ("time_limit_seconds", 500)])
+                                         ("time_limit_seconds", 500),
+                                         ("max_candidate_slots", 0)])
 def test_solver_parameters_are_validated(field, value):
     with pytest.raises(ValidationFailed):
         CpSatParameters(**{field: value})

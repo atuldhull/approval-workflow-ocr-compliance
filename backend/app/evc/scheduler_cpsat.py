@@ -29,9 +29,12 @@ class CpSatParameters:
     time_limit_seconds: float = 60.0  # wall-clock safety cap only
     random_seed: int = 7
     max_repair_rounds: int = 5
+    # Earliest feasible slots modelled per request (plus EDF's own slot), so wide late horizons stay solvable.
+    max_candidate_slots: int = 12
 
     def __post_init__(self) -> None:
-        if (not 0 < self.deterministic_time_limit <= 120 or not 0 < self.time_limit_seconds <= 120
+        if (type(self.max_candidate_slots) is not int or not 1 <= self.max_candidate_slots <= 200
+            or not 0 < self.deterministic_time_limit <= 120 or not 0 < self.time_limit_seconds <= 120
             or type(self.random_seed) is not int or self.random_seed < 0
             or type(self.max_repair_rounds) is not int or not 0 <= self.max_repair_rounds <= 20):
             raise ValidationFailed("SCHEDULER_CPSAT_PARAMETERS_INVALID")
@@ -56,20 +59,27 @@ class CpSatResult:
                     cpsat_fallback_to_edf=self.fallback_to_edf)
 
 
-def _witnesses(problem: SchedulingProblem) -> dict:
-    """(request, slot) -> every qualified free expert, against existing reservations only."""
+def _witnesses(problem: SchedulingProblem, limit: int, keep: set) -> dict:
+    """(request, slot) -> every qualified free expert, against existing reservations only.
+
+    Per request only the earliest `limit` feasible slots are kept, plus any (request, slot) in `keep`.
+    """
     occupancy = Counter(allocation.slot_id for allocation in problem.existing)
     result = {}
     for request in problem.ordered_requests:
         snapshot = selector_at(problem, request, ())
         start = earliest_date(problem, request)
+        found = 0
         for slot in problem.ordered_slots:
             if (slot.date < start or occupancy[slot.id] >= slot.capacity
                     or slot.slot_part not in snapshot.eligibility.policy.slot_parts):
                 continue
+            if found >= limit and (request.id, slot.id) not in keep:
+                continue
             selection = select_panel(snapshot, slot.date, slot.slot_part)
             if selection.status == "SELECTED":
                 result[(request.id, slot.id)] = tuple(row.expert_id for row in selection.ranked_experts)
+                found += 1
     return result
 
 
@@ -98,7 +108,8 @@ def solve_cpsat(problem: SchedulingProblem, params: CpSatParameters = CpSatParam
     requests = {request.id: request for request in problem.requests}
     slots = {slot.id: slot for slot in problem.slots}
     occupancy = Counter(allocation.slot_id for allocation in problem.existing)
-    witnesses = _witnesses(problem)
+    hinted = {(row.request_id, row.slot_id): row.expert_ids for row in edf.allocations}
+    witnesses = _witnesses(problem, params.max_candidate_slots, set(hinted))
     lateness, waiting = {}, {}
     for request_id, slot_id in witnesses:
         request, day = requests[request_id], slots[slot_id].date
@@ -115,7 +126,6 @@ def solve_cpsat(problem: SchedulingProblem, params: CpSatParameters = CpSatParam
     max_weight = sum(worst_wait.values()) + 1
     late_weight = max_weight * (max_late_bound + 1)
     count_weight = late_weight * (sum(worst_late.values()) + 1)
-    hinted = {(row.request_id, row.slot_id): row.expert_ids for row in edf.allocations}
     forbidden: set = set()
     rounds = status = objective = bound = 0
     while True:
