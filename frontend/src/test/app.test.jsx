@@ -303,6 +303,40 @@ describe("scorecard colours follow the result", () => {
     expect(outcomeTone({ key: "replay_consistency", result: { verdict: "MISMATCH" } })).toBe("bad");
     expect(outcomeTone({ key: "replay_consistency", result: { verdict: "CONSISTENT_SUBSET" } })).toBe("warn");
     expect(outcomeTone({ key: "routing", result: { mismatches: [{}] } })).toBe("warn");
+    // the server's verdict wins when it gives one
+    expect(outcomeTone({ key: "four_eyes", outcome: "FAIL", result: {} })).toBe("bad");
+    expect(outcomeTone({ key: "alerts", outcome: "ATTENTION", result: {} })).toBe("warn");
+    expect(outcomeTone({ key: "document_scanning", outcome: "PASS", result: {} })).toBe("ok");
+    expect(outcomeTone({ key: "ocr", outcome: null, result: { reviewed: 2 } })).toBeNull();
+  });
+
+  it("shows how each line was measured apart from what was found", async () => {
+    const BUREAU_HEAD = DEMO_USERS.find((u) => u.role === "BUREAU_HEAD");
+    fakeServer({ "GET /api/analytics/scorecard": { generated_at: "2026-10-24T10:00:00Z", items: [
+      { key: "four_eyes", title: "Four-eyes on extracted facts and evidence", kind: "VERIFIED_NOW",
+        method: "Checks every confirmed fact.", outcome: "FAIL", finding: "1 confirmed by its own reviewer.",
+        result: { confirmed_facts: 3, confirmed_by_own_reviewer: 1 }, note: null },
+      { key: "ocr", title: "OCR field extraction", kind: "MEASURED_ON_DEMO_TRAFFIC", method: "Blind entries.",
+        outcome: null, finding: "2 reviewed.", result: { reviewed: 2, blind_entry_agreement: 0.5 }, note: null },
+      { key: "routing", title: "Workflow routing vs APH Table 2.3", kind: "NOT_EVALUATED", method: "Answer key.",
+        outcome: null, finding: null, result: null, note: "Needs the workflow owner's answer key." },
+    ] } });
+    render(<ScorecardView who={BUREAU_HEAD} />);
+    const card = (name) => screen.getAllByRole("heading", { name }).map((h) => h.closest(".score")).find(Boolean);
+    await screen.findAllByRole("heading", { name: "Four-eyes on extracted facts and evidence" });
+    const eyes = card("Four-eyes on extracted facts and evidence");
+    expect(eyes).toHaveClass("tone-bad");
+    expect(within(eyes).getByText("Checked now")).toBeInTheDocument();
+    expect(within(eyes).getByText("Fail")).toBeInTheDocument();
+    expect(within(eyes).getByText(/How it was measured/).parentElement).toHaveTextContent("Checks every confirmed fact.");
+    expect(within(eyes).getByText("Confirmed by own reviewer").nextSibling).toHaveTextContent("1");
+    const ocr = card("OCR field extraction");
+    expect(within(ocr).getByText("Blind entry agrees with OCR").nextSibling).toHaveTextContent("50%");
+    expect(within(ocr).queryByText(/^(Pass|Fail|Needs attention)$/)).toBeNull();   // a measurement, not a verdict
+    const routing = card("Workflow routing vs APH Table 2.3");
+    expect(within(routing).getByText("Not evaluated yet")).toBeInTheDocument();
+    expect(within(routing).getByText(/Why it is not evaluated/)).toBeInTheDocument();
+    expect(within(routing).getByText("Needs the workflow owner's answer key.")).toBeInTheDocument();
   });
 });
 

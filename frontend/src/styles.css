@@ -537,6 +537,12 @@ details[open] .why { animation: arrive-drift var(--dur-2) var(--ease-out); }
 .score.tone-ok { border-left-color: var(--positive); }
 .score.tone-warn { border-left-color: var(--warning); }
 .score.tone-bad { border-left-color: var(--negative); }
+.score .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.score .method { font-size: var(--fs-12); color: var(--muted); }
+.score .found > p { margin: 4px 0 8px; }
+.score .figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 12px; margin: 0; }
+.score .figures dt { font-size: var(--fs-12); color: var(--faint); }
+.score .figures dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 /* ---------- sign in ---------- */
 
