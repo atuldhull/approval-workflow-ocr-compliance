@@ -47,7 +47,7 @@ export const STAGE_INFO = {
     evidence: "Checklist documents, each version malware-scanned before it can be used.",
     actor: "Institution (files and submits)",
     built: "built",
-    builtNote: "Drafting, submission and document upload run in the workspace.",
+    builtNote: "Drafting, document upload, the server checklist (each item linked to an uploaded document), the DSC confirmation and submission run in the workspace.",
   },
   SELF_DISCLOSURE: {
     title: "Self-disclosure",
@@ -63,15 +63,15 @@ export const STAGE_INFO = {
     evidence: "Checklist documents and the facts confirmed from them by two officers.",
     actor: "Scrutiny committee (records deficiencies, per the rule set's transitions)",
     built: "built",
-    builtNote: "Deficiency, compliance response and re-scrutiny transitions run in the workflow.",
+    builtNote: "Committee workspace, deficiency recording, the institution's compliance response and re-scrutiny review run from the case screen; every action is checked by the workflow's guards.",
   },
   EVC: {
     title: "Expert visit (EVC)",
     purpose: "An expert visit committee inspects the institution.",
-    evidence: "Visit schedule and report (scheduling is a preview with sample slots).",
+    evidence: "Visit request, proposed and published schedule, and the committee's report.",
     actor: "Regional officer constitutes the committee (rule set: evc_constituted_by)",
-    built: "preview",
-    builtNote: "EVC scheduling is a labelled preview; its API is not built.",
+    built: "built",
+    builtNote: "Visit queue, expert pool, EDF or CP-SAT proposals and bureau publication run against the API. Panels come from a labelled simulated selector stand-in; the real selection happens on AICTE's portal.",
   },
   SHC: {
     title: "SHC · as applicable",
@@ -79,7 +79,7 @@ export const STAGE_INFO = {
     evidence: "Not modelled in this prototype.",
     actor: "Not named in the rule set",
     built: "illustrative",
-    builtNote: "Conditional stage in the route; no dedicated tooling.",
+    builtNote: "Conditional stage in the route; it applies once an SHC committee is formed for the case (demo assumption). No SHC-specific tooling.",
   },
   EC: {
     title: "Executive Committee (EC)",
@@ -103,7 +103,7 @@ export const STAGE_INFO = {
     evidence: "Approval letters uploaded by officers create compliance obligations.",
     actor: "Officers record; AICTE decides on its own portal",
     built: "built",
-    builtNote: "Letters and obligations run in the compliance screens.",
+    builtNote: "Letters and obligations run in the compliance screens. Issuing a letter from the workflow is built but switched off by default (WF_ENABLE_LETTER_ISSUANCE).",
   },
 };
 

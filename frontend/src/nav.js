@@ -13,7 +13,7 @@ export const NAV = [
   { key: "alerts", label: "Alerts", roles: EVERYONE },
   { key: "documents", label: "Documents", institutionLabel: "My documents", roles: EVERYONE },
   { key: "ocr", label: "Fact review", roles: [...OFFICERS, "AUDITOR"] },
-  { key: "evc", label: "EVC scheduling", roles: ["BUREAU_OFFICER", "BUREAU_HEAD"], preview: true },
+  { key: "evc", label: "EVC scheduling", roles: [...OFFICERS, "AUDITOR"] },
   { key: "compliance", label: "Compliance", roles: EVERYONE },
   { key: "audit", label: "Audit", roles: OVERSIGHT },
   { key: "delivery", label: "Alert delivery", roles: OVERSIGHT },

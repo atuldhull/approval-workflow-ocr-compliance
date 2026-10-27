@@ -34,7 +34,7 @@ const COVER_Z = 0.125; // the cover rests just above the sheet stack
 const MILESTONES = [
   { title: "Submitted", caption: "Built · institution files", role: "Institution" },
   { title: "Scrutiny", caption: "Built · deficiencies, re-scrutiny", role: "Scrutiny committee" },
-  { title: "Expert visit", caption: "EVC · preview, sample slots", role: "Regional officer constitutes" },
+  { title: "Expert visit", caption: "EVC · queue, CP-SAT plan, publication", role: "Regional officer constitutes" },
   { title: "SHC", caption: "As applicable · conditional", role: "Not named in rule set", conditional: true },
   { title: "Outcome recorded", caption: "Here · AICTE decides on its portal", role: "Officers record" },
 ];

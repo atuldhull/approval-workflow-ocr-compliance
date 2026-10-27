@@ -392,3 +392,38 @@
   .topbar .crumb-sep, .topbar .crumb-page { display: none; }
   .split-detail { max-height: none; }
 }
+
+/* ---- workflow: checklist, case actions, deficiencies, committees, EVC (WORKSPACE_REPORT.md) ---- */
+.alert.simulated { border-color: rgba(231, 160, 74, 0.4); border-left-color: var(--amber); background: var(--amber-soft); }
+.link-button { display: inline; padding: 0; border: 0; background: none; color: var(--brass-strong, var(--text)); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; min-height: 0; }
+.checklist-items, .action-list, .round-items { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: var(--s2); }
+.checklist-item, .action-row { padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--ink-2); }
+.checklist-item.flagged { border-color: var(--bad); box-shadow: inset 3px 0 0 var(--bad); }
+.checklist-row, .action-head, .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
+.checklist-name { flex: 1 1 220px; min-width: 0; }
+.checklist-tags { display: inline-flex; flex-wrap: wrap; gap: var(--s1); }
+.checklist-pick { display: block; margin-top: var(--s2); }
+.checklist-pick select, .action-form select, .action-form input:not([type=checkbox]):not([type=radio]), .action-form textarea { width: 100%; max-width: 100%; }
+.action-head strong { flex: 1 1 200px; }
+.action-row.blocked { background: transparent; }
+.action-reason { margin: var(--s1) 0 0; color: var(--text-2); }
+.action-form { display: grid; gap: var(--s2); margin-top: var(--s3); padding: var(--s3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--ink-3); }
+.action-form h3, .action-form h4 { margin: 0; }
+.action-form fieldset { display: grid; gap: var(--s1); margin: 0; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s2); margin-top: var(--s2); }
+.inline-form label { flex: 1 1 160px; min-width: 0; }
+.inline-form input:not([type=checkbox]):not([type=radio]), .inline-form select { width: 100%; }
+.round, .committee { padding: var(--s3); margin-bottom: var(--s3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.round-items li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
+.round-items li.task { display: block; }
+.round-items li.task > span { margin-right: var(--s2); }
+.committee h4 { margin: var(--s3) 0 var(--s1); font-size: var(--fs-md); }
+.pool-forms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: var(--s3); margin-top: var(--s3); }
+.evc > .card, .evc > section { margin-bottom: var(--s4); }
+.solver summary { cursor: pointer; margin: var(--s2) 0; }
+.checklist-preview { margin-top: var(--s2); }
+@media (max-width: 860px) {
+  .action-head .small.secondary { margin-left: auto; }
+  .inline-form button { width: 100%; }
+}
+.action-blocked > summary { cursor: pointer; margin: var(--s2) 0; color: var(--text-2); font-size: var(--fs-md); }

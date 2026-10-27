@@ -1,12 +1,13 @@
 // Plain-language wording for the document, compliance and alert records. Codes stay on the server; the screens
 // show these sentences and keep the code only as a secondary detail where an officer may need to quote it.
 import { ROLE_LABELS, sentence } from "./nav.js";
+import { itemLabel } from "./workflowText.js";
 
-// Checklist item codes offered for upload. There is no checklist endpoint on the server: which documents a case
-// needs depends on ruleset data (rulesets/) that does not list them yet, so until it does this list lives here.
-// The server accepts any code shaped like LAND_DEED and stores it as the document's checklist item, so nothing
-// here is enforced; replace this list with the server's once the ruleset publishes one.
-export const CHECKLIST = [
+// The checklist itself comes from the server (GET /applications/{id}/checklist, from the pinned ruleset). These are
+// supporting documents a case may also carry that are not checklist items: approval letters and the records their
+// obligations ask for, and the deeds the officers' fact review reads dates from. Uploading one never ticks a
+// checklist item; only linking a version to an item does.
+export const SUPPORTING_DOCUMENTS = [
   ["LAND_DEED", "Land ownership or registered lease deed"],
   ["BUILDING_PLAN", "Approved building plan"],
   ["BUILDING_COMPLETION", "Building completion certificate"],
@@ -16,7 +17,7 @@ export const CHECKLIST = [
   ["FDR_DEPOSIT", "Fixed deposit receipt (security deposit)"],
   ["APPROVAL_LETTER", "Approval letter issued for the institution"],
 ];
-export const checklistLabel = (code) => CHECKLIST.find(([c]) => c === code)?.[1] ?? (code ? sentence(code) : "No checklist item");
+export const checklistLabel = (code) => SUPPORTING_DOCUMENTS.find(([c]) => c === code)?.[1] ?? (code ? itemLabel(code) : "No checklist item");
 
 // What each malware-scan state means for the person looking at it.
 export const SCAN = {

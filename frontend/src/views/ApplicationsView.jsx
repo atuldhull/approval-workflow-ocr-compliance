@@ -3,11 +3,25 @@ import { prefersReducedMotion } from "../motion.js";
 import ApplicationList from "../components/ApplicationList.jsx";
 import CaseDetail from "../components/CaseDetail.jsx";
 import NewApplication from "../components/NewApplication.jsx";
-import { Empty, ErrorBox, Loading, NotAvailable, useApi } from "../components/ui.jsx";
+import { Empty, ErrorBox, Loading, useApi } from "../components/ui.jsx";
+
+// A regional officer's list comes from the region-scoped case list (GET /cases?region=), which states the
+// officer's own region as the server requires; /applications is not region-filtered and refuses them.
+const caseRow = (c) => ({
+  id: c.case_id, category: c.route_id, status: c.status, current_stage: c.stage, academic_year: "",
+  created_at: c.stage_history?.[0]?.entered_at ?? "",
+});
+function useCaseList(who, me) {
+  const regional = me.role === "RO_OFFICER";
+  const apps = useApi(who, regional ? null : "/applications");
+  const cases = useApi(who, regional ? `/cases?region=${encodeURIComponent(me.region ?? "")}&limit=100` : null);
+  if (!regional) return apps;
+  return { ...cases, data: cases.data ? cases.data.items.map(caseRow) : null };
+}
 
 // List on the left, the open case as an inspector on the right (stacked below on narrow screens).
-export default function ApplicationsView({ who, me, focusCase }) {
-  const { data: apps, error, loading, reload } = useApi(who, "/applications");
+export default function ApplicationsView({ who, me, focusCase, onNavigate }) {
+  const { data: apps, error, loading, reload } = useCaseList(who, me);
   const [selected, setSelected] = useState(focusCase ?? null);
   const [version, setVersion] = useState(0);
   const detailRef = useRef(null);
@@ -47,27 +61,18 @@ export default function ApplicationsView({ who, me, focusCase }) {
     reload();
   };
 
-  // Regional officers need a region-filtered list from the workflow module; until then the server refuses it.
-  const regionalPending = error?.status === 403 && me.role === "RO_OFFICER";
-
   return (
     <div className="split cases-layout">
       <div className="split-list">
         {me.role === "INSTITUTION" && <NewApplication who={who} institution={me.institution_id} onChanged={changed} />}
         {loading && !apps && <div className="card"><Loading what="Loading applications" /></div>}
-        {regionalPending ? (
-          <NotAvailable dependsOn="Person 1: region-filtered case list (GET /applications for regional officers)">
-            The case list for regional officers is refused by the server until it can be filtered to your region.
-            Open the dashboard for your region's figures.
-          </NotAvailable>
-        ) : (
-          <ErrorBox error={error} onRetry={reload} />
-        )}
+        <ErrorBox error={error} onRetry={reload} />
         {apps && <ApplicationList apps={apps} selected={selected} onSelect={choose} />}
       </div>
       <div className="split-detail" ref={detailRef}>
         {selected ? (
-          <CaseDetail key={`${selected}-${version}`} who={who} me={me} id={selected} onChanged={changed} onLoaded={caseLoaded} />
+          <CaseDetail key={`${selected}-${version}`} who={who} me={me} id={selected} onChanged={() => reload()} onLoaded={caseLoaded}
+            onNavigate={onNavigate} />
         ) : (
           <div className="card placeholder-case">
             <Empty>Select an application to see its route, deadlines and audit timeline.</Empty>

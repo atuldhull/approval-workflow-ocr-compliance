@@ -89,6 +89,11 @@ export function outcomeTone(item) {
   return null;
 }
 
+// The answer key says when its own source is unverified (routing.json: DEMO ASSUMPTION ACCEPTANCE_SOURCE_UNVERIFIED,
+// PRIMARY_SOURCE_UNAVAILABLE). A pass against such a key is a pass against a transcription, so it is labelled.
+export const sourceUnverified = (item) => item.source_status === "DEMO_ASSUMPTION"
+  || /ACCEPTANCE_SOURCE_UNVERIFIED|PRIMARY_SOURCE_UNAVAILABLE/.test(item.source ?? "");
+
 const TONE_WORD = { ok: "Pass", warn: "Needs attention", bad: "Fail" };
 
 // The scorecard as an evaluation instrument: one row per check, read left to right as
@@ -135,6 +140,9 @@ export default function ScorecardView({ who }) {
                   <p className="method"><strong>How it was measured:</strong> {item.method}</p>
                 ) : <p className="muted small">Method not supplied.</p>}
                 {item.source && <p className="source">Answer key: {item.source}</p>}
+                {sourceUnverified(item) && (
+                  <p className="badges"><Badge tone="sample">Acceptance source unverified</Badge></p>
+                )}
                 {item.ruleset && <p className="source">Ruleset <code>{item.ruleset}</code></p>}
               </div>
               <div className="found">
@@ -145,6 +153,7 @@ export default function ScorecardView({ who }) {
                 {verdict ? <Badge tone={verdict[0]}>{verdict[1]}</Badge>
                   : measuredTone ? <span className={`derived tone-${measuredTone}`}>{TONE_WORD[measuredTone]} <span className="muted small">(from the result)</span></span>
                     : <span className="muted small">{item.result ? "No verdict: a measurement" : "Not evaluated"}</span>}
+                {sourceUnverified(item) && <p className="muted small">Against an unverified transcription, not the official handbook.</p>}
               </div>
             </article>
           );

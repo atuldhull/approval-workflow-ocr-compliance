@@ -202,13 +202,13 @@ function Notifications() {
 export function WorkspaceReveal({ reduced, onEnter, onInspect }) {
   const [ref, seen] = useInView(reduced);
   const screens = [
-    ["Overview & cases", "Each application on its prescribed route, with its deadlines.", "Built"],
+    ["Overview & cases", "Each application on its prescribed route: checklist, guarded actions, committees, deficiencies.", "Built"],
     ["Documents", "Checklist uploads, versions and their malware-scan result.", "Built"],
     ["Fact review", "Type first, then see the machine reading; a second officer confirms.", "Built"],
     ["Alerts & delivery", "Who was told, by which ladder level, and what happened to each message.", "Built"],
     ["Compliance", "Approval letters, the obligations they create, and the evidence that meets them.", "Built"],
     ["Audit", "Chain, checkpoint and replay results, each shown separately.", "Built"],
-    ["EVC scheduling", "Candidate visit dates on a timeline.", "Preview · sample"],
+    ["EVC scheduling", "Visit queue, expert pool, EDF or CP-SAT proposals and publication; panels from a simulated selector stand-in.", "Built"],
   ];
   return (
     <section id="workspace" className="sc-chapter sc-workspace" aria-labelledby="workspace-title">

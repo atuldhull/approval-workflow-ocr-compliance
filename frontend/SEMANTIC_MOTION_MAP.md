@@ -21,7 +21,14 @@ inspects. If the source is absent, the figure is absent and the panel says why.
 | Delivery | State counts | `/notifications/health` `by_status` | Count per state; dead letters dashed | Transitions between states |
 | Delivery | Attempts | `/notifications/outbox/:id/attempts` | One entry per recorded attempt, in order | Elapsed time, simulated sends |
 | Scorecard | Instrument rows | `items[]` `kind`, `method`, `result`, `finding`, `outcome` | Check → method → found → outcome; side rule coloured by outcome | A verdict for a measurement that has none |
-| EVC (preview) | Week grid | `fixtures/previews.js` sample slots | Slot placed at its IST time; drawn 2h tall (stated) | Confirmed visits, durations, expert identities |
+| Case | Action list | `/cases/:id` `available_actions[]` (`enabled`, `reason_code`, `targets`), `version` | One row per listed action; blocked rows folded with their reason | Actions the server did not list; why a guard failed beyond its code |
+| Case | Checklist | `/applications/:id/checklist` `items[]`, `dsc_required`, `dsc_present`; `/applications/:id/documents` | One row per item with its state; picker of AVAILABLE versions only | Completeness the server did not report |
+| Case | Deficiency rounds | `/cases/:id/deficiencies` `rounds[].items[]`, `response_window` | One block per round, one row per item with its state and response document | Review outcomes before they are recorded |
+| Case | Committee workspace | `wf.committee_formed` timeline events, then `/committees/:id` and `/committees/:id/reports` | One block per committee; tasks, observation counts, report versions with fingerprints | Note text (protected notes; only hashes are returned) |
+| Case | Expert visit | `/evc/queue` row for the case | Status, window, waiting days, allowed days (demo assumption) | Visit date and panel (no per-case read) |
+| EVC | Queue | `/evc/queue` | One row per request, ordered as returned (deadline first) | Requests outside the caller's scope |
+| EVC | Proposal | `POST /evc/schedule:propose` `metrics`, `proposals[]`, `unscheduled[]`, `solver` | KPI row; one row per proposed visit; solver facts as given | Expert identities (opaque references only) |
+| EVC | Comparison | Proposals made in this tab | One row per run with the shared metrics; input fingerprint shown | A fair comparison between runs with different fingerprints |
 | Audit | Layer panels | `/ledger/verify`, `/audit/verify`, `POST /audit/replay` | One panel per independent layer with its own result | A combined assurance stronger than the weakest layer |
 | Audit | Checkpoint history | `/audit/checkpoints` | One entry per signed checkpoint, newest first; filled mark = published | Ledger events (no ledger-wide listing exists) |
 | Audit | Spatial figure | Layer states from `auditRecords()` | Chain (continuity), seal (witness; open ring when same-machine demo), loop (replay); teal/brass/amber/red/stone by recorded state | Link count is a fixed motif, not the number of entries |

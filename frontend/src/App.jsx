@@ -16,7 +16,7 @@ import AlertsView from "./views/AlertsView.jsx";
 import ComplianceView from "./views/ComplianceView.jsx";
 import DocumentsView from "./views/DocumentsView.jsx";
 import FactReviewView from "./views/FactReviewView.jsx";
-import { EvcView } from "./views/PreviewViews.jsx";
+import EvcView from "./views/EvcView.jsx";
 import ScorecardView from "./views/ScorecardView.jsx";
 
 const VIEWS = {
@@ -60,7 +60,7 @@ const SUBTITLES = {
   alerts: "Deadline alerts addressed to your role, their escalation level, and acknowledgement.",
   documents: "Checklist documents, every uploaded version, and what its malware scan found.",
   ocr: "Enter your own reading first; the machine reading is revealed only after the server records yours.",
-  evc: "Expert visit scheduling.",
+  evc: "Expert-visit requests, the expert pool, proposed schedules and their publication.",
   compliance: "Approval letters, the obligations they create, and the evidence that meets them.",
   audit: "Three independent layers of evidence that the record has not been altered.",
   delivery: "Every alert message, its attempts and where it is now.",

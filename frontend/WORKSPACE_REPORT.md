@@ -90,10 +90,10 @@ Roles: sunrise (institution), scrutiny, ro-southern, bureau-officer, bureau-head
 - No ledger-wide event listing: the audit history shows signed checkpoints and replay projections; individual events
   are only available per case (`/cases/:id/timeline`).
 - No per-stage completion or transition events: route steps before the current one stay "before current".
-- Regional officers are refused `GET /applications` (403): the case list explains this.
+- ~~Regional officers are refused `GET /applications` (403)~~: resolved, their list now comes from `GET /cases?region=`.
 - No text extraction engine in the local stack (`extract` returns `ADAPTER_UNAVAILABLE`): fact review shows the empty
   state and the extract action.
-- No EVC scheduling API: the EVC screen remains a preview with fixture data.
+- ~~No EVC scheduling API~~: resolved, see the workflow catch-up below.
 - The deadline API does not return an "overdue" status for obligations or a calendar version; neither is computed here.
 
 ## Remaining weaknesses
@@ -107,3 +107,47 @@ Roles: sunrise (institution), scrutiny, ro-southern, bureau-officer, bureau-head
 - `LedgerChamber.jsx` and `three/LedgerScene.jsx` remain in the tree (covered by a test) but are no longer rendered.
 - Axe and the overflow sweep were run against seeded synthetic data; screens with long real-world lists were not
   load-tested.
+
+## Workflow catch-up (checklist, case actions, committees, EVC)
+
+The screens were built before the workflow, intake and EVC backends landed; this pass connects them.
+
+| Role | Screen | Change |
+|---|---|---|
+| Institution | New application | Shows the chosen category's checklist from `/rulesets/{key}/checklists/{category}` before the draft exists |
+| Institution | Case (draft) | Checklist panel: item states, link a scanned-clean document version per item (`document_ref`), confirm DSC, save or submit; `MANDATORY_ITEMS_MISSING` explained per item |
+| Institution | Case (submitted) | Action list (compliance response, withdraw); answer each open deficiency item with one of its documents |
+| Institution | Documents | Upload offers the application's own checklist items, then supporting documents; the hard-coded list is gone |
+| Scrutiny committee | Case | Action list with guard reasons; committee workspace (form, assign task, observation, report version); record deficiency; re-scrutiny review per item; complete the expert visit |
+| Regional officer | Cases | List from `GET /cases?region=` (was refused) |
+| Regional officer | EVC scheduling | Queue of its region, panel preview, CP-SAT/EDF proposal, expert pool (register, availability, COI) |
+| Bureau officer / head | EVC scheduling | Same, plus publication of a proposal (also by reference); 409 conflicts in words |
+| Bureau officer | Case | Reject, revert and the letter actions; letters read "switched off" while `WF_ENABLE_LETTER_ISSUANCE` is off, and offer a letter form (cited committee report, F. No.) when it is on |
+| Auditor | EVC scheduling | Read-only queue and pool |
+| Oversight | Scorecard | Routing line shows 22/22 with "Acceptance source unverified", taken from the answer key's own source text |
+| Public | Showcase | EVC stage and workspace tile now "Built"; stage notes describe the checklist, guards and the letter flag |
+
+Tests: 177 passing (32 new in `src/test/workflow.test.jsx`, 3 existing tests updated); `npm run build` passes.
+
+Browser walkthrough (Chromium via playwright-cli, local backend, synthetic data): one NEW_PROGRAMME case was driven
+end to end from the browser. Draft created; a submit without items was refused with per-item messages; a document was
+uploaded, linked and the DSC confirmed; submitted. The scrutiny committee formed its committee, assigned a task, added
+an observation and a report, and recorded a deficiency. The institution uploaded and sent its response. Re-scrutiny
+was started and the response accepted, which moved the case to the expert visit. The regional officer registered an
+expert, set availability and proposed with CP-SAT; the bureau officer published by reference (a second publish showed
+the 409 in words). An EVC committee was formed and the visit completed. With `WF_ENABLE_LETTER_ISSUANCE=true` the
+bureau officer was refused for citing the scrutiny report (`DECISION_NOT_AUTHORISED`, in words), then issued the LoA
+citing the EVC report, and the letter appeared under Compliance. No horizontal overflow at 390 px on the new screens
+(one found and fixed: checkboxes stretched to full width). Screenshots are kept outside the repository in
+`D:\awoc-review-shots\p1ui\`.
+
+Backend gaps met (reported, not worked around):
+
+- No read of the deficiency item or reason vocabulary: the pinned demo vocabulary is mirrored in `workflowText.js`.
+- No per-case committee list: committees are found from `wf.committee_formed` timeline events.
+- No list or read of EVC proposal runs: proposals are kept per tab, and the bureau can publish by run reference.
+- No dry-run or compare endpoint: a second proposal only sees requests the first left queued, so the comparison table
+  shows the input fingerprint and says when runs are not comparable.
+- No per-case EVC read: the case reads its row from the scoped queue (first 100 rows); the published visit date and
+  panel are only in the publish response.
+- No user directory: committee members other than yourself are demo accounts only; expert references are unverified.
