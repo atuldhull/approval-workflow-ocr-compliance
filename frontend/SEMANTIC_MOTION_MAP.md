@@ -50,13 +50,29 @@ E. Scope → each age category → source note → available operational figures
 G. Inspect a tier; use existing controls below. Never infer overdue from age alone.
 H/I/J. Shared rules; no invented actionable queue.
 
-## OCR
-A. Independently read source evidence, then compare only committed fields.
-B/C. `review.pages[].imageUrl/width/height`, title, synthetic, fields; `suggestions` only after adapter.commitReading resolves. No imports of hidden fixture outputs into the scene.
-D/F. Actual page-image surfaces on a document inspection desk. Exactly one surface per supplied page. Comparison markers use only committed suggestions' box coordinates, on their actual page. They never reveal other fields.
-E. File overview → closer source image → separate supplied pages → settle at existing reading controls. Scroll alone never creates a comparison layer.
-G. Page selection; existing zoom, independent reading, commit, choice and confirmation controls. Committed boxes appear only after the legitimate state update.
-H/I/J. Shared rules; preview banner stays; absent confirmation API remains disabled. No fabricated extra sheets or scanner finding answers.
+## Fact review
+A. Enter an independent reading, then compare it with the machine reading, then decide; a second officer confirms.
+B/C. `/documents` (clean versions only), `/document-versions/:id/facts`: field_key, status, page_number, suggestion_visible, reviewed_value, reviewed_by; the machine reading only from `/document-facts/:id/entry` (or `/reveal`) or when the server marks it visible.
+D/F. A 2D fact register: one record per extracted fact, carrying only its field, page and review state. No machine value ever enters the register. No page surface is drawn: the backend serves no page images yet.
+E. Register overview → focused fact → settle at the reading controls. Scroll never commits, reveals, reviews or confirms.
+G. Choose a version; enter reading; review decision (accept/correct/reject, note); confirm (different officer). Auditors read only.
+H/I/J. Shared rules. Extraction without a configured text reader says so plainly. The four-eyes refusal is shown as a rule.
+
+## Documents
+A. Follow each checklist document and version through the malware scan; institutions upload.
+B/C. `/applications/:id/documents` (institution) or `/documents` (officers): doc_type, versions[].version_no/original_filename/scan_status/uploaded_at/scanned_at, current_version_id.
+D/F. One record per checklist document; colour from the newest version's scan state (pending = attention, infected = broken). Each scan state is explained in words beside its badge.
+E. Register → focused document → upload form and version list.
+G. Upload (Idempotency-Key per upload, reused on retry); rescan a pending version; institutions open confirmed facts only.
+H/I/J. Shared rules. No download link: the backend has none.
+
+## Alerts
+A. See deadline alerts addressed to the role, their ladder level and status, and acknowledge.
+B/C. `/alerts`: level, role, status, reason, template, raised/escalated/acknowledged_at, subject_id, region.
+D/F. One record per raised alert level; escalated reads as broken, acknowledged as checked, vacant as unknown.
+E. Register → focused alert → list with actions.
+G. Acknowledge only where the alert's role is the caller's; demo mode adds "Run timers now" beside time travel.
+H/I/J. Shared rules. Scroll never acknowledges.
 
 ## Audit
 A. Distinguish hash continuity, independent anchoring, and replay consistency.
@@ -66,13 +82,13 @@ E. History coverage summary → independent witness → checkpoint coverage → 
 G. Inspect stations; existing replay/sign/publish actions remain separate and role-restricted.
 H/I/J. Shared rules; unchecked/not-run/incomplete/failure displayed verbatim. No invented event chronology or implied full coverage.
 
-## Compliance preview
-A. Inspect a sample obligation and available evidence.
-B/C. OBLIGATION_SAMPLE: kind, title, due, evidence, state.
-D/F. Evidence archive sections: one compartment per sample obligation, labelled with its title and due date; a document tab exists only when evidence filename exists. An empty compartment states no evidence supplied.
-E. Index → focused obligation → available evidence → next compartment → existing table.
-G. Inspect compartment. Review button stays disabled until API exists.
-H/I/J. Shared rules; SAMPLE/PREVIEW on every item; opening does not approve evidence.
+## Compliance
+A. Inspect letters, the obligations they create, and the evidence that meets them.
+B/C. `/compliance/letters`, `/compliance/obligations` (kind, due_date, status, source_status, source_clause, state_origin), `/compliance/obligations/:id` with evidence[].
+D/F. Evidence archive sections: one compartment per recorded obligation, labelled with kind and due date; the evidence tab shows its status only once evidence exists.
+E. Index → focused obligation → detail with evidence → existing tables.
+G. Open an obligation; institutions submit one clean version as evidence; officers accept or reject with a reason code; bureau registers letters.
+H/I/J. Shared rules; opening never approves evidence; only an officer's acceptance meets an obligation.
 
 ## EVC preview
 A. Compare candidate dates and coordination information.

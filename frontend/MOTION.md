@@ -15,7 +15,9 @@ Set per screen in `WORLDS` (`src/motion.js`), styled in `src/nebula/nebula.css`.
 | Applications | slide |
 | Dashboard | pan |
 | Inbox | drift |
-| Document review | scan |
+| Alerts | drift |
+| Documents | scan |
+| Fact review | scan |
 | EVC | rewind |
 | Compliance | collapse |
 | Audit | iris |
@@ -24,7 +26,9 @@ Set per screen in `WORLDS` (`src/motion.js`), styled in `src/nebula/nebula.css`.
 
 ## Scenes
 
-Genuine WebGL (Three.js, lazy-loaded, `src/nebula/WorldScene.jsx`) is used for three worlds: the case
+Genuine WebGL (Three.js, lazy-loaded, `src/nebula/WorldScene.jsx`) is used for the case route and audit worlds
+(the document-inspection scene needs page images, which the backend does not serve yet, so fact review uses
+a 2D register). The case
 route, document review and audit. The other screens use a labelled 2D register with CSS depth. The case
 route also has the CSS 3D stage planes in `RouteJourney.jsx`.
 
