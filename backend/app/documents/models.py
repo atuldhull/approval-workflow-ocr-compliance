@@ -33,6 +33,8 @@ class Document(Base):
         UniqueConstraint(
             "document_id", "application_id", "institution_id", name="uq_doc_document_owner_scope"
         ),
+        UniqueConstraint("application_id", "doc_type", name="uq_doc_document_application_doc_type"),
+        CheckConstraint("doc_type IS NULL OR doc_type ~ '^[A-Z][A-Z0-9_]*$'", name="ck_doc_document_doc_type"),
         Index("ix_doc_document_application_id", "application_id", "document_id"),
         {"schema": SCHEMA},
     )
@@ -44,6 +46,8 @@ class Document(Base):
     institution_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("wf.institution.id", ondelete="RESTRICT"), nullable=False
     )
+    # Checklist item code; one document per (application, doc_type), each upload a new version.
+    doc_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -69,7 +73,16 @@ class DocumentVersion(Base):
             name="ck_doc_version_supported_media_type",
         ),
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="ck_doc_version_sha256_hex"),
-        CheckConstraint("status IN ('QUARANTINED', 'REJECTED')", name="ck_doc_version_status"),
+        CheckConstraint("status IN ('QUARANTINED', 'AVAILABLE', 'REJECTED')", name="ck_doc_version_status"),
+        CheckConstraint("scan_status IN ('scan_pending', 'clean', 'infected')", name="ck_doc_version_scan_status"),
+        CheckConstraint(
+            "(scan_status = 'scan_pending' AND status IN ('QUARANTINED', 'REJECTED') "
+            "AND scanned_at IS NULL AND scan_signature IS NULL) OR "
+            "(scan_status = 'clean' AND status = 'AVAILABLE' AND scanned_at IS NOT NULL "
+            "AND scan_signature IS NULL) OR "
+            "(scan_status = 'infected' AND status = 'REJECTED' AND scanned_at IS NOT NULL)",
+            name="ck_doc_version_scan_consistency",
+        ),
         Index("ix_doc_version_application_created", "application_id", "created_at"),
         Index("ix_doc_version_status_created", "status", "created_at"),
         {"schema": SCHEMA},
@@ -89,6 +102,11 @@ class DocumentVersion(Base):
         Text, nullable=False, default="QUARANTINED", server_default=text("'QUARANTINED'")
     )
     uploaded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    scan_status: Mapped[str] = mapped_column(
+        Text, nullable=False, default="scan_pending", server_default=text("'scan_pending'")
+    )
+    scan_signature: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -206,6 +224,13 @@ class Fact(Base):
             "AND reviewed_value IS NULL)",
             name="ck_doc_fact_review_state",
         ),
+        CheckConstraint(
+            "(confirmed_by IS NULL AND confirmed_at IS NULL) OR "
+            "(confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL "
+            "AND state IN ('CONFIRMED', 'CORRECTED') AND reviewed_at IS NOT NULL "
+            "AND confirmed_at >= reviewed_at AND confirmed_by <> review_typed_by)",
+            name="ck_doc_fact_confirmation",
+        ),
         Index("ix_doc_fact_version_field", "document_version_id", "field_key"),
         Index("ix_doc_fact_review_state", "state", "created_at"),
         {"schema": SCHEMA},
@@ -233,4 +258,7 @@ class Fact(Base):
     suggestion_revealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Second step after review, by another officer. Only confirmed facts may drive deadlines.
+    confirmed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
