@@ -70,4 +70,9 @@ const FLAT_KEY = "showcase.flat";
 export const rememberedFlat = () => { try { return localStorage.getItem(FLAT_KEY) === "true"; } catch { return false; } };
 export const rememberFlat = (v) => { try { localStorage.setItem(FLAT_KEY, String(v)); } catch { /* this page view only */ } };
 
-export const isNarrow = () => typeof window !== "undefined" && (window.innerWidth || 1024) < 760;
+// Phones, and portrait tablets, get the portrait compositions.
+export const isNarrow = () => {
+  if (typeof window === "undefined") return false;
+  const w = window.innerWidth || 1024, h = window.innerHeight || 768;
+  return w < 760 || (w < 1100 && w / h < 0.95);
+};

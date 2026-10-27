@@ -13,7 +13,7 @@ class CanvasBoundary extends Component {
 // Progress thresholds at which the copy changes. They follow the scene's phases (dossier/scene.js).
 const BEATS = [0, 0.14, 0.36, 0.58, 0.8];
 const beatAt = (p) => BEATS.reduce((b, t, i) => (p >= t ? i : b), 0);
-const STATIC_POSE = 0.9;
+const STATIC_POSE = 0.78; // reduced motion: one composed frame with the file, its layers and the route
 
 export default function Hero({ reduced, spatial, onToggleSpatial, onFailure, onExplore, onWorkspace }) {
   const section = useRef(null);
@@ -40,6 +40,25 @@ export default function Hero({ reduced, spatial, onToggleSpatial, onFailure, onE
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
+
+  const notes = (
+    <>
+      <Beat i={1} beat={beat} reduced={reduced} title="An application is a bundle of evidence.">
+        Forms, plans, affidavits and checklists arrive together in one file. The folder opens; nothing has been judged yet.
+      </Beat>
+      <Beat i={2} beat={beat} reduced={reduced} title="Each sheet becomes reviewable.">
+        Fields that need a person's reading are framed. A frame is a request to check, never a verdict.
+      </Beat>
+      <Beat i={3} beat={beat} reduced={reduced} title="Milestones extend from the file.">
+        The prescribed route for one category, New programme: scrutiny, an expert visit, a stage that applies only
+        where the rule set says so, and an outcome this system records.
+      </Beat>
+      <Beat i={4} beat={beat} reduced={reduced} title="Evidence, responsibility and time, in one view.">
+        Each milestone shows who the rule set makes responsible, which document it relies on, and the clock that runs
+        beside it. Below, each of these is taken apart.
+      </Beat>
+    </>
+  );
 
   return (
     <section ref={section} data-pose={reduced ? STATIC_POSE : undefined} id="top" className={`sc-hero${reduced ? " is-static" : ""}`} aria-labelledby="sc-title" data-beat={beat}>
@@ -68,26 +87,14 @@ export default function Hero({ reduced, spatial, onToggleSpatial, onFailure, onE
               <button type="button" className="sc-button" onClick={onWorkspace}>Open workspace</button>
             </div>
           </Beat>
-          <Beat i={1} beat={beat} reduced={reduced} title="An application is a bundle of evidence.">
-            Forms, plans, affidavits and checklists arrive together in one file. The folder opens; nothing has been judged yet.
-          </Beat>
-          <Beat i={2} beat={beat} reduced={reduced} title="Each sheet becomes reviewable.">
-            Fields that need a person's reading are framed. A frame is a request to check, never a verdict.
-          </Beat>
-          <Beat i={3} beat={beat} reduced={reduced} title="Milestones extend from the file.">
-            The prescribed route for one category, New programme: scrutiny, an expert visit, a stage that applies only
-            where the rule set says so, and an outcome this system records.
-          </Beat>
-          <Beat i={4} beat={beat} reduced={reduced} title="Evidence, responsibility and time, in one view.">
-            Each milestone shows who the rule set makes responsible, which document it relies on, and the clock that runs
-            beside it. Below, each of these is taken apart.
-          </Beat>
+          {!reduced && notes}
         </div>
         <div className="sc-hero-foot">
           <span className="sc-scrollcue" aria-hidden="true">{reduced ? "Motion paused · composed view" : "Scroll to open the dossier"}</span>
           <button type="button" className="sc-text-button" onClick={onToggleSpatial}>{spatial ? "Standard view" : "Spatial view"}</button>
         </div>
       </div>
+      {reduced && <div className="sc-hero-notes">{notes}</div>}
     </section>
   );
 }
@@ -115,7 +122,7 @@ export function DossierFigure() {
   ];
   return (
     <figure className="sc-dossier-figure">
-      <svg viewBox="0 0 960 640" role="img" aria-labelledby="sc-dossier-figure-title">
+      <svg viewBox="0 0 960 680" role="img" aria-labelledby="sc-dossier-figure-title">
         <title id="sc-dossier-figure-title">
           Illustrative dossier: five sheets lifted into reviewable layers with fields framed for checking, and a route of
           five milestones (Submitted, Scrutiny, Expert visit, SHC as applicable, Outcome recorded) with the responsible
@@ -144,12 +151,12 @@ export function DossierFigure() {
           {milestones.map(([t, role, cond], i) => (
             <g key={t} transform={`translate(${560 + i * 88} 560)`}>
               <circle r="11" fill={cond ? "none" : "#2c2823"} stroke="#b8925a" strokeWidth={cond ? 2 : 3} strokeDasharray={cond ? "4 3" : undefined} />
-              <text y="-44" className="sc-fig-label" textAnchor="middle">{t}</text>
-              <text y="44" className="sc-fig-role" textAnchor="middle">{role}</text>
+              <text y={i % 2 ? -26 : -44} className="sc-fig-label" textAnchor="middle">{t}</text>
+              <text y={i % 2 ? 64 : 44} className="sc-fig-role" textAnchor="middle">{role}</text>
             </g>
           ))}
           <path d="M470 330 C 560 330, 600 420, 648 548" fill="none" stroke="#5aa39b" strokeWidth="2" />
-          <text x="930" y="612" className="sc-fig-role" textAnchor="end">time · internal clock · demo assumption</text>
+          <text x="930" y="668" className="sc-fig-role" textAnchor="end">time · internal clock · demo assumption</text>
         </g>
       </svg>
     </figure>

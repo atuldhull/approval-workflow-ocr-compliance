@@ -49,7 +49,7 @@ const SHOTS = {
     [1.0, [5.9, 8.4, 10.4], [2.2, 0.25, -0.1]],
   ],
   narrow: [
-    [0.0, [0.6, 9.4, 9.0], [0.0, -0.4, -3.3]],
+    [0.0, [0.6, 9.4, 9.0], [0.0, -0.5, -4.1]],
     [0.28, [-0.6, 9.6, 8.0], [-1.1, -0.3, -1.5]],
     [0.52, [1.2, 6.4, 9.8], [0.2, 0.5, -1.4]],
     [0.76, [1.5, 10.5, 11.8], [0.45, 0, 2.2]],
@@ -380,12 +380,16 @@ export function buildDossierScene(renderer, { narrow = false } = {}) {
     pool.angle = mix(0.42, 0.62, follow);
 
     shot(keys, p, tmpPos, tmpTarget);
+    // narrower-than-designed frames (tablets, portrait desktops) pull the camera back so the shot keeps its width
+    if (!narrow) tmpPos.sub(tmpTarget).multiplyScalar(fit).add(tmpTarget);
     camera.position.copy(tmpPos);
     camera.lookAt(tmpTarget);
   }
 
+  let fit = 1;
   function resize(w, h) {
     camera.aspect = w / Math.max(1, h);
+    fit = Math.min(2.2, Math.max(1, 1.6 / camera.aspect));
     camera.updateProjectionMatrix();
   }
 

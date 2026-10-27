@@ -81,15 +81,6 @@ html.in-showcase body{background:#141310}
 .sc-fig-sheet{transform:translate(calc(var(--p, 0) * var(--i) * 18px), calc(var(--p, 0) * var(--i) * -46px - var(--i) * 4px));transition:transform .2s linear}
 .sc-fig-label{font:15px var(--sc-serif);fill:var(--sc-champagne)}
 .sc-fig-role{font:10px var(--sc-mono);fill:var(--sc-teal);letter-spacing:.04em}
-.sc-hero.is-static{height:auto}
-.sc-hero.is-static .sc-hero-stage{position:relative;height:auto;min-height:100vh;display:grid;grid-template-columns:minmax(0,520px) 1fr;gap:4vw;padding:calc(var(--sc-bar) + 48px) var(--sc-gutter) 80px}
-.sc-hero.is-static .sc-hero-copy{position:static;width:auto;display:flex;flex-direction:column;gap:40px}
-.sc-hero.is-static .sc-beat{opacity:1;transform:none;pointer-events:auto}
-.sc-hero.is-static .sc-hero-visual{position:relative;min-height:70vh}
-.sc-hero.is-static .sc-dossier-figure{inset:0}
-.sc-hero.is-static .sc-hero-stage::before{display:none}
-.sc-hero.is-static .sc-hero-foot{position:static;grid-column:1/-1}
-.sc-hero.is-static .sc-beat-title{font-size:26px}
 
 /* chapters */
 .sc-chapter{position:relative;padding:clamp(96px,14vh,160px) var(--sc-gutter);border-top:1px solid var(--sc-line)}
@@ -327,9 +318,6 @@ html.in-showcase body{background:#141310}
   .sc-actions{margin-top:20px}
   .sc-hero-foot{left:16px;right:16px;bottom:12px}
   .sc-dossier-figure{inset:auto 0 6vh 0;height:48vh}
-  .sc-hero.is-static .sc-hero-stage{grid-template-columns:1fr;padding:calc(var(--sc-bar) + 24px) 16px 48px}
-  .sc-hero.is-static .sc-hero-stage::before{display:none}
-  .sc-hero.is-static .sc-hero-visual{min-height:56vh}
   .sc-stats{grid-template-columns:1fr 1fr}
   .sc-stats div{margin-right:0;padding-right:14px;border-right:0;padding-bottom:16px}
   .sc-questions{grid-template-columns:1fr}
@@ -374,3 +362,19 @@ html.in-showcase body{background:#141310}
 .sc-timeline svg{max-width:1040px;display:block;margin:0 auto}
 .sc-screens{background:none;border:0;gap:0}
 .sc-screens li{box-shadow:0 0 0 .5px var(--sc-line-strong)}
+
+/* reduced motion: one composed frame, the story as text beneath it */
+.sc-hero.is-static{height:auto}
+.sc-hero.is-static .sc-hero-stage{position:relative;height:100vh;height:100svh;min-height:600px}
+.sc-hero.is-static .sc-scrollcue::after{display:none}
+.sc-hero-notes{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;padding:56px var(--sc-gutter) 80px;border-top:1px solid var(--sc-line)}
+.sc-hero-notes .sc-beat{opacity:1;transform:none;pointer-events:auto}
+.sc-root .sc-hero-notes .sc-beat-title{font-size:24px}
+.sc-hero-notes .sc-beat p{font-size:15px}
+@media (max-width:1023px){.sc-hero-notes{grid-template-columns:1fr 1fr}}
+@media (max-width:759px){.sc-hero-notes{grid-template-columns:1fr;padding:40px 16px}}
+/* portrait tablets: the hero copy sits above the portrait composition, as on phones */
+@media (min-width:760px) and (max-width:1099px) and (max-aspect-ratio:19/20){
+  .sc-hero-copy{right:var(--sc-gutter);width:auto;max-width:620px;top:calc(var(--sc-bar) + 48px);bottom:auto;align-items:start}
+  .sc-hero-stage::before{inset:0 0 auto;height:58%;background:linear-gradient(#141310 0%,#141310e0 60%,#14131000)}
+}
