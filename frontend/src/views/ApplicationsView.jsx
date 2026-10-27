@@ -9,7 +9,8 @@ import { Empty, ErrorBox, Loading, useApi } from "../components/ui.jsx";
 // officer's own region as the server requires; /applications is not region-filtered and refuses them.
 const caseRow = (c) => ({
   id: c.case_id, category: c.route_id, status: c.status, current_stage: c.stage, academic_year: "",
-  created_at: c.stage_history?.[0]?.entered_at ?? "",
+  // entering the first stage is the submission; a draft has no stage history and no filing date
+  created_at: c.stage_history?.[0]?.entered_at ?? "", submitted_at: c.stage_history?.[0]?.entered_at ?? null,
 });
 function useCaseList(who, me) {
   const regional = me.role === "RO_OFFICER";

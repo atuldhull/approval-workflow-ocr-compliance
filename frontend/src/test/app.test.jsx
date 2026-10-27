@@ -149,6 +149,7 @@ describe("regional officers", () => {
     });
     render(<ApplicationsView who={RO} me={ME(RO)} />);
     expect(await screen.findByText("New programme")).toBeInTheDocument();
+    expect(screen.getByText(/filed 24 Oct 2026/)).toBeInTheDocument();
     expect(calls[0].url).toBe("/api/cases?region=Southern&limit=100");
     expect(calls.some((c) => c.url === "/api/applications")).toBe(false);
   });
