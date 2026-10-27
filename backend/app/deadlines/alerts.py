@@ -71,6 +71,14 @@ def first_fire_at(rules, rule, due_at: datetime) -> datetime | None:
 
 
 def subject_scope(session: Session, d: Deadline) -> Scope:
+    if d.subject_type in ("obligation", "approval_letter"):
+        # compliance rows record the institution and region of the case they were created for
+        from app.compliance.models import ApprovalLetter, Obligation
+
+        row = session.get(Obligation if d.subject_type == "obligation" else ApprovalLetter, d.subject_id)
+        if row is None:
+            raise ScopeUnresolved("deadline subject not found")
+        return Scope(row.institution_id, row.region)
     if d.subject_type != "application":
         raise ScopeUnresolved(f"no scope lookup for {d.subject_type} deadlines")
     try:
