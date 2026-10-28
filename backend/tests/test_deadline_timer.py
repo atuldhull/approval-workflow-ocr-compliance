@@ -4,7 +4,7 @@ from datetime import timedelta
 from uuid import UUID
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import OperationalError
 
 from app.deadlines.alerts import AlertEngine, Scope, alert_config
@@ -552,12 +552,20 @@ def test_alerts_carry_the_rule_due_date_and_case(env):
     assert acked["rule_id"] == "AICTE_PROCESSING" and acked["application_id"] == str(app_id)
 
 
-def test_an_obligation_alert_names_the_application_it_belongs_to(env):
-    from app.compliance.demo_seed import seed_letters
+def test_an_obligation_alert_names_the_application_it_belongs_to(env, monkeypatch):
     from app.compliance.models import Obligation
+    from app.workflow import demo_seed
 
-    ensure_intake_rules(env)
-    seed_letters()  # one of the demo letters is already overdue
+    monkeypatch.setenv("WF_ENABLE_LETTER_ISSUANCE", "true")
+    overdue = [c for c in demo_seed.DEMO_CASES if c.key == "LOA-OVERDUE"]
+    monkeypatch.setattr(demo_seed, "DEMO_CASES", tuple(overdue))
+    try:
+        with env:
+            demo_seed.seed_cases(env)  # its LoA was issued 20 days ago: the deposit is five days overdue
+    finally:
+        with new_session() as s, s.begin():
+            s.execute(text("TRUNCATE evc.assignment_expert, evc.assignment, evc.availability, evc.coi, evc.slot, "
+                           "evc.schedule_run_request, evc.schedule_run, evc.evc_request, evc.expert"))
     worker().run_once()
     with new_session() as s:
         obligations = {o.id: o for o in s.scalars(select(Obligation)).all()}
