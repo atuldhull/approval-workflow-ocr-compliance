@@ -36,8 +36,19 @@ def test_v1_catalog_contains_only_approved_canonical_keys_and_assignments():
         "lease_end_date": "normalize_date_candidate",
         "letter_issue_date": "normalize_date_candidate",
         "letter_file_number": "normalize_reference_value",
+        "valid_until": "normalize_date_candidate",
+        "certificate_issue_date": "normalize_date_candidate",
     }
-    assert all(r.labels == (r.field_key,) for r in rules)
+    assert all(r.labels[0] == r.field_key for r in rules)
+    # printed labels are accepted only for the certificate validity fields
+    assert {r.field_key for r in rules if len(r.labels) > 1} == {"valid_until", "certificate_issue_date"}
+
+
+def test_printed_certificate_labels_yield_validity_candidates():
+    found = [(c.field_key, c.value.normalized_value) for c in extract(
+        "Valid Until: 2031-03-31\nDate of Issue: 2026-04-01\nValidity up to 2030-01-15")]
+    assert found == [("valid_until", "2031-03-31"), ("certificate_issue_date", "2026-04-01"),
+                     ("valid_until", "2030-01-15")]
 
 
 def test_field_candidate_contract_accepts_extractor_result():

@@ -15,6 +15,16 @@
       "field_key": "letter_file_number",
       "normalizer": "normalize_reference_value",
       "aliases": []
+    },
+    {
+      "field_key": "valid_until",
+      "normalizer": "normalize_date_candidate",
+      "aliases": ["Valid Until", "Valid Upto", "Valid up to", "Validity up to", "Date of Expiry"]
+    },
+    {
+      "field_key": "certificate_issue_date",
+      "normalizer": "normalize_date_candidate",
+      "aliases": ["Date of Issue"]
     }
   ]
 }

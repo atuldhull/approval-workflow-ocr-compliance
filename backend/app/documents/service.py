@@ -51,6 +51,17 @@ DECISIONS = {"ACCEPTED": FactState.CONFIRMED, "CORRECTED": FactState.CORRECTED, 
 DECISION_OF_STATE = {state.value: name for name, state in DECISIONS.items()}
 
 
+# Called inside the confirming unit of work once a fact is confirmed, after its doc.fact_confirmed event; other
+# modules register here (compliance opens document validity records) so the documents module imports none of them.
+_fact_confirmed_hooks: list = []
+
+
+def on_fact_confirmed(hook) -> None:
+    """Register hook(uow, fact, version); registering the same hook again does nothing."""
+    if hook not in _fact_confirmed_hooks:
+        _fact_confirmed_hooks.append(hook)
+
+
 class FourEyesViolation(Conflict):
     """The officer who reviewed a fact may not also confirm it."""
 
@@ -540,6 +551,8 @@ def confirm_fact(uow: UnitOfWork, fact_id: UUID) -> Fact:
         "version_id": str(version.document_version_id), "application_id": str(version.application_id),
         "field": fact.field_key, "value_hash": value_hash(fact.reviewed_value),
     })
+    for hook in _fact_confirmed_hooks:
+        hook(uow, fact, version)
     return fact
 
 
