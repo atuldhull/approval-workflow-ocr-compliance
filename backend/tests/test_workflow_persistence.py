@@ -93,7 +93,7 @@ def test_loader_idempotent_without_reading_clock_or_changing_metadata(client):
         assert all(r.created_at == AT for r in rows)
         assert [r.demo_only for r in rows] == [False, True]
         assert [len(r.source_files) for r in rows] == [3, 4]
-        assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 44
+        assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 48
         transitions = session.scalar(select(func.count()).select_from(TransitionDefinition))
         assert transitions > 0
 
@@ -134,7 +134,7 @@ def test_changed_checksum_is_rejected_and_old_definition_preserved(client, tmp_p
         sync(registry(root))
     with new_session() as session:
         assert session.scalar(select(Ruleset.checksum).where(Ruleset.key == R1)) == before
-        assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 44
+        assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 48
 
 
 def test_loader_transaction_rolls_back_all_definitions(client):
@@ -190,7 +190,7 @@ def test_startup_hook_materializes_rulesets_without_api_change(client):
         assert client.get("/api/health").status_code == 200
     with client:
         with new_session() as session:
-            assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 44
+            assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 48
 
 
 def test_case_optimistic_lock_rejects_stale_writer(client):
@@ -274,7 +274,7 @@ def test_workflow_models_match_migrations(database):
         inspector = inspect(connection)
         assert inspector.get_pk_constraint("case_state", schema="wf")["constrained_columns"] == ["application_id"]
         assert any(i["column_names"] == ["ruleset_key", "route_id"] for i in inspector.get_indexes("case_state", schema="wf"))
-        assert len(metadata.tables) == 15
+        assert len(metadata.tables) == 16
         for table in metadata.tables.values():
             assert all(fk.column.table.schema == "wf" for fk in table.foreign_keys)
 
@@ -287,13 +287,15 @@ def test_one_head_per_module_and_inherited_workflow_label():
         heads[Path(rev.path).parent.name].append(head)
     # one head per module; only this module's own chains are pinned, the others move on their own
     assert all(len(module_heads) == 1 for module_heads in heads.values()), dict(heads)
-    assert heads["workflow"] == ["wf_0006"] and heads["evc"] == ["evc_0004"]
+    assert heads["workflow"] == ["wf_0007"] and heads["evc"] == ["evc_0004"]
     assert scripts.get_revision("evc_0004").down_revision == "evc_0003"
     assert scripts.get_revision("evc_0003").down_revision == "evc_0002"
     assert scripts.get_revision("evc_0002").down_revision == "evc_0001"
     assert scripts.get_revision("evc_0001").down_revision is None
     assert scripts.get_revision("evc_0001").branch_labels == {"evc"}
     assert scripts.get_revision("evc_0001").dependencies == "wf_0001"
+    assert scripts.get_revision("wf_0007").down_revision == "wf_0006"
+    assert scripts.get_revision("wf_0007").branch_labels == {"workflow"}
     assert scripts.get_revision("wf_0006").down_revision == "wf_0005"
     assert scripts.get_revision("wf_0006").branch_labels == {"workflow"}
     assert scripts.get_revision("wf_0005").down_revision == "wf_0004"

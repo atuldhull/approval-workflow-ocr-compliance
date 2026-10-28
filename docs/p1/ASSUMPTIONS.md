@@ -1,5 +1,11 @@
 # P1 assumptions
 
+## Workflow completeness — Step 8, 28 October 2026
+- ROUTE-CITE-001 — The 21 Table 2.3 routes cite their row (APH 2024-27 PDF p.46) and are marked VERIFIED against the handbook text; RANDOM_INSPECTION (cl. 2.3.5(a), p.31) and COMPLAINT_EVC (cl. 7.10(c)-(d), p.89) likewise. NEW_INSTITUTION stays DEMO ASSUMPTION (NEW_INSTITUTION_SHC_UNCONFIRMED): Chapter I has no SHC step. The workflow policies on every route (TG-001..TG-006) remain demo assumptions. This supersedes ROUTING-KEY-001 below.
+- ONLY-EVC-001 — DEMO ASSUMPTION: an AICTE-initiated visit is opened by the institution's filing after AICTE's intimation (no officer-created case exists); SHC is "as applicable" as for every EVC (the Table 2.3 pairing), although cl. 7.10(d) places a complaint EVC report before the SHC.
+- EVC-ROUTE-001 — DEMO ASSUMPTION: a route may set its own EVC rule (`evc_rule_id`); NEW_INSTITUTION uses EVC_NEW_INSTITUTION, 14 calendar days. The APH sets no EVC duration.
+- APPEAL-001 — The appeal window (APPEAL_7D, 7 calendar days from the LoD's issue date, once per case) is verified (cl. 1.11(a), 2.24(a)). DEMO ASSUMPTIONS: SAC recommendations are recorded by a member of a SAC committee workspace citing its latest report (GF-001/GF-003 reused); the Council's final decision is recorded by BUREAU_HEAD; after a referral back the case returns to another SAC hearing (`return_to_sac`, cl. 1.11(d)) and the AICTE processing clock, closed at the LoD, is not reopened; a lapse is closed by the deadline worker as SYSTEM once APPEAL_7D is BREACHED, or recorded by a bureau officer, and closes the clock as WAIVED.
+
 ## Read endpoints for the frontend and document_ref checks — 4.5, 28 October 2026
 
 Plan 4.5 (docs/p1/plans/4.5_frontend_read_gaps.md) closes the backend gaps the frontend reported; nothing here is an APH rule.

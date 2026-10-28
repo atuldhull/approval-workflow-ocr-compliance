@@ -28,6 +28,7 @@ class Plan:
     clause_citation: dict
     checklist: dict
     assumptions: tuple[str, ...]
+    evc: dict | None = None
 
 
 def plan(session: Session, category: str, key: str) -> Plan:
@@ -37,8 +38,11 @@ def plan(session: Session, category: str, key: str) -> Plan:
     checklist = (metadata or {}).get("intake", {}).get(category)
     if route is None or checklist is None or not route["clause_citation"]:
         raise ValidationFailed("INTAKE_RULESET_NOT_LOADED")
-    assumptions = sorted(set(checklist["assumption_refs"] + [route["clause_citation"]["assumption_ref"]]))
-    return Plan(category, key, route["stage_list"], route["clause_citation"], checklist, tuple(assumptions))
+    # a VERIFIED route citation rests on no assumption; the demo checklist still does
+    cited = route["clause_citation"].get("assumption_ref")
+    assumptions = sorted(set(checklist["assumption_refs"] + ([cited] if cited else [])))
+    return Plan(category, key, route["stage_list"], route["clause_citation"], checklist, tuple(assumptions),
+                (metadata or {}).get("evc"))
 
 
 def ensure_complete(config: dict, provided: set[str], dsc_present: bool) -> None:

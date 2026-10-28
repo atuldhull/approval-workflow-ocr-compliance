@@ -11,7 +11,7 @@ from app.platform.db import new_session
 from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from app.workflow.loader import sync_at_startup
-from app.workflow import case_service
+from app.workflow import appeal, case_service, summary
 from app.workflow import deficiency
 from app.workflow import committee
 from app.workflow.commands import WorkflowValidationFailed
@@ -180,6 +180,27 @@ def cases(region: str | None = Query(default=None, min_length=1, max_length=100)
           limit: int = Query(default=50, ge=1, le=100), principal: Principal = Depends(current_principal)):
     with new_session() as session:
         return case_service.list_cases(session, principal, region=region, stage=stage, status=status, offset=offset, limit=limit)
+
+
+@router.get("/cases/{application_id}/summary", response_model=summary.CaseSummaryOut, tags=["cases"],
+            responses=ERROR_RESPONSES,
+            description="Electronic case summary for review and printing: identity, route and its citation, stage "
+                        "visits with outcomes and reason codes, deficiency rounds, committees with report versions "
+                        "(fingerprints only), EVC requests and published visits, open deadlines, obligations, letters "
+                        "and the appeal. Scoped like the case; sections the role may not read are listed in withheld.")
+def case_summary(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return summary.read(session, application_id, principal)
+
+
+@router.get("/cases/{application_id}/appeal", response_model=appeal.CaseAppealOut, tags=["cases"],
+            responses=ERROR_RESPONSES,
+            description="The appeal against the case's LoD (APH cl. 1.11 / 2.24), or null when none was opened: window "
+                        "clock and days left, filing, SAC recommendation and the Council's decision. Grounds and the "
+                        "speaking order appear as note hashes only. Scoped like the case.")
+def case_appeal(application_id: UUID, principal: Principal = Depends(current_principal)):
+    with new_session() as session:
+        return appeal.read(session, application_id, principal)
 
 
 @router.get("/cases/{application_id}", response_model=CaseOut, tags=["cases"], responses=ERROR_RESPONSES)

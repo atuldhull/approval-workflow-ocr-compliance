@@ -13,6 +13,9 @@ ACTIONS = frozenset({
     "submit", "advance", "record_deficiency", "submit_compliance", "start_rescrutiny",
     "advance_to_evc", "complete_evc", "advance_to_shc", "issue_loa", "issue_eoa",
     "issue_lod", "reject", "withdraw", "revert",
+    # appeal against an LoD (routes.yaml appeal block): APH cl. 1.11 / 2.24
+    "file_appeal", "close_appeal_window", "sac_recommend", "sac_not_recommend", "sac_refer_scrutiny",
+    "sac_refer_evc", "return_to_sac", "issue_lor",
 })
 ALIASES = {"scrutinise": "advance", "complete": "advance", "authorised_revert": "revert"}
 GUARDS = frozenset({
@@ -21,8 +24,13 @@ GUARDS = frozenset({
     "deficiency_items_present", "response_received", "at_last_applicable_stage",
     "decision_authorised", "letter_type_matches_decision", "previous_stage_visited",
     "second_approval_if_required", "checklist_complete", "dsc_required",
+    "appeal_window_open", "appeal_window_lapsed", "appeal_filed", "appeal_recommendation_recorded",
+    "appeal_referred_back", "speaking_order_present",
 })
 TERMINALS = frozenset({ApplicationStatus.APPROVED, ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN})
+# Actions of the appeal path; they need the routes.yaml appeal block.
+APPEAL_ACTIONS = frozenset({"file_appeal", "close_appeal_window", "sac_recommend", "sac_not_recommend",
+                            "sac_refer_scrutiny", "sac_refer_evc", "return_to_sac", "issue_lor"})
 
 
 class GrammarRecord(BaseModel):
@@ -120,7 +128,7 @@ def _template_checks(t: Transition, known: set[str], deadlines: dict, name: str)
     for stage in sources + t.requires_stages + ([t.match_to] if t.match_to else []):
         if stage not in known | {"DRAFT", "$route", "$active", "$last"}:
             _fail(f"{name}: unknown stage {stage}")
-    if t.to_stage not in known | TERMINALS | {"$first", "$next", "$previous"}:
+    if t.to_stage not in known | TERMINALS | {"$first", "$next", "$previous", "$current"}:
         _fail(f"{name}: unknown stage {t.to_stage}")
     if set(t.requires_stages) - known or (t.match_to is not None and t.match_to not in known):
         _fail(f"{name}: unknown stage in template filter")
@@ -160,7 +168,8 @@ def _next_stages(names: list[str], conditional: set[str], source: str, resume: d
     return result
 
 
-def _expand(route: Route, refs: list[str], templates: dict[str, Transition], auxiliary: dict, resume: dict) -> tuple[Edge, ...]:
+def _expand(route: Route, refs: list[str], templates: dict[str, Transition], auxiliary: dict, resume: dict,
+            appeal_stages: tuple[str, ...] = ()) -> tuple[Edge, ...]:
     names = [s.stage.value for s in route.stages]
     conditional = {s.stage.value for s in route.stages if s.when == "as_applicable"}
     activated = {k: v for k, v in auxiliary.items() if v in names}
@@ -169,6 +178,8 @@ def _expand(route: Route, refs: list[str], templates: dict[str, Transition], aux
     last = [s for i, s in enumerate(names) if all(n in conditional for n in names[i + 1:])]
     last += [s for s, anchor in resumed.items() if anchor in last]
     selectors = {"$route": names + list(resumed), "$active": active, "$last": last, "DRAFT": ["DRAFT"]}
+    # The appeal stage (SAC) is open to every route but is never part of its plan, $active or $previous.
+    known = active + list(appeal_stages)
     edges = []
     for ref in refs:
         t = templates[ref]
@@ -180,12 +191,14 @@ def _expand(route: Route, refs: list[str], templates: dict[str, Transition], aux
             for source in sources:
                 if t.to_stage == source and "at_last_applicable_stage" in t.guards and source not in last:
                     continue
-                if source not in active + ["DRAFT"]:
+                if source not in known + ["DRAFT"]:
                     _fail(f"{route.category}/{ref}: unknown stage {source} in this route")
                 if t.to_stage == "$first":
                     targets = [names[0]]
                 elif t.to_stage == "$next":
                     targets = _next_stages(names, conditional, source, resumed)
+                elif t.to_stage == "$current":
+                    targets = [source]
                 elif t.to_stage == "$previous":
                     anchor = activated.get(source, source)
                     index = names.index(anchor)
@@ -195,7 +208,7 @@ def _expand(route: Route, refs: list[str], templates: dict[str, Transition], aux
                 for target in targets:
                     if t.match_to is not None and target != t.match_to:
                         continue
-                    if target not in active and target not in TERMINALS:
+                    if target not in known and target not in TERMINALS:
                         _fail(f"{route.category}/{ref}: unknown stage {target} in this route")
                     edges.append(Edge(source, target, ref, t))
     return tuple(edges)
@@ -211,6 +224,36 @@ def _reachable(start: set[str], edges: tuple[Edge, ...], reverse: bool = False) 
         if reached == expanded:
             return reached
         reached = expanded
+
+
+def validate_appeal(raw: dict, templates: dict[str, Transition], deadlines: dict, routes: dict[str, Route]) -> dict | None:
+    """The appeal block: which decision opens the appeal window, its clock, how often and where it is heard."""
+    from contracts.enums import Stage
+
+    appeal = raw.get("appeal")
+    if appeal is None:
+        if any(t.action in APPEAL_ACTIONS for t in templates.values()):
+            _fail("appeal templates need an appeal block")
+        return None
+    appeal = _mapping(appeal, "appeal")
+    if set(appeal) - {"trigger", "window", "max_appeals", "stage", "source"}:
+        _fail("appeal: unknown key")
+    if appeal.get("trigger") not in ACTIONS or not str(appeal.get("trigger", "")).startswith("issue_"):
+        _fail("appeal: trigger must be a letter decision action")
+    if appeal.get("max_appeals") != 1 or isinstance(appeal.get("max_appeals"), bool):
+        _fail("appeal: max_appeals must be 1 (an appeal lies once)")
+    if appeal.get("stage") not in Stage.__members__ or any(
+            appeal["stage"] in {s.stage.value for s in route.stages} for route in routes.values()):
+        _fail("appeal: stage must be a known stage outside every route plan")
+    rule = deadlines.get(appeal.get("window"))
+    kind = rule.get("clock_kind") if isinstance(rule, dict) else getattr(rule, "clock_kind", None)
+    if rule is None or kind != ClockKind.LEGAL:
+        _fail("appeal: window must be a LEGAL deadline rule")
+    triggers = [t for t in templates.values() if t.action == appeal["trigger"]]
+    if not triggers or any(not any(timer.op == "open" and timer.rule_id == appeal["window"] for timer in t.timers)
+                           for t in triggers):
+        _fail("appeal: every trigger template must open the window clock")
+    return dict(appeal)
 
 
 def validate_workflow(raw: dict, routes: dict[str, Route], deadlines: dict) -> WorkflowDefinition:
@@ -249,6 +292,8 @@ def validate_workflow(raw: dict, routes: dict[str, Route], deadlines: dict) -> W
         if t.action == "submit" and ([timer.rule_id for timer in t.timers if timer.op == "open"] != on_submit
                                      or any(timer.op != "open" for timer in t.timers)):
             _fail(f"{name}: submit timers must match clocks.on_submit")
+    appeal = validate_appeal(raw, templates, deadlines, routes)
+    appeal_stages = (appeal["stage"],) if appeal else ()
     compiled = {}
     for category, route in routes.items():
         refs = _names(raw["routes"][category].get("transitions"), f"{category}.transitions")
@@ -260,7 +305,7 @@ def validate_workflow(raw: dict, routes: dict[str, Route], deadlines: dict) -> W
         if names & auxiliary.keys():
             _fail(f"{category}: auxiliary stage duplicates a route stage")
         declared = names | {k for k, v in auxiliary.items() if v in names}
-        edges = _expand(route, refs, templates, auxiliary, resume)
+        edges = _expand(route, refs, templates, auxiliary, resume, appeal_stages)
         if any(e.target in TERMINALS - set(terminal_names) for e in edges):
             _fail(f"{category}: transition targets undeclared terminal")
         reached = _reachable({"DRAFT"}, edges)

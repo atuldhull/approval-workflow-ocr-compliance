@@ -150,7 +150,7 @@ class DeficiencyItem(Base):
 class Committee(Base):
     __tablename__ = "committee"
     __table_args__ = (
-        CheckConstraint("type IN ('SCRUTINY', 'RESCRUTINY', 'EVC', 'SHC', 'EC', 'COUNCIL')", name="ck_wf_committee_type"),
+        CheckConstraint("type IN ('SCRUTINY', 'RESCRUTINY', 'EVC', 'SHC', 'EC', 'COUNCIL', 'SAC')", name="ck_wf_committee_type"),
         CheckConstraint("status IN ('ACTIVE', 'CLOSED')", name="ck_wf_committee_status"),
         Index("ix_wf_committee_case", "application_id"),
         {"schema": SCHEMA},
@@ -229,3 +229,47 @@ class ReportVersion(Base):
     author_user_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     parent_version: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+
+
+APPEAL_STATUSES = "'WINDOW_OPEN', 'FILED', 'RECOMMENDED', 'NOT_RECOMMENDED', 'REFERRED_BACK', 'LAPSED', 'DECIDED'"
+
+
+class Appeal(Base):
+    """The one appeal an LoD allows (APH cl. 1.11 / 2.24): its window, filing, SAC recommendation and the Council's
+    decision. Grounds and the speaking order are protected notes; only their references and hashes are kept."""
+    __tablename__ = "appeal"
+    __table_args__ = (
+        UniqueConstraint("application_id", name="uq_wf_appeal_case"),
+        CheckConstraint(f"status IN ({APPEAL_STATUSES})", name="ck_wf_appeal_status"),
+        CheckConstraint("recommendation IS NULL OR recommendation IN ('RECOMMEND', 'NOT_RECOMMEND', 'REFER_SCRUTINY', "
+                        "'REFER_EVC')", name="ck_wf_appeal_recommendation"),
+        CheckConstraint("outcome IS NULL OR outcome IN ('LOA', 'EOA', 'LOR')", name="ck_wf_appeal_outcome"),
+        CheckConstraint("(status = 'DECIDED') = (outcome IS NOT NULL)", name="ck_wf_appeal_decided"),
+        CheckConstraint("outcome IS DISTINCT FROM 'LOR' OR speaking_order_note_hash IS NOT NULL",
+                        name="ck_wf_appeal_speaking_order"),
+        CheckConstraint("hearing_no >= 0", name="ck_wf_appeal_hearing"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    application_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True), ForeignKey("wf.case_state.application_id"))
+    status: Mapped[str] = mapped_column(Text)
+    lod_letter_ref: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    window_rule_id: Mapped[str] = mapped_column(Text)
+    window_deadline_id: Mapped[UUIDValue] = mapped_column(UUID(as_uuid=True))
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    filed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    filed_by: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    grounds_note_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    grounds_note_hash: Mapped[str | None] = mapped_column(Text)
+    hearing_no: Mapped[int] = mapped_column(Integer)
+    recommendation: Mapped[str | None] = mapped_column(Text)
+    recommended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recommended_by: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    recommendation_report_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    outcome: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    decision_letter_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    speaking_order_note_ref: Mapped[UUIDValue | None] = mapped_column(UUID(as_uuid=True))
+    speaking_order_note_hash: Mapped[str | None] = mapped_column(Text)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -59,7 +59,7 @@ def count_events():
 
 def test_each_category_blocked_and_allowed_and_all_route_plans_match_yaml(api):
     raw = _read(FOLDER / "routes.yaml")["routes"]
-    assert len(raw) == 22
+    assert len(raw) == 24
     for category, route in raw.items():
         key = draft(api, category)
         missing = api.post(f"/api/applications/{key}/submit", headers=AUTH, json={"dsc_present": True})
@@ -79,7 +79,12 @@ def test_each_category_blocked_and_allowed_and_all_route_plans_match_yaml(api):
         assert body["stages"] == expected and body["route_id"] == category
         assert body["ruleset_key"] == "aph-2024-27@r1"
         assert body["clause_citation"] == route["clause_citation"]
-        assert body["clause_citation"]["status"] == "DEMO_ASSUMPTION"
+        # verified routes cite their handbook page and add no assumption; the demo checklist still does
+        citation = body["clause_citation"]
+        assert citation["status"] in {"VERIFIED", "DEMO_ASSUMPTION"}
+        assert (citation["status"] == "VERIFIED") == (citation.get("assumption_ref") is None) and citation["page"] >= 1
+        if citation.get("assumption_ref"):
+            assert citation["assumption_ref"] in body["assumptions"]
         assert body["assumptions"] == sorted(body["assumptions"])
         assert "INTAKE_ANNEXURE_2_UNKNOWN" in body["assumptions"]
         assert body["dsc_present"] is True

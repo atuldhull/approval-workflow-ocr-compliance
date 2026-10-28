@@ -145,7 +145,9 @@ def sync_rulesets(session: Session, registry: RulesetRegistry, *, created_by_ref
                              "expert_pool": rules.expert_pool,
                              "deficiency": validate_config(raw, rules.deadline_rules),
                              "evc": validate_evc(raw, rules.deadline_rules),
-                             "guard_facts": validate_guard_facts(raw)},
+                             "guard_facts": validate_guard_facts(raw),
+                             # validated with the workflow grammar above (validate_appeal)
+                             "appeal": raw.get("appeal")},
             created_at=now, created_by_ref=created_by_ref, approved_at=None, approved_by_ref=None,
         )
         session.add(row)

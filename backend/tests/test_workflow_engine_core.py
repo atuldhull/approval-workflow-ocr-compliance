@@ -51,6 +51,21 @@ def letter(kind="LOA", deficiencies=False):
                          issue_date_source="PORTAL_EVENT", lists_deficiencies=deficiencies)
 
 
+def appeal_facts(action: str, source: str, letter_data) -> tuple[str | None, bool | None]:
+    """The appeal record each appeal transition needs (status, window lapsed)."""
+    if action == "file_appeal":
+        return "WINDOW_OPEN", False
+    if action == "close_appeal_window":
+        return "WINDOW_OPEN", True
+    if action.startswith("sac_"):
+        return "FILED", None
+    if action == "return_to_sac":
+        return "REFERRED_BACK", None
+    if source == "SAC" and letter_data is not None:
+        return "RECOMMENDED", None
+    return None, None
+
+
 def context_and_command(category, spec):
     application_id = uuid5(NAMESPACE_URL, f"engine:{category}:{spec.position}")
     actor = Principal(uuid5(NAMESPACE_URL, "engine:actor"), Role(spec.roles[0]), institution_id=INST)
@@ -58,14 +73,17 @@ def context_and_command(category, spec):
     payload = Payload(target_stage=Stage(spec.target) if spec.action == "revert" else None,
                       item_refs=(ITEM,), response_ref=RESPONSE, decision_ref=DECISION, letter=data)
     command = Command(application_id=application_id, action=spec.action, expected_version=1,
-                      reason_code="DEMO_REASON", actor=actor, payload=payload)
+                      reason_code="DEMO_REASON", actor=actor, payload=payload,
+                      note_body="DEMO speaking order" if spec.action == "issue_lor" else None)
+    status, lapsed = appeal_facts(spec.action, spec.source, data)
     facts = GuardFacts(evc_request_status="PUBLISHED", open_item_count=0, checklist_complete=True, has_assignment=True,
                        dsc_required=True, dsc_present=True, missing_item_keys=(),
                        reason_codes=frozenset({"DEMO_REASON"}), item_refs=frozenset({ITEM}),
                        response_refs=frozenset({RESPONSE}), decision_refs=frozenset({DECISION}), confirmed_letter=data,
                        applicability={"SHC": spec.source == "SHC" or spec.target == "SHC"},
                        live_clock_rules=frozenset({"AICTE_PROCESSING", "INSTITUTION_RESPONSE"}),
-                       second_approval_required=False, second_approver_refs=frozenset({SECOND}))
+                       second_approval_required=False, second_approver_refs=frozenset({SECOND}),
+                       appeal_status=status, appeal_window_lapsed=lapsed)
     state = State(application_id, category, R1, None if spec.source == "DRAFT" else spec.source,
                   ApplicationStatus.DRAFT if spec.source == "DRAFT" else ApplicationStatus.IN_PROCESS, 1)
     case = CaseContext(state, ResourceRef("application", application_id, INST),

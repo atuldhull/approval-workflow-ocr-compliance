@@ -8,9 +8,10 @@ from app.intake import rules as intake_rules
 from app.intake.documents import check_document_refs
 from app.intake.shapes import ApplicationChecklistOut, ItemIn, ItemOut, ItemsOut
 from app.platform.registry import port
+from app.workflow.evc_config import rule_for
 from contracts.enums import ApplicationStatus
 from contracts.errors import Conflict, NotFound, ValidationFailed
-from contracts.ports import AuthzPort, CasePort, ClockPort, DeadlinePort, LedgerPort, RulesetPort, UnitOfWork
+from contracts.ports import AuthzPort, CasePort, ClockPort, DeadlinePort, EvcPort, LedgerPort, RulesetPort, UnitOfWork
 from contracts.types import Anchor, CaseRef, EventIn, ResourceRef, SubjectRef
 
 
@@ -60,7 +61,8 @@ def submit_application(uow: UnitOfWork, application_id: UUID, *, dsc_present: bo
     app.current_stage = route.stages[0].stage
     app.submitted_at = now
     app.dsc_present = dsc_present
-    session.add(StageVisit(application_id=app.id, stage=app.current_stage, entered_at=now))
+    visit = StageVisit(application_id=app.id, stage=app.current_stage, entered_at=now)
+    session.add(visit)
     session.flush()
 
     seq = port(LedgerPort).append(uow, EventIn(
@@ -73,6 +75,14 @@ def submit_application(uow: UnitOfWork, application_id: UUID, *, dsc_present: bo
     ))
     for rule_id in ruleset.clocks_on_submit:
         port(DeadlinePort).open(uow, SubjectRef("application", app.id), rule_id, Anchor(at=now, event_seq=seq), key)
+    if app.current_stage == "EVC":
+        # "Only EVC" routes start at the visit itself, so the request is queued on submission, as the engine does
+        # when a case enters EVC.
+        evc = route_plan.evc
+        if evc is None:
+            raise ValidationFailed("EVC_CONFIG_UNAVAILABLE")
+        port(EvcPort).enter(uow, ref, category=app.category, ruleset_key=key, stage_visit_id=visit.id,
+                            rule_id=rule_for(evc, app.category), action="submit", anchor=Anchor(at=now, event_seq=seq))
     return app
 
 

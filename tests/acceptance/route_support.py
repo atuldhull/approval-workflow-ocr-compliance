@@ -56,7 +56,9 @@ def raw_pair_allowed(category: str, source: str, action: str) -> bool:
     optional = {stage["stage"] for stage in stages if isinstance(stage, dict) and stage.get("when") == "as_applicable"}
     auxiliary = {name: anchor for name, anchor in RAW["auxiliary_stages"].items() if anchor in names}
     resumed = {name: anchor for name, anchor in RAW["resume_after"].items() if name in auxiliary}
-    if source not in set(names) | set(auxiliary) | {"DRAFT"}:
+    # the appeal stage (appeal block) is open to every route without being part of its plan
+    appeal_stages = {RAW["appeal"]["stage"]} if RAW.get("appeal") else set()
+    if source not in set(names) | set(auxiliary) | {"DRAFT"} | appeal_stages:
         return False
     canonical = ALIASES.get(action, action)
     for reference in RAW["routes"][category]["transitions"]:
@@ -88,6 +90,8 @@ def raw_pair_allowed(category: str, source: str, action: str) -> bool:
             targets = names[:names.index(prior_anchor) + int(source in auxiliary)] if prior_anchor in names else []
         elif target == "$first":
             targets = names[:1]
+        elif target == "$current":
+            targets = [source]
         else:
             targets = [target]
         if any(template.get("match_to") in (None, candidate) for candidate in targets):
@@ -107,6 +111,21 @@ def specifications(category: str) -> tuple[Spec, ...]:
 SPECS = {category: specifications(category) for category in RAW["routes"]}
 
 
+def appeal_facts(action: str, source: str, letter) -> tuple[str | None, bool | None]:
+    """The appeal record each appeal transition needs (status, window lapsed); none for every other action."""
+    if action == "file_appeal":
+        return "WINDOW_OPEN", False
+    if action == "close_appeal_window":
+        return "WINDOW_OPEN", True
+    if action.startswith("sac_"):
+        return "FILED", None
+    if action == "return_to_sac":
+        return "REFERRED_BACK", None
+    if source == RAW.get("appeal", {}).get("stage") and letter is not None:
+        return "RECOMMENDED", None
+    return None, None
+
+
 def core_input(category: str, source: str, action: str):
     canonical = ALIASES.get(action, action)
     candidates = [spec for spec in SPECS[category] if spec.source == source and spec.action == canonical]
@@ -118,14 +137,17 @@ def core_input(category: str, source: str, action: str):
         issue_date_source="PORTAL_EVENT", lists_deficiencies=chosen.letter["lists_deficiencies"]) if chosen and chosen.letter else None
     payload = Payload(dsc_present=True, target_stage=Stage(chosen.target) if chosen and canonical == "revert" else None,
                       item_refs=(DEMO_REF,), response_ref=DEMO_REF, decision_ref=DECISION_REF, letter=letter)
-    command = Command(application_id=application_id, action=action, expected_version=1, reason_code="DEMO_ACCEPTANCE", payload=payload, actor=actor)
+    command = Command(application_id=application_id, action=action, expected_version=1, reason_code="DEMO_ACCEPTANCE", payload=payload, actor=actor,
+                      note_body="DEMO speaking order" if canonical == "issue_lor" else None)
+    appeal_status, appeal_lapsed = appeal_facts(canonical, source, letter)
     status = ApplicationStatus(source) if source in {"DRAFT", *RAW["terminal_states"]} else ApplicationStatus.IN_PROCESS
     state = State(application_id, category, R1, source if status == ApplicationStatus.IN_PROCESS else None, status, 1)
     facts = GuardFacts(evc_request_status="PUBLISHED", missing_item_keys=(), dsc_present=True, dsc_required=True, checklist_complete=True,
         open_item_count=0, has_assignment=True, reason_codes=frozenset({"DEMO_ACCEPTANCE"}),
         item_refs=frozenset({DEMO_REF}), response_refs=frozenset({DEMO_REF}), decision_refs=frozenset({DECISION_REF}),
         confirmed_letter=letter, applicability={"SHC": source == "SHC" or bool(chosen and chosen.target == "SHC")},
-        live_clock_rules=frozenset({"AICTE_PROCESSING"}), second_approval_required=False)
+        live_clock_rules=frozenset({"AICTE_PROCESSING"}), second_approval_required=False,
+        appeal_status=appeal_status, appeal_window_lapsed=appeal_lapsed)
     route = tuple((stage.stage.value, stage.when) for stage in ROUTES[category].stages)
     context = CaseContext(state, ResourceRef("application", application_id, INSTITUTION), route, SPECS[category],
                           frozenset(stage for stage, _ in route), facts)

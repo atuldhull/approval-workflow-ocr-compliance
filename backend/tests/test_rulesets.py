@@ -23,7 +23,9 @@ def stages(registry, category):
 
 
 def test_r1_has_all_table_2_3_rows_plus_new_institution(registry):
-    assert len(registry.get("aph-2024-27@r1").routes) == 22
+    # 21 Table 2.3 rows, the Chapter I new institution and the two "Only EVC" routes (cl. 2.3.5(a), 7.10)
+    assert len(registry.get("aph-2024-27@r1").routes) == 24
+    assert stages(registry, "RANDOM_INSPECTION") == stages(registry, "COMPLAINT_EVC") == [Stage.EVC, Stage.SHC]
 
 
 def test_shc_is_optional_exactly_where_evc_is_required(registry):

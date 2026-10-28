@@ -810,7 +810,8 @@
         "EVC",
         "SHC",
         "EC",
-        "COUNCIL"
+        "COUNCIL",
+        "SAC"
       ],
       "title": "Stage",
       "type": "string"

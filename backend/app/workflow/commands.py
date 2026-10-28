@@ -88,6 +88,9 @@ class GuardFacts:
     live_clock_rules: frozenset[str] | None = None
     second_approval_required: bool | None = None
     second_approver_refs: frozenset[UUID] | None = None
+    # appeal record status (None: no LoD was appealable yet) and whether its window's clock has run out
+    appeal_status: str | None = None
+    appeal_window_lapsed: bool | None = None
 
 
 @dataclass(frozen=True)

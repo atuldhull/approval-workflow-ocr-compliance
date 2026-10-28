@@ -47,6 +47,8 @@ def parse_routes(raw: dict[str, Any]) -> dict[str, Route]:
             stages.append(RouteStage(Stage(name), when))
         if not stages:
             problems.append(f"{category}: no stages")
+        if spec.get("initiated_by") not in (None, "AICTE"):
+            problems.append(f"{category}: initiated_by must be AICTE when set")
         names = [s.stage for s in stages]
         if (Stage.EVC in names) != (Stage.SHC in names):
             problems.append(f"{category}: Table 2.3 pairs SHC with EVC")

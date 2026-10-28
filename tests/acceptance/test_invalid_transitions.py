@@ -27,5 +27,5 @@ def test_complete_stage_action_product(category, stage, action):
 def test_matrix_is_complete_and_includes_every_canonical_action():
     assert {t["action"] for t in RAW["templates"].values()} == set(CANONICAL_ACTIONS)
     counts = matrix_counts()
-    assert counts["routes"] == 22 and counts["total"] == counts["routes"] * counts["stages"] * len(ACTIONS)
+    assert counts["routes"] == 24 and counts["total"] == counts["routes"] * counts["stages"] * len(ACTIONS)
     assert counts["invalid"] > 0 and counts["valid"] > 0

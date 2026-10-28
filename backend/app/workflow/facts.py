@@ -29,6 +29,7 @@ IST = ZoneInfo("Asia/Kolkata")
 COMMITTEE_TYPES = {
     "SCRUTINY": ("SCRUTINY",), "DEFICIENT": ("SCRUTINY", "RESCRUTINY"), "RESCRUTINY": ("RESCRUTINY", "SCRUTINY"),
     "SELF_DISCLOSURE": ("SCRUTINY",), "EVC": ("EVC",), "SHC": ("SHC",), "EC": ("EC",), "COUNCIL": ("COUNCIL",),
+    "SAC": ("SAC",),
 }
 
 

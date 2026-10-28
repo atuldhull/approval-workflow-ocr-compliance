@@ -277,6 +277,327 @@
         "title": "AlertOut",
         "type": "object"
       },
+      "AppealOut": {
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_letter_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Letter Ref"
+          },
+          "filed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filed At"
+          },
+          "filed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filed By"
+          },
+          "grounds_note_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grounds Note Hash"
+          },
+          "hearing_no": {
+            "title": "Hearing No",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lod_letter_ref": {
+            "format": "uuid",
+            "title": "Lod Letter Ref",
+            "type": "string"
+          },
+          "max_appeals": {
+            "title": "Max Appeals",
+            "type": "integer"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "LOA",
+                  "EOA",
+                  "LOR"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "RECOMMEND",
+                  "NOT_RECOMMEND",
+                  "REFER_SCRUTINY",
+                  "REFER_EVC"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation"
+          },
+          "recommendation_report_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation Report Ref"
+          },
+          "recommended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended At"
+          },
+          "recommended_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended By"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "speaking_order_note_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaking Order Note Hash"
+          },
+          "status": {
+            "enum": [
+              "WINDOW_OPEN",
+              "FILED",
+              "RECOMMENDED",
+              "NOT_RECOMMENDED",
+              "REFERRED_BACK",
+              "LAPSED",
+              "DECIDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "window": {
+            "$ref": "#/components/schemas/AppealWindowOut"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "max_appeals",
+          "opened_at",
+          "lod_letter_ref",
+          "window",
+          "filed_at",
+          "filed_by",
+          "grounds_note_hash",
+          "hearing_no",
+          "recommendation",
+          "recommended_at",
+          "recommended_by",
+          "recommendation_report_ref",
+          "outcome",
+          "decided_at",
+          "decided_by",
+          "decision_letter_ref",
+          "speaking_order_note_hash",
+          "closed_at",
+          "source"
+        ],
+        "title": "AppealOut",
+        "type": "object"
+      },
+      "AppealWindowOut": {
+        "properties": {
+          "clause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clause"
+          },
+          "clock_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clock Status"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Left"
+          },
+          "deadline_id": {
+            "format": "uuid",
+            "title": "Deadline Id",
+            "type": "string"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "source_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Status"
+          }
+        },
+        "required": [
+          "rule_id",
+          "deadline_id",
+          "due_date",
+          "clock_status",
+          "days_left",
+          "clause",
+          "source_status"
+        ],
+        "title": "AppealWindowOut",
+        "type": "object"
+      },
       "ApplicationChecklistOut": {
         "description": "Read-only checklist state; items/flags are DEMO ASSUMPTION stand-ins (INTAKE_* assumption refs).",
         "properties": {
@@ -785,6 +1106,31 @@
         "title": "CaseActionOut",
         "type": "object"
       },
+      "CaseAppealOut": {
+        "properties": {
+          "appeal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppealOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "appeal"
+        ],
+        "title": "CaseAppealOut",
+        "type": "object"
+      },
       "CaseErrorOut": {
         "properties": {
           "detail": {
@@ -1169,6 +1515,245 @@
         "title": "CaseSubmissionErrorOut",
         "type": "object"
       },
+      "CaseSummaryOut": {
+        "properties": {
+          "academic_year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academic Year"
+          },
+          "appeal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppealOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumption_status": {
+            "anyOf": [
+              {
+                "const": "DEMO_ASSUMPTION",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assumption Status"
+          },
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "clause_citation": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clause Citation"
+          },
+          "committees": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryCommitteeOut"
+            },
+            "title": "Committees",
+            "type": "array"
+          },
+          "deficiencies": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryRoundOut"
+            },
+            "title": "Deficiencies",
+            "type": "array"
+          },
+          "evc_requests": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryEvcOut"
+            },
+            "title": "Evc Requests",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "institution_id": {
+            "format": "uuid",
+            "title": "Institution Id",
+            "type": "string"
+          },
+          "letters": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SummaryLetterOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Letters"
+          },
+          "obligations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SummaryObligationOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Obligations"
+          },
+          "open_deadlines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SummaryDeadlineOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Deadlines"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "route": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStageOut"
+            },
+            "title": "Route",
+            "type": "array"
+          },
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "route_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Label"
+          },
+          "ruleset_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleset Key"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Stage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage_visits": {
+            "items": {
+              "$ref": "#/components/schemas/VisitOut"
+            },
+            "title": "Stage Visits",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "withheld": {
+            "items": {
+              "enum": [
+                "open_deadlines",
+                "obligations",
+                "letters"
+              ],
+              "type": "string"
+            },
+            "title": "Withheld",
+            "type": "array"
+          }
+        },
+        "required": [
+          "case_id",
+          "generated_at",
+          "institution_id",
+          "region",
+          "academic_year",
+          "route_id",
+          "route_label",
+          "clause_citation",
+          "ruleset_key",
+          "status",
+          "stage",
+          "version",
+          "submitted_at",
+          "route",
+          "stage_visits",
+          "deficiencies",
+          "committees",
+          "evc_requests",
+          "open_deadlines",
+          "obligations",
+          "letters",
+          "appeal",
+          "withheld",
+          "assumption_status"
+        ],
+        "title": "CaseSummaryOut",
+        "type": "object"
+      },
       "CaseVisit": {
         "properties": {
           "algorithm": {
@@ -1518,7 +2103,8 @@
               "EVC",
               "SHC",
               "EC",
-              "COUNCIL"
+              "COUNCIL",
+              "SAC"
             ],
             "title": "Type",
             "type": "string"
@@ -1582,7 +2168,8 @@
               "EVC",
               "SHC",
               "EC",
-              "COUNCIL"
+              "COUNCIL",
+              "SAC"
             ],
             "title": "Type",
             "type": "string"
@@ -1662,7 +2249,8 @@
               "EVC",
               "SHC",
               "EC",
-              "COUNCIL"
+              "COUNCIL",
+              "SAC"
             ],
             "title": "Type",
             "type": "string"
@@ -5577,7 +6165,8 @@
           "EVC",
           "SHC",
           "EC",
-          "COUNCIL"
+          "COUNCIL",
+          "SAC"
         ],
         "title": "Stage",
         "type": "string"
@@ -5828,6 +6417,456 @@
           "normalization_status"
         ],
         "title": "SuggestionOut",
+        "type": "object"
+      },
+      "SummaryCommitteeOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryReportOut"
+            },
+            "title": "Reports",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ordinal",
+          "type",
+          "status",
+          "member_count",
+          "reports"
+        ],
+        "title": "SummaryCommitteeOut",
+        "type": "object"
+      },
+      "SummaryDeadlineOut": {
+        "properties": {
+          "clause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clause"
+          },
+          "clock_kind": {
+            "title": "Clock Kind",
+            "type": "string"
+          },
+          "clock_owner": {
+            "title": "Clock Owner",
+            "type": "string"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "source_status": {
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rule_id",
+          "status",
+          "due_date",
+          "clock_kind",
+          "clock_owner",
+          "clause",
+          "source_status"
+        ],
+        "title": "SummaryDeadlineOut",
+        "type": "object"
+      },
+      "SummaryEvcOut": {
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "due_by": {
+            "format": "date",
+            "title": "Due By",
+            "type": "string"
+          },
+          "duration_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Days"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "source_status": {
+            "const": "DEMO_ASSUMPTION",
+            "default": "DEMO_ASSUMPTION",
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SummaryVisitOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "requested_at",
+          "due_by",
+          "closed_at",
+          "rule_id",
+          "duration_days",
+          "visit"
+        ],
+        "title": "SummaryEvcOut",
+        "type": "object"
+      },
+      "SummaryItemOut": {
+        "properties": {
+          "decision_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason Code"
+          },
+          "item_key": {
+            "title": "Item Key",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_key",
+          "state",
+          "decision_reason_code"
+        ],
+        "title": "SummaryItemOut",
+        "type": "object"
+      },
+      "SummaryLetterOut": {
+        "properties": {
+          "academic_year": {
+            "title": "Academic Year",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issue_date": {
+            "format": "date",
+            "title": "Issue Date",
+            "type": "string"
+          },
+          "issue_date_source": {
+            "title": "Issue Date Source",
+            "type": "string"
+          },
+          "letter_type": {
+            "title": "Letter Type",
+            "type": "string"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "id",
+          "letter_type",
+          "academic_year",
+          "issue_date",
+          "issue_date_source",
+          "valid_until"
+        ],
+        "title": "SummaryLetterOut",
+        "type": "object"
+      },
+      "SummaryObligationOut": {
+        "properties": {
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "source_clause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Clause"
+          },
+          "source_status": {
+            "title": "Source Status",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "due_date",
+          "rule_id",
+          "source_clause",
+          "source_status"
+        ],
+        "title": "SummaryObligationOut",
+        "type": "object"
+      },
+      "SummaryReportOut": {
+        "properties": {
+          "author_user_ref": {
+            "format": "uuid",
+            "title": "Author User Ref",
+            "type": "string"
+          },
+          "content_note_hash": {
+            "title": "Content Note Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version_no",
+          "created_at",
+          "author_user_ref",
+          "content_note_hash"
+        ],
+        "title": "SummaryReportOut",
+        "type": "object"
+      },
+      "SummaryRoundOut": {
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "closure_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Kind"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "round_no": {
+            "title": "Round No",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "round_no",
+          "status",
+          "opened_at",
+          "closed_at",
+          "closure_kind",
+          "items"
+        ],
+        "title": "SummaryRoundOut",
+        "type": "object"
+      },
+      "SummaryVisitOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "panel_size": {
+            "title": "Panel Size",
+            "type": "integer"
+          },
+          "simulation_status": {
+            "title": "Simulation Status",
+            "type": "string"
+          },
+          "slot_part": {
+            "title": "Slot Part",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "slot_part",
+          "panel_size",
+          "simulation_status"
+        ],
+        "title": "SummaryVisitOut",
         "type": "object"
       },
       "TaskIn": {
@@ -9340,6 +10379,157 @@
         ]
       }
     },
+    "/api/cases/{application_id}/appeal": {
+      "get": {
+        "description": "The appeal against the case's LoD (APH cl. 1.11 / 2.24), or null when none was opened: window clock and days left, filing, SAC recommendation and the Council's decision. Grounds and the speaking order appear as note hashes only. Scoped like the case.",
+        "operationId": "case_appeal_api_cases__application_id__appeal_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseAppealOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Case Appeal Api Cases  Application Id  Appeal Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Case Appeal",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
     "/api/cases/{application_id}/committees": {
       "get": {
         "description": "Committees formed for one case in formation order: type, status, members as user references, task and report counts and the latest report version (hash only). Scoped like the case.",
@@ -10148,6 +11338,157 @@
         "summary": "Get Rescrutiny",
         "tags": [
           "deficiencies"
+        ]
+      }
+    },
+    "/api/cases/{application_id}/summary": {
+      "get": {
+        "description": "Electronic case summary for review and printing: identity, route and its citation, stage visits with outcomes and reason codes, deficiency rounds, committees with report versions (fingerprints only), EVC requests and published visits, open deadlines, obligations, letters and the appeal. Scoped like the case; sections the role may not read are listed in withheld.",
+        "operationId": "case_summary_api_cases__application_id__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CaseErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseInputErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CaseSubmissionErrorOut"
+                    }
+                  ],
+                  "title": "Response 422 Case Summary Api Cases  Application Id  Summary Get"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Case Summary",
+        "tags": [
+          "cases"
         ]
       }
     },
