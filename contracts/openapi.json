@@ -16704,12 +16704,12 @@
         "operationId": "get_report_api_reports__report_type__get",
         "parameters": [
           {
-            "description": "One of: evc_status, overdue, pendency, region_performance, undertakings.",
+            "description": "One of: document_validity, evc_status, overdue, pendency, region_performance, undertakings.",
             "in": "path",
             "name": "report_type",
             "required": true,
             "schema": {
-              "description": "One of: evc_status, overdue, pendency, region_performance, undertakings.",
+              "description": "One of: document_validity, evc_status, overdue, pendency, region_performance, undertakings.",
               "title": "Report Type",
               "type": "string"
             }
