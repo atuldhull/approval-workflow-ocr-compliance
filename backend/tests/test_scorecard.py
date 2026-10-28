@@ -105,11 +105,20 @@ def test_a_scan_that_never_finishes_needs_attention(client, scanner):
     assert scan["outcome"] == "ATTENTION" and scan["result"]["oldest_pending_minutes"] >= 24 * 60
 
 
+def advance_to_last_day_before_processing_due():
+    """Move to the final day before AICTE_PROCESSING falls due, so every reminder level has fallen due.
+
+    The clock counts working days on the holiday calendar, so the calendar distance depends on today's date."""
+    with get_engine().connect() as c:
+        due = c.scalar(text("SELECT max(due_at) FROM dl.deadline WHERE rule_id = 'AICTE_PROCESSING'"))
+    clock.advance((due - clock.now()).days)
+
+
 def test_alert_levels_that_fell_due_are_compared_with_alerts_raised(client):
     seed_directory()
     submitted(client)
     assert items(client)["alerts"]["kind"] == "NOT_EVALUATED"
-    clock.advance(29)                     # the level-0 reminders fall due; the timer worker has not run
+    advance_to_last_day_before_processing_due()   # the reminders fall due; the timer worker has not run
     alerts = items(client)["alerts"]
     assert alerts["kind"] == "MEASURED_ON_DEMO_TRAFFIC" and alerts["outcome"] == "FAIL"
     assert alerts["result"]["missed"] >= 1 and alerts["result"]["raised"] == 0
@@ -129,7 +138,7 @@ def test_alert_levels_that_fell_due_are_compared_with_alerts_raised(client):
 def test_alert_raised_before_its_level_was_due_is_reported(client):
     seed_directory()
     submitted(client)
-    clock.advance(29)
+    advance_to_last_day_before_processing_due()
     client.post("/api/sim/timers/run", headers=HEAD)
     with get_engine().begin() as c:
         c.execute(text("UPDATE dl.alert SET raised_at = raised_at - :d WHERE level = 0"), {"d": timedelta(days=10)})
