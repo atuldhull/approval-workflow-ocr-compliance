@@ -144,6 +144,12 @@ export const TEMPLATE_NAMES = {
   "deadline.escalated": "Deadline escalated",
   "obligation.due": "Compliance item due",
   "case.update": "Case updated",
+  "deadline.missed": "Deadline missed on your case",
+  "case.deficiency_recorded": "Deficiencies recorded",
+  "evc.visit_scheduled": "Expert visit scheduled",
+  "compliance.evidence_accepted": "Evidence accepted",
+  "compliance.evidence_rejected": "Evidence rejected",
+  "letter.registered": "Letter registered",
 };
 export const templateLabel = (t) => TEMPLATE_NAMES[t] ?? (t ? sentence(t.replace(/\./g, "_")) : "Message");
 

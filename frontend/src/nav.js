@@ -4,10 +4,12 @@
 const OFFICERS = ["SCRUTINY_COMMITTEE", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"];
 const OVERSIGHT = ["AUDITOR", "BUREAU_OFFICER", "BUREAU_HEAD"];
 const EVERYONE = ["INSTITUTION", ...OFFICERS, "AUDITOR"];
+const REPORTING = ["RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD", "AUDITOR"];
 
 export const NAV = [
   { key: "overview", label: "Overview", roles: ["INSTITUTION"] },
   { key: "dashboard", label: "Dashboard", roles: [...OFFICERS, "AUDITOR"] },
+  { key: "reports", label: "Reports", roles: REPORTING },
   { key: "applications", label: "Cases", institutionLabel: "My applications", roles: EVERYONE },
   { key: "inbox", label: "Inbox", roles: EVERYONE },
   { key: "alerts", label: "Alerts", roles: EVERYONE },
