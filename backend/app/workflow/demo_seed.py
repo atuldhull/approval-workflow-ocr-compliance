@@ -64,7 +64,7 @@ DEMO_CASES = (
     DemoCase("LOA-OVERDUE", SUNRISE, APPROVED, days_ago=20),              # deposit and affidavit 5 days overdue
     DemoCase("DEFICIENT", NORTHFIELD, DEFICIENT, days_ago=10),            # reply window open, 5 days left
     DemoCase("APPEAL-AT-SAC", NORTHFIELD, APPEAL_AT_SAC, days_ago=5, category="CHANGE_OF_NAME"),
-    DemoCase("LOD-APPEAL-OPEN", RIVERBEND, LOD_WINDOW, days_ago=3, category="CHANGE_OF_NAME"),  # 4 days left
+    DemoCase("LOD-APPEAL-OPEN", SUNRISE, LOD_WINDOW, days_ago=3, category="CHANGE_OF_NAME"),  # 4 days left
     DemoCase("LOA-SOUTH", SUNRISE, APPROVED, days_ago=2),
     DemoCase("LOA-NORTH", NORTHFIELD, APPROVED, days_ago=2),
     DemoCase("EVC-QUEUED-SOUTH", SUNRISE, EVC_QUEUED, days_ago=1),
