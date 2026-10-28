@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import text
 
 from app.analytics.projections import ALL
+from app.compliance.validity import expiring_window_days
 from app.platform import notifier
 from app.platform.db import new_session
 from app.platform.registry import port
@@ -154,6 +155,27 @@ def _by_institution(apps: dict, deadlines: dict, case_of, overdue) -> dict:
                       "overdue": c["overdue"]} for k, c in ordered[:TOP_INSTITUTIONS]]}
 
 
+def _validity_states(records: list[dict], deadlines: dict[str, dict], today: date, overdue) -> dict:
+    """Document validity records by state, as the Compliance screen reads them (app.compliance.validity): renewed
+    when met, under review while a renewal waits for an officer, expired once its clock has run out, expiring soon
+    from the earliest advance reminder."""
+    window = expiring_window_days() if records else 0
+    counts = Counter()
+    for o in records:
+        if o["status"] == "MET":
+            counts["renewed"] += 1
+        elif o["status"] == "EVIDENCE_SUBMITTED":
+            counts["renewal_under_review"] += 1
+        elif overdue(deadlines.get(o["deadline_id"]) if o["deadline_id"] else None):
+            counts["expired"] += 1
+        elif o["due_date"] and (date.fromisoformat(o["due_date"]) - today).days <= window:
+            counts["expiring_soon"] += 1
+        else:
+            counts["valid"] += 1
+    return {"records": len(records), **{k: counts[k] for k in
+                                        ("valid", "expiring_soon", "expired", "renewal_under_review", "renewed")}}
+
+
 def dashboard(region: str | None) -> dict:
     now: datetime = port(ClockPort).now()
     today: date = now.astimezone(ZoneInfo("Asia/Kolkata")).date()
@@ -247,6 +269,8 @@ def dashboard(region: str | None) -> dict:
     obligations = [o for o in records.values() if o["kind"] == "obligation" and o["application_id"] in apps]
     evidence = [e for e in records.values() if e["kind"] == "evidence" and e["application_id"] in apps]
     letters = [x for x in records.values() if x["kind"] == "letter" and x["application_id"] in apps]
+    validity = _validity_states([o for o in obligations if o["type"] == "DOCUMENT_VALIDITY"], deadlines, today,
+                                overdue)
 
     sections = [
         coverage({"key": "applications", "title": "Applications", "status": "AVAILABLE",
@@ -304,14 +328,16 @@ def dashboard(region: str | None) -> dict:
                                          and date.fromisoformat(r["visit_date"]) >= today)}}, "evc.", "evc"),
         coverage({"key": "compliance", "title": "Compliance and obligations", "status": "AVAILABLE",
          "source": "Replayed from compliance and deadline events",
-         "note": "Overdue: not met and its clock is breached or past its due date.",
+         "note": "Overdue: not met and its clock is breached or past its due date. Document validity records count "
+                 "as obligations too; an expired document is an overdue one.",
          "data": {"obligations": len(obligations),
                   "by_status": dict(Counter(o["status"] for o in obligations)),
                   "by_kind": dict(Counter(o["type"] for o in obligations)),
                   "overdue": sum(1 for o in obligations if o["status"] != "MET" and overdue(
                       deadlines.get(o["deadline_id"]) if o["deadline_id"] else None)),
                   "awaiting_verification": sum(1 for e in evidence if e["status"] == "SUBMITTED"),
-                  "letters": dict(Counter(x["type"] for x in letters))}}, "cmp.", "compliance"),
+                  "letters": dict(Counter(x["type"] for x in letters)),
+                  "document_validity": validity}}, "cmp.", "compliance"),
     ]
     raised = _alerts_raised(region)
     if region is None:

@@ -18,12 +18,17 @@ from datetime import date, datetime
 from statistics import mean, median
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from app.analytics.service import OPEN_EVC, _projected, _regions
+from app.compliance import validity
+from app.compliance.models import Obligation
+from app.deadlines.models import Deadline
+from app.documents.models import DocumentVersion
 from app.platform.db import new_session
 from app.platform.ledger import canonical
 from app.platform.registry import port
+from contracts.enums import ObligationKind
 from contracts.ports import ClockPort, RulesetPort
 
 UNKNOWN_REGION = "Unknown (no case record)"
@@ -263,6 +268,40 @@ def region_performance(region: str | None) -> dict:
                 "counted in Indian Standard Time."))}
 
 
+VALIDITY_STATES = ("VALID", "EXPIRING_SOON", "EXPIRED", "RENEWAL_UNDER_REVIEW", "RENEWED")
+
+
+def document_validity(region: str | None) -> dict:
+    """Every tracked document's validity record: the date it is valid until, days left, and its clock."""
+    today = port(ClockPort).now().astimezone(IST).date()
+    window = validity.expiring_window_days()
+    with new_session() as s:
+        s.execute(text("SET TRANSACTION READ ONLY"))
+        q = (select(Obligation, Deadline.status, DocumentVersion.version_no)
+             .outerjoin(Deadline, Deadline.id == Obligation.deadline_id)
+             .outerjoin(DocumentVersion, DocumentVersion.document_version_id == Obligation.document_version_id)
+             .where(Obligation.kind == ObligationKind.DOCUMENT_VALIDITY))
+        if region is not None:
+            q = q.where(Obligation.region == region)
+        rows = [{"application_id": str(o.application_id), "case_ref": str(o.application_id)[:8], "region": o.region,
+                 "doc_type": o.doc_type, "document": o.doc_type.replace("_", " ").lower(),
+                 "document_version_no": version_no, "valid_until": o.valid_until.isoformat(),
+                 "validity_basis": o.validity_basis, "days_left": (o.valid_until - today).days,
+                 "validity_state": validity.validity_state(o, today, window), "eoa_stop_year": o.eoa_stop_year,
+                 "live_lease_ok": o.live_lease_ok, "deadline_status": status, "obligation_id": str(o.id)}
+                for o, status, version_no in s.execute(q).all()]
+        s.rollback()
+    rows.sort(key=lambda r: (r["valid_until"], r["region"], r["document"], r["application_id"],
+                             r["document_version_no"] or 0))
+    states = Counter(r["validity_state"] for r in rows)
+    return {"rows": rows, "total": {"records": len(rows), **{k.lower(): states[k] for k in VALIDITY_STATES}},
+            "coverage": {"note": (
+                "Read from the compliance validity records and their deadline clocks, not replayed from events. "
+                f"Expiring soon: within {window} days of the date the document is valid until (its earliest advance "
+                "reminder). Renewed: an accepted renewal met the record and opened the next one. EoA stop year and "
+                "live lease apply to a land lease only. Days are counted in Indian Standard Time.")}}
+
+
 @dataclass(frozen=True)
 class Report:
     title: str
@@ -297,6 +336,13 @@ REPORTS: dict[str, Report] = {
          ("average_age_days", "Average age (days)"), ("median_days_in_stage", "Median days in stage"),
          ("overdue_clocks", "Overdue clocks"), ("alerts", "Alerts"),
          ("alerts_acknowledged_on_time", "Acknowledged on time")), region_performance),
+    "document_validity": Report(
+        "Document validity", "Read from the compliance validity records and their deadline clocks",
+        (("case_ref", "Case"), ("region", "Region"), ("document", "Document"), ("document_version_no", "Version"),
+         ("valid_until", "Valid until"), ("validity_basis", "Date from"), ("days_left", "Days left"),
+         ("validity_state", "State"), ("eoa_stop_year", "EoA stop year"),
+         ("live_lease_ok", "Live lease covers longest course"), ("deadline_status", "Clock"),
+         ("application_id", "Case id")), document_validity),
 }
 REPORT_TYPES = frozenset(REPORTS)
 

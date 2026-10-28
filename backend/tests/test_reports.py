@@ -2,8 +2,10 @@
 import csv
 import io
 import json
+from datetime import timedelta
 
 from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
+from backend.tests.test_document_validity import RO_NORTH, application, env, record, today, upload  # noqa: F401
 from conftest import NORTHFIELD, SUNRISE, headers
 
 SUNRISE_H = headers("INSTITUTION", SUNRISE)
@@ -91,7 +93,8 @@ def test_export_rejects_unknown_formats_and_non_oversight_roles(client):
 
 def test_the_catalogue_lists_every_report_with_its_columns_and_source(client):
     listed = client.get("/api/reports", headers=BUREAU).json()
-    assert [r["type"] for r in listed] == ["pendency", "evc_status", "undertakings", "overdue", "region_performance"]
+    assert [r["type"] for r in listed] == ["pendency", "evc_status", "undertakings", "overdue", "region_performance",
+                                          "document_validity"]
     assert all(r["title"] and r["source"] and r["columns"] for r in listed)
     assert client.get("/api/reports", headers=RO_SOUTH).status_code == 200
     assert client.get("/api/reports", headers=SUNRISE_H).status_code == 403
@@ -114,12 +117,14 @@ def test_overdue_lists_every_late_clock_with_its_owner_and_days(client):
     clock.advance(35)                                   # past the 30-day processing clocks too
     body = client.get("/api/reports/overdue", headers=BUREAU).json()
     rules = sorted(r["rule_id"] for r in body["rows"])
-    assert rules == sorted(["AICTE_PROCESSING"] * 2 + ["LOA_DEPOSIT_AFFIDAVIT_15D"] * len(obligations))
+    loa_rules = [client.get(f"/api/compliance/obligations/{o}", headers=BUREAU).json()["rule_id"] for o in obligations]
+    assert rules == sorted(["AICTE_PROCESSING"] * 2 + loa_rules)
+    assert set(loa_rules) == {"DEPOSIT_15D", "AFFIDAVIT3_REMAINING_1M"}
     processing = next(r for r in body["rows"] if r["rule_id"] == "AICTE_PROCESSING" and r["region"] == "Southern")
     assert processing["application_id"] == south and processing["case_ref"] == south[:8]
     assert processing["owner_role"] == "RO_OFFICER" and processing["days_overdue"] == 5
     assert processing["status"] == "RUNNING" and processing["escalation_level"] is None
-    loa = next(r for r in body["rows"] if r["rule_id"] == "LOA_DEPOSIT_AFFIDAVIT_15D")
+    loa = next(r for r in body["rows"] if r["rule_id"] == "DEPOSIT_15D")
     assert loa["owner_role"] == "INSTITUTION" and loa["subject_type"] == "obligation" and loa["days_overdue"] > 400
     assert body["rows"][0]["days_overdue"] >= body["rows"][-1]["days_overdue"]     # most overdue first
     assert body["total"]["overdue"] == len(body["rows"]) and body["scope"]["as_of"]
@@ -157,9 +162,38 @@ def test_evc_status_and_region_performance_cover_every_region_in_scope(client):
         "Southern"]
 
 
+def test_document_validity_lists_each_record_with_its_state_and_clock(env):
+    c = env.client
+    south = application(c)
+    north = application(c, h=NORTHFIELD_H, inst=NORTHFIELD)
+    fire = record(c, upload(env, south, "FIRE_NOC", "report-fire"),
+                  valid_until=(today() + timedelta(days=20)).isoformat()).json()
+    lease_end = today() + timedelta(days=3650)
+    lease = record(c, upload(env, north, "LEASE_DEED", "report-lease", h=NORTHFIELD_H), h=RO_NORTH,
+                   valid_until=lease_end.isoformat(), max_course_duration_years=4).json()
+    body = c.get("/api/reports/document_validity", headers=BUREAU).json()
+    assert [r["obligation_id"] for r in body["rows"]] == [fire["id"], lease["id"]]   # soonest expiry first
+    f, ls = body["rows"]
+    assert (f["case_ref"], f["region"], f["document"], f["document_version_no"], f["validity_basis"]) == (
+        south[:8], "Southern", "fire noc", 1, "OFFICER_RECORDED")
+    assert (f["days_left"], f["validity_state"], f["deadline_status"], f["eoa_stop_year"]) == (
+        20, "EXPIRING_SOON", "RUNNING", None)
+    assert (ls["region"], ls["validity_state"], ls["valid_until"], ls["live_lease_ok"]) == (
+        "Northern", "VALID", lease_end.isoformat(), True)
+    assert ls["eoa_stop_year"] == lease["eoa_stop_year"] and ls["eoa_stop_year"]
+    assert body["total"]["records"] == 2 and body["total"]["expiring_soon"] == 1 and body["total"]["valid"] == 1
+    assert body["scope"]["as_of"] == today().isoformat() and body["snapshot_hash"]
+    regional = c.get("/api/reports/document_validity", headers=RO_SOUTH).json()
+    assert [r["obligation_id"] for r in regional["rows"]] == [fire["id"]]
+    assert c.get("/api/reports/document_validity", headers=SUNRISE_H).status_code == 403
+    csv_text = c.get("/api/reports/document_validity?format=csv", headers=BUREAU).text
+    assert f"{south[:8]},Southern,fire noc,1," in csv_text
+
+
 def test_every_report_downloads_as_csv_with_its_provenance(client):
     file(client, SUNRISE_H, SUNRISE)
-    for report_type in ("pendency", "evc_status", "undertakings", "overdue", "region_performance"):
+    for report_type in ("pendency", "evc_status", "undertakings", "overdue", "region_performance",
+                        "document_validity"):
         body = client.get(f"/api/reports/{report_type}", headers=BUREAU).json()
         r = client.get(f"/api/reports/{report_type}?format=csv", headers=BUREAU)
         assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")

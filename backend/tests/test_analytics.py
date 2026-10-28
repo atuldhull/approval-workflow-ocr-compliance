@@ -3,6 +3,7 @@ import json
 
 from app.deadlines.wiring import clock
 from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
+from backend.tests.test_document_validity import env  # noqa: F401
 from conftest import NORTHFIELD, SUNRISE, headers
 
 SUNRISE_H = headers("INSTITUTION", SUNRISE)
@@ -88,6 +89,26 @@ def test_compliance_counts_obligations_overdue_and_evidence_awaiting_an_officer(
     assert section(body, "deadlines")["data"]["overdue"] >= obligations
     north = section(client.get("/api/analytics/dashboard", headers=RO_NORTH).json(), "compliance")["data"]
     assert north["obligations"] == 0 and north["letters"] == {}
+
+
+def test_compliance_counts_document_validity_records_by_state(env):
+    from datetime import timedelta
+
+    from backend.tests.test_document_validity import application, record, today, upload
+    c = env.client
+    app_id = application(c)
+    record(c, upload(env, app_id, "FIRE_NOC", "dash-fire"), valid_until=(today() + timedelta(days=20)).isoformat())
+    record(c, upload(env, app_id, "BUILDING_COMPLETION", "dash-oc"),
+           valid_until=(today() + timedelta(days=400)).isoformat())
+    cmp = section(c.get("/api/analytics/dashboard", headers=BUREAU).json(), "compliance")["data"]
+    assert cmp["document_validity"] == {"records": 2, "valid": 1, "expiring_soon": 1, "expired": 0,
+                                        "renewal_under_review": 0, "renewed": 0}
+    assert cmp["by_kind"] == {"DOCUMENT_VALIDITY": 2}
+    clock.advance(30)                                   # the fire certificate has expired
+    cmp = section(c.get("/api/analytics/dashboard", headers=BUREAU).json(), "compliance")["data"]
+    assert (cmp["document_validity"]["expired"], cmp["document_validity"]["valid"], cmp["overdue"]) == (1, 1, 1)
+    north = section(c.get("/api/analytics/dashboard", headers=RO_NORTH).json(), "compliance")["data"]
+    assert north["document_validity"]["records"] == 0
 
 
 def test_regional_officer_sees_only_their_region(client):
