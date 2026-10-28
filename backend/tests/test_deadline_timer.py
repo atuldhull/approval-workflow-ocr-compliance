@@ -439,6 +439,68 @@ def test_replay_rebuilds_alerts_and_sends_nothing(env):
     assert count(Outbox) == queued and count(Alert) == raised
 
 
+# ---- breach and lifecycle events ----
+
+def test_a_clock_past_its_due_time_is_marked_breached_once_and_keeps_escalating(env):
+    d = deadline_of(submit(env))
+    clock.advance(31)   # past the due instant
+    worker().run_once()
+    assert deadline_of(d.subject_id).status == "BREACHED"
+    [breached] = events("dl.deadline_breached")
+    assert breached == {"deadline_id": str(d.id), "subject_type": "application", "subject_id": str(d.subject_id),
+                        "rule_id": "AICTE_PROCESSING", "clock_kind": d.clock_kind, "clock_owner": d.clock_owner,
+                        "due_date": d.due_date.isoformat(), "due_version": 1}
+    levels = len(alerts_of(d.id))
+    clock.advance(10)
+    worker().run_once()
+    worker().run_once()
+    assert len(events("dl.deadline_breached")) == 1
+    assert len(alerts_of(d.id)) > levels   # the ladder carries on after the breach
+
+
+def test_paused_clocks_are_not_breached(env):
+    d = deadline_of(submit(env))
+    with unit_of_work(SYSTEM) as uow:
+        DeadlineEngine().pause_internal(uow, SubjectRef("application", d.subject_id), "AICTE_PROCESSING")
+    clock.advance(40)
+    worker().run_once()
+    assert deadline_of(d.subject_id).status == "PAUSED" and events("dl.deadline_breached") == []
+
+
+def test_a_breached_clock_can_still_be_closed_as_met_late(env):
+    d = deadline_of(submit(env))
+    clock.advance(31)
+    worker().run_once()
+    with unit_of_work(SYSTEM) as uow:
+        DeadlineEngine().close(uow, SubjectRef("application", d.subject_id), "AICTE_PROCESSING", "MET")
+    after = deadline_of(d.subject_id)
+    assert (after.status, after.next_fire_at) == ("MET", None)
+    [closed] = events("dl.deadline_closed")
+    assert (closed["outcome"], closed["from_status"], closed["late"]) == ("MET", "BREACHED", True)
+    raised = len(alerts_of(d.id))
+    clock.advance(10)
+    assert worker().run_once() == 0 and len(alerts_of(d.id)) == raised
+
+
+def test_replay_follows_pause_resume_breach_and_close(env):
+    paused, closed, breached = (deadline_of(submit(env)) for _ in range(3))
+    with unit_of_work(SYSTEM) as uow:
+        DeadlineEngine().pause_internal(uow, SubjectRef("application", paused.subject_id), "AICTE_PROCESSING")
+        DeadlineEngine().pause_internal(uow, SubjectRef("application", closed.subject_id), "AICTE_PROCESSING")
+    clock.advance(2)
+    with unit_of_work(SYSTEM) as uow:
+        DeadlineEngine().resume_internal(uow, SubjectRef("application", closed.subject_id), "AICTE_PROCESSING")
+        DeadlineEngine().close(uow, SubjectRef("application", closed.subject_id), "AICTE_PROCESSING", "WAIVED")
+    clock.advance(30)
+    worker().run_once()
+    report = replay.replay(["deadlines"])
+    deadlines = report["projections"][0]
+    assert deadlines["status"] == "MATCH" and deadlines["unrecorded"] == {}, report
+    assert not [g for g in report["gaps"] if g["kind"] == "CHANGED_WITHOUT_EVENT"]
+    statuses = {d.id: deadline_of(d.subject_id).status for d in (paused, closed, breached)}
+    assert statuses == {paused.id: "PAUSED", closed.id: "WAIVED", breached.id: "BREACHED"}
+
+
 # ---- listing ----
 
 def test_alert_list_is_scoped_by_role_region_and_institution(env):

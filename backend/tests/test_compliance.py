@@ -305,6 +305,27 @@ def test_reject_then_accept_meets_the_obligation_and_closes_its_clock(client, lo
     assert submit(client, oid, document_version(app_id)).status_code == 409  # already met
 
 
+def test_an_overdue_obligation_shows_overdue_and_can_still_be_met_late(client, loa):
+    from app.deadlines.worker import TimerWorker
+
+    app_id, letter = loa   # issued 2025-08-31: the 15-day deposit clock ran out long ago
+    oid = obligation_of(client, letter, "DEPOSIT")["id"]
+    assert TimerWorker(worker_id="test").mark_breached() >= 1
+    o = client.get(f"/api/compliance/obligations/{oid}", headers=SUNRISE_INST).json()
+    assert (o["status"], o["deadline_status"], o["overdue"]) == ("OPEN", "BREACHED", True)
+    listed = client.get(f"/api/compliance/obligations?application_id={app_id}", headers=BUREAU).json()
+    assert {x["id"]: x["overdue"] for x in listed}[oid] is True
+
+    eid = submit(client, oid, document_version(app_id)).json()["id"]
+    assert verify(client, eid, decision="ACCEPTED").status_code == 200
+    o = client.get(f"/api/compliance/obligations/{oid}", headers=SUNRISE_INST).json()
+    assert (o["status"], o["deadline_status"], o["overdue"]) == ("MET", "MET", False)
+    with new_session() as s:
+        closed = s.scalars(select(DomainEvent).where(DomainEvent.event_type == "dl.deadline_closed")).all()
+    assert [(e.payload["deadline_id"], e.payload["from_status"], e.payload["late"]) for e in closed] == [
+        (o["deadline_id"], "BREACHED", True)]
+
+
 @pytest.mark.parametrize("role,code", [
     ("inst_sunrise", 403), ("inst_north", 403), ("auditor", 403), ("ro_north", 403),
     ("committee", 200), ("ro_south", 200), ("bureau_head", 200),

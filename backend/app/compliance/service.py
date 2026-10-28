@@ -323,7 +323,9 @@ def _close_clock(uow: UnitOfWork, ob: Obligation) -> None:
     if ob.rule_id is None:
         return
     live = uow.session.scalar(select(Deadline.id).where(
-        Deadline.id == ob.deadline_id, Deadline.status.in_((DeadlineStatus.RUNNING, DeadlineStatus.PAUSED))))
-    # a clock that already ran out stays BREACHED; meeting the obligation late does not rewrite it
+        Deadline.id == ob.deadline_id,
+        Deadline.status.in_((DeadlineStatus.RUNNING, DeadlineStatus.PAUSED, DeadlineStatus.BREACHED))))
+    # a clock that already ran out closes as MET late: dl.deadline_closed says so (late, from BREACHED) and the
+    # dl.deadline_breached event stays in the ledger; closing it also stops its escalation
     if live is not None:
         port(DeadlinePort).close(uow, SubjectRef("obligation", ob.id), ob.rule_id, DeadlineStatus.MET)

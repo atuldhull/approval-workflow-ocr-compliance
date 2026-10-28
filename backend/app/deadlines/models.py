@@ -24,15 +24,15 @@ _VERIFIED_SOURCE_REF_CHECK = (
 class Deadline(Base):
     __tablename__ = "deadline"
     __table_args__ = (
-        # at most one live clock per (subject, rule)
+        # at most one live clock per (subject, rule); a breached clock is still live until it is closed
         Index("uq_deadline_live", "subject_type", "subject_id", "rule_id", unique=True,
-              postgresql_where=text("status IN ('RUNNING', 'PAUSED')")),
+              postgresql_where=text("status IN ('RUNNING', 'PAUSED', 'BREACHED')")),
         CheckConstraint(
             "duration_unit != 'working_days' OR (calendar_id IS NOT NULL AND count_anchor_day IS NOT NULL)",
             name="ck_dl_deadline_working_days_calendar",
         ),
-        # the timer worker's queue: running clocks with a firing time
-        Index("ix_dl_deadline_timer_due", "next_fire_at", postgresql_where=text("status = 'RUNNING'")),
+        # the timer worker's queue: running (or breached, still escalating) clocks with a firing time
+        Index("ix_dl_deadline_timer_due", "next_fire_at", postgresql_where=text("status IN ('RUNNING', 'BREACHED')")),
         {"schema": SCHEMA},
     )
 

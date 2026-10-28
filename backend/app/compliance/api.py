@@ -8,11 +8,12 @@ from sqlalchemy import select
 
 from app.compliance import service
 from app.compliance.models import ApprovalLetter, Evidence, Obligation
+from app.deadlines.models import Deadline
 from app.platform.auth import current_principal
 from app.platform.db import new_session
 from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
-from contracts.enums import LetterType, ObligationKind, Role
+from contracts.enums import DeadlineStatus, LetterType, ObligationKind, Role
 from contracts.errors import NotFound
 from contracts.ports import AuthzPort, CasePort
 from contracts.types import LetterIn, Principal, ResourceRef
@@ -81,6 +82,9 @@ class ObligationOut(BaseModel):
     status: str
     met_at: str | None
     evidence: list[EvidenceOut] = []
+    # read from the obligation's clock: RUNNING, BREACHED, MET, ...; overdue = its clock ran out and it is not met
+    deadline_status: str | None = None
+    overdue: bool = False
 
 
 class LetterOut(BaseModel):
@@ -112,13 +116,22 @@ def _evidence_out(e: Evidence) -> EvidenceOut:
                        verified_at=_iso(e.verified_at), reason_code=e.reason_code, has_note=e.note_ref is not None)
 
 
-def _obligation_out(o: Obligation, evidence: list[Evidence] = ()) -> ObligationOut:
+def _obligation_out(o: Obligation, evidence: list[Evidence] = (), clock: str | None = None) -> ObligationOut:
     return ObligationOut(
         id=o.id, application_id=o.application_id, institution_id=o.institution_id, region=o.region, kind=o.kind,
         source_letter_id=o.source_letter_id, source_clause=o.source_clause, source_status=o.source_status,
         state_origin=o.state_origin, rule_id=o.rule_id, deadline_id=o.deadline_id, due_date=_iso(o.due_date),
         status=o.status, met_at=_iso(o.met_at), evidence=[_evidence_out(e) for e in evidence],
+        deadline_status=clock, overdue=clock == DeadlineStatus.BREACHED and o.status != "MET",
     )
+
+
+def _clocks(session, obligations) -> dict[UUID, str]:
+    """Status of each obligation's deadline; overdue is derived from it rather than kept as an obligation status."""
+    ids = [o.deadline_id for o in obligations if o.deadline_id is not None]
+    if not ids:
+        return {}
+    return dict(session.execute(select(Deadline.id, Deadline.status).where(Deadline.id.in_(ids))).all())
 
 
 def _letter_out(session, a: ApprovalLetter) -> LetterOut:
@@ -195,7 +208,8 @@ def list_obligations(application_id: UUID | None = None, region: str | None = No
             for e in session.scalars(select(Evidence).where(Evidence.obligation_id.in_(list(evidence)))
                                      .order_by(Evidence.submitted_at, Evidence.id)):
                 evidence[e.obligation_id].append(e)
-        return [_obligation_out(o, evidence[o.id]) for o in obligations]
+        clocks = _clocks(session, obligations)
+        return [_obligation_out(o, evidence[o.id], clocks.get(o.deadline_id)) for o in obligations]
 
 
 @router.get("/compliance/obligations/{obligation_id}", response_model=ObligationOut)
@@ -207,7 +221,7 @@ def get_obligation(obligation_id: UUID, principal: Principal = Depends(current_p
         port(AuthzPort).check(principal, "compliance.read", service.resource(o))
         evidence = session.scalars(select(Evidence).where(Evidence.obligation_id == o.id)
                                    .order_by(Evidence.submitted_at, Evidence.id)).all()
-        return _obligation_out(o, evidence)
+        return _obligation_out(o, evidence, _clocks(session, [o]).get(o.deadline_id))
 
 
 @router.post("/compliance/obligations/{obligation_id}/evidence", response_model=EvidenceOut,

@@ -12,7 +12,8 @@ from contracts.errors import Conflict, NotFound, ValidationFailed
 from contracts.ports import ClockPort, LedgerPort, RulesetPort, UnitOfWork
 from contracts.types import Anchor, EventIn, SubjectRef
 
-LIVE = (DeadlineStatus.RUNNING, DeadlineStatus.PAUSED)
+# a BREACHED clock is still live: it keeps alerting and is closed (late) or paused like a running one
+LIVE = (DeadlineStatus.RUNNING, DeadlineStatus.PAUSED, DeadlineStatus.BREACHED)
 
 
 def explain(rule: DeadlineRule, anchor: Anchor, due) -> str:
@@ -25,6 +26,17 @@ def explain(rule: DeadlineRule, anchor: Anchor, due) -> str:
     return (f"{rule.id} ({source}): {d.value} {d.unit.replace('_', ' ')}{count_note} from "
             f"{rule.anchor or 'anchor'} on {anchor.at.astimezone(IST).date().isoformat()}, due {due.isoformat()}; "
             f"{rule.clock_kind} clock owned by {rule.clock_owner}")
+
+
+def _record(uow: UnitOfWork, row: Deadline, event_type: str, **extra) -> None:
+    """Ledger event for a lifecycle change, in the caller's unit of work; due_date/due_version are the row's now."""
+    port(LedgerPort).append(uow, EventIn(
+        aggregate_type="deadline", aggregate_id=row.id, event_type=event_type,
+        ruleset_rev=f"{row.ruleset}@{row.revision}",
+        payload={"deadline_id": row.id, "subject_type": row.subject_type, "subject_id": row.subject_id,
+                 "rule_id": row.rule_id, **extra, "due_date": row.due_date.isoformat(),
+                 "due_version": row.due_version},
+    ))
 
 
 class DeadlineEngine:
@@ -68,8 +80,11 @@ class DeadlineEngine:
         if outcome not in (DeadlineStatus.MET, DeadlineStatus.WAIVED):
             raise ValidationFailed("a deadline closes as MET or WAIVED")
         row = self._require_live(uow, subject, rule_id)
+        from_status = row.status
+        late = from_status == DeadlineStatus.BREACHED or port(ClockPort).now() > row.due_at
         row.status = outcome
         row.next_fire_at = None
+        _record(uow, row, "dl.deadline_closed", outcome=str(outcome), from_status=str(from_status), late=late)
 
     def pause_internal(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str) -> None:
         row = self._require_live(uow, subject, rule_id)
@@ -80,8 +95,10 @@ class DeadlineEngine:
         now = port(ClockPort).now()
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValidationFailed("clock must return a timezone-aware datetime")
+        from_status = row.status
         row.status = DeadlineStatus.PAUSED
         row.paused_at = now
+        _record(uow, row, "dl.deadline_paused", from_status=str(from_status))
 
     def resume_internal(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str) -> None:
         row = self._require_live(uow, subject, rule_id)
@@ -103,6 +120,16 @@ class DeadlineEngine:
         # a new due_version starts its alert ladder again; due now, so the timer worker works out the schedule
         row.alert_level = 0
         row.next_fire_at = now
+        _record(uow, row, "dl.deadline_resumed", held_seconds=int(held.total_seconds()))
+
+    def breach(self, uow: UnitOfWork, row: Deadline) -> bool:
+        """Mark a running clock past its due time BREACHED, once per due_version. The caller holds the row locked.
+        Its alert ladder carries on; closing it later (as MET) records that it closed late."""
+        if row.status != DeadlineStatus.RUNNING:
+            return False
+        row.status = DeadlineStatus.BREACHED
+        _record(uow, row, "dl.deadline_breached", clock_kind=row.clock_kind, clock_owner=row.clock_owner)
+        return True
 
     def _live(self, uow: UnitOfWork, subject: SubjectRef, rule_id: str) -> Deadline | None:
         return uow.session.scalar(select(Deadline).where(

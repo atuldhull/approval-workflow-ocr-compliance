@@ -106,7 +106,8 @@ class AlertEngine:
         """Raise every ladder level that is due for the deadline's current due_version (catching up after
         downtime), and return when the next one is due. The caller holds the deadline row locked."""
         session = uow.session
-        if d.status != DeadlineStatus.RUNNING:
+        # a breached clock keeps escalating; paused and closed ones do not fire
+        if d.status not in (DeadlineStatus.RUNNING, DeadlineStatus.BREACHED):
             return Advance("NOT_RUNNING", 0, None)
         config, ladder = alert_config(d)
         if not ladder:

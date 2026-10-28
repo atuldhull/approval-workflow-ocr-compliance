@@ -13,6 +13,8 @@ Guarantees:
 - Processing one deadline is one transaction, fenced on the claim: its alerts, ledger events, outbox rows,
   the new next_fire_at and the timer outcome commit together or not at all. A crash leaves the work retryable.
 - Alerts are unique on (deadline_id, level, due_version), so even a fencing failure cannot raise one twice.
+- A running clock found past its due time is marked BREACHED (dl.deadline_breached, once per due_version) before
+  alerts are fired. A breached clock keeps its alert ladder; pausing or closing it is up to the workflow.
 - Time comes only from ClockPort, so demo time travel moves the schedule.
 """
 import argparse
@@ -30,9 +32,10 @@ from sqlalchemy import select, text, update
 from app.deadlines.alerts import AlertEngine, ResolverUnavailable, alert_config
 from app.deadlines.alerts import engine as default_engine
 from app.deadlines.models import Deadline, TimerOutcome
+from app.deadlines.service import DeadlineEngine
 from app.platform.db import new_session, unit_of_work
 from app.platform.registry import port
-from contracts.enums import Role
+from contracts.enums import DeadlineStatus, Role
 from contracts.ports import ClockPort
 from contracts.types import Principal
 
@@ -46,7 +49,7 @@ CLAIM = text("""
            timer_fence = d.timer_fence + 1, timer_attempts = d.timer_attempts + 1
      WHERE d.id IN (
            SELECT id FROM dl.deadline
-            WHERE status = 'RUNNING' AND next_fire_at <= :now
+            WHERE status IN ('RUNNING', 'BREACHED') AND next_fire_at <= :now
               AND (timer_lease_until IS NULL OR timer_lease_until < :now)
             ORDER BY next_fire_at
             LIMIT :limit
@@ -80,8 +83,30 @@ class TimerWorker:
             s.commit()
         return [Claim(*r) for r in rows]
 
+    def mark_breached(self, limit: int = 50) -> int:
+        """Mark running clocks whose due time has passed BREACHED, in batches; each batch is one transaction.
+        Rows another transaction holds are skipped and picked up on the next run. Returns how many were marked."""
+        marked = 0
+        while True:
+            now = self.now()
+            with unit_of_work(SYSTEM) as uow:
+                rows = uow.session.scalars(select(Deadline).where(
+                    Deadline.status == DeadlineStatus.RUNNING, Deadline.due_at < now)
+                    .order_by(Deadline.due_at).limit(limit).with_for_update(skip_locked=True)).all()
+                batch = sum(DeadlineEngine().breach(uow, d) for d in rows)
+            marked += batch
+            if len(rows) < limit:
+                return marked
+
     def run_once(self, limit: int = 50) -> int:
-        """Process what is due now. Returns the number of deadlines processed by this worker."""
+        """Process what is due now. Returns the number of deadlines whose alert timers were processed by this
+        worker (clocks it only marked BREACHED are not counted)."""
+        try:
+            breached = self.mark_breached(limit)
+            if breached:
+                log.info("marked %d deadline(s) breached", breached)
+        except Exception as e:  # noqa: BLE001 - alerts still fire; the next run marks them
+            log.error("marking breached deadlines failed: %s", type(e).__name__)
         done = 0
         for c in self.claim(limit):
             done += self.process(c)

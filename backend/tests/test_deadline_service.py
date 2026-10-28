@@ -8,7 +8,8 @@ from app.deadlines.rules import end_of_day
 from app.deadlines.service import DeadlineEngine
 from contracts.enums import ClockKind, DeadlineStatus
 from contracts.errors import Conflict, ValidationFailed
-from contracts.ports import ClockPort
+from contracts.fakes import FakeLedger
+from contracts.ports import ClockPort, LedgerPort
 from contracts.types import SubjectRef
 
 
@@ -22,6 +23,8 @@ class FrozenClock:
 
 def deadline(*, kind=ClockKind.INTERNAL, status=DeadlineStatus.RUNNING):
     return SimpleNamespace(
+        id=uuid4(), subject_type="application", subject_id=uuid4(), rule_id="AICTE_PROCESSING",
+        ruleset="aph-2024-27", revision="r1", clock_owner="AICTE",
         clock_kind=kind,
         status=status,
         paused_at=None,
@@ -31,9 +34,12 @@ def deadline(*, kind=ClockKind.INTERNAL, status=DeadlineStatus.RUNNING):
     )
 
 
-def bind_deadline(monkeypatch, engine, row, clock):
+def bind_deadline(monkeypatch, engine, row, clock, ledger=None):
+    ledger = ledger or FakeLedger()
     monkeypatch.setattr(engine, "_require_live", lambda *_: row)
-    monkeypatch.setattr("app.deadlines.service.port", lambda port_type: clock if port_type is ClockPort else None)
+    monkeypatch.setattr("app.deadlines.service.port",
+                        lambda port_type: clock if port_type is ClockPort else ledger if port_type is LedgerPort else None)
+    return ledger
 
 
 def test_legal_deadlines_cannot_be_paused(monkeypatch):
@@ -113,3 +119,69 @@ def test_clock_must_return_timezone_aware_time(monkeypatch):
         engine.pause_internal(None, SubjectRef("application", uuid4()), "AICTE_PROCESSING")
     assert row.status == DeadlineStatus.RUNNING
     assert row.paused_at is None
+
+
+# ---- lifecycle events ----
+
+def test_pause_and_resume_record_the_held_time_and_new_due_date(monkeypatch):
+    engine = DeadlineEngine()
+    row = deadline()
+    held_from = datetime(2026, 7, 1, 10, 0, tzinfo=timezone.utc)
+    clock = FrozenClock(held_from)
+    ledger = bind_deadline(monkeypatch, engine, row, clock)
+    subject = SubjectRef("application", row.subject_id)
+
+    engine.pause_internal(None, subject, "AICTE_PROCESSING")
+    engine.pause_internal(None, subject, "AICTE_PROCESSING")   # already paused: no second event
+    clock.at = held_from + timedelta(days=2)
+    engine.resume_internal(None, subject, "AICTE_PROCESSING")
+    engine.resume_internal(None, subject, "AICTE_PROCESSING")  # already running: no event
+
+    assert [e.event_type for e in ledger.events] == ["dl.deadline_paused", "dl.deadline_resumed"]
+    paused, resumed = (e.payload for e in ledger.events)
+    assert (paused["from_status"], paused["due_date"], paused["due_version"]) == ("RUNNING", "2026-07-10", 1)
+    assert (resumed["due_date"], resumed["due_version"], resumed["held_seconds"]) == ("2026-07-12", 2, 2 * 86400)
+    assert all(e.aggregate_type == "deadline" and e.aggregate_id == row.id for e in ledger.events)
+
+
+@pytest.mark.parametrize("status, now, late", [
+    (DeadlineStatus.RUNNING, datetime(2026, 7, 1, tzinfo=timezone.utc), False),
+    (DeadlineStatus.RUNNING, datetime(2026, 7, 20, tzinfo=timezone.utc), True),
+    (DeadlineStatus.BREACHED, datetime(2026, 7, 20, tzinfo=timezone.utc), True),
+    (DeadlineStatus.PAUSED, datetime(2026, 7, 1, tzinfo=timezone.utc), False),
+])
+def test_close_records_outcome_from_status_and_lateness(monkeypatch, status, now, late):
+    engine = DeadlineEngine()
+    row = deadline(status=status)
+    ledger = bind_deadline(monkeypatch, engine, row, FrozenClock(now))
+
+    engine.close(None, SubjectRef("application", row.subject_id), "AICTE_PROCESSING", DeadlineStatus.MET)
+
+    assert row.status == DeadlineStatus.MET and row.next_fire_at is None
+    [e] = ledger.events
+    assert e.event_type == "dl.deadline_closed"
+    assert (e.payload["outcome"], e.payload["from_status"], e.payload["late"]) == ("MET", status, late)
+
+
+def test_a_breached_internal_clock_can_be_paused(monkeypatch):
+    engine = DeadlineEngine()
+    row = deadline(status=DeadlineStatus.BREACHED)
+    ledger = bind_deadline(monkeypatch, engine, row, FrozenClock(datetime(2026, 7, 20, tzinfo=timezone.utc)))
+
+    engine.pause_internal(None, SubjectRef("application", row.subject_id), "AICTE_PROCESSING")
+
+    assert row.status == DeadlineStatus.PAUSED
+    assert ledger.events[0].payload["from_status"] == "BREACHED"
+
+
+def test_breach_is_recorded_once(monkeypatch):
+    engine = DeadlineEngine()
+    row = deadline()
+    ledger = bind_deadline(monkeypatch, engine, row, FrozenClock(datetime(2026, 7, 20, tzinfo=timezone.utc)))
+
+    assert engine.breach(None, row) is True
+    assert engine.breach(None, row) is False
+    assert row.status == DeadlineStatus.BREACHED
+    [e] = ledger.events
+    assert e.event_type == "dl.deadline_breached"
+    assert (e.payload["clock_kind"], e.payload["clock_owner"], e.payload["due_version"]) == ("INTERNAL", "AICTE", 1)
