@@ -12,6 +12,7 @@ listed in [OWNERSHIP.md](OWNERSHIP.md).
 - [SECURITY.md](SECURITY.md) — sign-in (demo, Keycloak), Cerbos policies, roles and scopes, demo-only settings.
 - [AUDIT.md](AUDIT.md) — hash chain, signed checkpoints, witness, replay and what each layer can detect.
 - [IDEMPOTENCY.md](IDEMPOTENCY.md) — `Idempotency-Key` semantics for retried commands.
+- [RULES_EVIDENCE.md](RULES_EVIDENCE.md) — every timer, route and rule: APH clause and page, demo assumption, or not built.
 - [NOTIFICATIONS.md](NOTIFICATIONS.md) — notifier worker, channels, retries, dead letters and delivery guarantees.
 - [screenshots/](screenshots/) — screenshots used in the project README (synthetic data).
 

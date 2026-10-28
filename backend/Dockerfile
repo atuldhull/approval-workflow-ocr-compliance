@@ -18,5 +18,7 @@ COPY rulesets rulesets
 COPY generator generator
 
 EXPOSE 8000
-# The platform demo seed refuses to run unless DEMO_MODE=true; that is not an error for startup.
-CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade heads && python generator/cases/seed_demo.py && (python -m app.platform.demo_seed || echo 'platform demo seed skipped') && uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload --reload-dir backend --reload-dir contracts --reload-dir rulesets"]
+# The demo seeds refuse to run unless DEMO_MODE=true; that is not an error for startup. The case seed drives demo
+# cases through the API in-process (about half a minute the first time, nothing on later starts); the compliance seed
+# adds validity records and an undertaking to the approved ones.
+CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade heads && python generator/cases/seed_demo.py && (python -m app.platform.demo_seed || echo 'platform demo seed skipped') && (python -m app.workflow.demo_seed && python -m app.compliance.demo_seed || echo 'case demo seed skipped') && uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload --reload-dir backend --reload-dir contracts --reload-dir rulesets"]

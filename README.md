@@ -57,16 +57,22 @@ Each row is something PS 26262 asks for. "How to verify" points at a screen in t
 | Intake checks before submission | Per-category checklist and DSC confirmation; submit is refused with per-item reasons | `backend/app/intake` | `GET /api/applications/{id}/checklist`; `backend/tests/test_intake_checklists.py`, `backend/tests/test_checklist_read.py` |
 | Scrutiny, deficiency and re-scrutiny | Committees with tasks, observations and versioned reports; a deficiency pauses the processing clock and opens the response window; re-scrutiny reviews only the open items | `backend/app/workflow` | `POST /api/cases/{id}/actions`, `GET /api/cases/{id}/deficiencies`; `backend/tests/test_deficiency_loop.py`, `backend/tests/test_rescrutiny.py`, `backend/tests/test_committee.py` |
 | Expert visit (EVC) scheduling | Visit queue, expert pool with availability and conflicts of interest, simulated panel selector, earliest-deadline-first baseline and CP-SAT optimiser, propose / discard / publish | `backend/app/evc` | screen **EVC scheduling**; `POST /api/evc/schedule:propose`, `POST /api/evc/schedule:publish`; `backend/tests/test_scheduler_cpsat.py`, `backend/tests/test_scheduler_edf.py`, `backend/tests/test_evc_decisions.py` |
-| Approval letters | LoA / EoA / LoD only at the last applicable stage and only when the cited report authorises the decision | `backend/app/workflow`, `backend/app/compliance` | `GET /api/compliance/letters`; `backend/tests/test_guard_facts_runtime.py`, `backend/tests/test_compliance.py` |
+| Approval letters | LoA / EoA / LoD only at the last applicable stage and only when the cited report authorises the decision; issued from the case screen in the demo stack | `backend/app/workflow`, `backend/app/compliance` | `GET /api/compliance/letters`; `backend/tests/test_guard_facts_runtime.py`, `backend/tests/test_compliance.py` |
 | Document upload and malware scan | Idempotent upload, versions, ClamAV scan; nothing is used before it is scanned clean | `backend/app/documents` | screen **Documents**; `POST /api/document-versions/{id}/scan`; `backend/tests/test_documents_api.py` |
 | OCR with human confirmation | PDF text layer or Tesseract (English and Hindi); blind entry before the OCR value is revealed; review; four-eyes confirmation by a second officer | `backend/app/documents` | screen **Fact review**; `POST /api/document-facts/{id}/entry`, `POST /api/document-facts/{id}/reveal`; `backend/tests/test_documents_ocr.py`, `backend/tests/test_documents_review.py` |
-| Compliance monitoring: obligations and evidence | Registered letters open obligations with deadlines; institutions submit evidence; an officer verifies it | `backend/app/compliance` | screen **Compliance**; `GET /api/compliance/obligations`, `POST /api/compliance/evidence/{id}/verify`; `backend/tests/test_compliance.py`, `backend/tests/test_compliance_rules.py` |
-| Deadlines with escalation | Rule-based due dates with explanations (calendar days, month-end clamp, Indian working-day calendars); a timer worker raises reminder, breach, escalation and vacancy levels | `backend/app/deadlines`, `calendars/` | screen **Alerts**; `GET /api/deadlines/{id}/explain`, `POST /api/sim/timers/run`; `backend/tests/test_deadline_timer.py`, `backend/tests/test_deadline_service.py`, `backend/tests/test_deadline_calendars.py` |
-| Alert management and notifications | Each alert is addressed to one role and acknowledged by it; delivery in-app, by email (SMTP) and mock SMS, with retries, dead letters and delivery metrics | `backend/app/platform` (notifier), `backend/app/deadlines` | screens **Inbox**, **Alerts**, **Alert delivery**; Mailpit at `http://localhost:8025`; `POST /api/alerts/{id}/ack`; `backend/tests/test_notifier.py` |
+| Compliance monitoring: obligations and evidence | An LoA opens the security deposit and Affidavit 3 (15 days, APH cl. 2.25(f)) and the remaining requirements (one month, Affidavit 3 item 5); institutions submit evidence; an officer verifies it | `backend/app/compliance` | screen **Compliance**; `GET /api/compliance/obligations`, `POST /api/compliance/evidence/{id}/verify`; `backend/tests/test_compliance.py`, `backend/tests/test_compliance_rules.py` |
+| Time-bound undertakings (D1–D4) | An officer records an undertaking with its clause, what it asks, the evidence that meets it and the due date it states (or a recordable rule such as the 7-day no-admission affidavit); it gets a clock, reminders and escalation like any obligation | `backend/app/compliance` | screen **Compliance** (Record undertaking); `POST /api/compliance/obligations`; `backend/tests/test_document_validity.py`, `backend/tests/test_compliance.py` |
+| Lease and document validity (E1–E4) | Land lease, occupancy/completion, structural stability and fire safety certificates (APH cl. 6.17): the expiry is confirmed from the document (four-eyes) or recorded by an officer; advance reminders (90/30/7 days), an expiry ladder to the regional officer, bureau officer and bureau head; a renewal is a new version offered as evidence and accepted by an officer; the lease also shows its EoA stop year (cl. 2.1(e)) | `backend/app/compliance`, `backend/app/documents`, `backend/app/deadlines` | screen **Compliance** (Document validity); `POST /api/compliance/validity`, `GET /api/compliance/obligations?kind=DOCUMENT_VALIDITY`; `backend/tests/test_document_validity.py`, `backend/tests/test_deadline_lease.py` |
+| Deadlines with escalation | Rule-based due dates with explanations (calendar days, month-end clamp, Indian working-day calendars, due on a stated date); per-rule reminders; a timer worker (in the default stack) marks missed clocks breached and raises reminder, breach, escalation and vacancy levels; every open, pause, resume, close and breach is an event in the ledger | `backend/app/deadlines`, `calendars/` | screen **Alerts**; `GET /api/deadlines/{id}/explain`, `POST /api/sim/timers/run`; `backend/tests/test_deadline_timer.py`, `backend/tests/test_deadline_service.py`, `backend/tests/test_deadline_calendars.py` |
+| Alert management and notifications | Each alert is addressed to one role and acknowledged by it; messages also go out when something is recorded on a case (deficiency, EVC visit published, evidence decided, letter issued, deadline missed), naming the case, the rule and the due date, configured in `notifications.yaml`; delivery in-app, by email (SMTP) and mock SMS, with retries, dead letters and delivery metrics | `backend/app/platform` (notifier), `backend/app/deadlines` | screens **Inbox**, **Alerts**, **Alert delivery**; Mailpit at `http://localhost:8025`; `POST /api/alerts/{id}/ack`; `backend/tests/test_notifier.py`, `backend/tests/test_event_notifications.py` |
 | Role- and region-based access | Keycloak (OIDC with PKCE) or demo sign-in; Cerbos or the local policy engine decides every request; institutions see only their own records, regional officers only their region | `backend/app/platform`, `infra/` | `python scripts/smoke_security.py`; `backend/tests/test_role_matrix.py`, `backend/tests/test_cerbos_parity.py`, `backend/tests/test_auth.py` |
 | Tamper-evident audit | Hash-chained ledger of every state change, Ed25519-signed checkpoints held by a witness, read-only replay that rebuilds read models from the events | `backend/app/platform` | screen **Audit**; `GET /api/audit/verify`, `POST /api/audit/replay`; `backend/tests/test_ledger.py`, `backend/tests/test_audit.py` |
 | Safe retries | `Idempotency-Key` on commands: a retried request returns the first result instead of acting twice | `backend/app/platform` | `backend/tests/test_idempotency.py`, `backend/tests/test_p1_idempotency.py` |
-| Analytics and scorecard | Dashboards and pendency built from events; a scorecard of eight checks, each stating how it was measured; OCEL export of the event log | `backend/app/analytics` | screens **Dashboard**, **Scorecard**; `GET /api/analytics/scorecard`, `GET /api/dashboards/pendency`, `POST /api/exports`; `backend/tests/test_scorecard.py`, `backend/tests/test_analytics.py`, `backend/tests/test_reports.py` |
+| Consolidated reports (F3) | Pendency, EVC status, undertaking compliance, document validity, overdue cases and region-wise processing performance, each with a CSV download, all rebuilt from the event log | `backend/app/analytics` | screen **Reports**; `GET /api/reports`, `GET /api/reports/{report_type}`; `backend/tests/test_reports.py` |
+| Analytics and scorecard | Dashboard built from events: applications by stage, ageing, deadlines, committee workload, EVC queue, compliance and document validity, alerts by region; a scorecard of eight checks, each stating how it was measured; OCEL export of the event log | `backend/app/analytics` | screens **Dashboard**, **Scorecard**; `GET /api/analytics/scorecard`, `GET /api/dashboards/pendency`, `POST /api/exports`; `backend/tests/test_scorecard.py`, `backend/tests/test_analytics.py`, `backend/tests/test_reports.py` |
+
+Where each timer, route and rule comes from (APH clause and page, or demo assumption):
+[docs/RULES_EVIDENCE.md](docs/RULES_EVIDENCE.md).
 
 ## Architecture
 
@@ -96,8 +102,8 @@ flowchart LR
     platform -->|signed checkpoints| WT["audit witness (file)"]
 ```
 
-The default stack runs only the database, backend and UI, with demo sign-in and the built-in policy engine. Keycloak,
-Cerbos, Mailpit, ClamAV and the two workers are optional Compose profiles.
+The default stack runs the database, backend, UI and deadline timer worker, with demo sign-in and the built-in policy
+engine. Keycloak, Cerbos, Mailpit, ClamAV and the notification worker are optional Compose profiles.
 
 ## Approval workflow
 
@@ -150,19 +156,30 @@ cp .env.example .env
 docker compose --profile worker --profile scanning up --build
 ```
 
-On start the backend applies the migrations and seeds the demo institutions, cases and notification directory. Then
-add the demo expert pool and demo approval letters:
+On start the backend applies the migrations and seeds the demo data, dated from the demo clock, so every screen has
+work without manual setup (the first start takes about half a minute longer; later starts add nothing):
+
+- the demo institutions and the notification directory;
+- eleven demo cases driven through the case API: two under scrutiny with their processing clock overdue, one fresh
+  under scrutiny, one deficient awaiting the institution's reply, two in the EVC queue with visit requests for the
+  planner, one with its EVC visit published, one at SHC, and three approved with an LoA issued from the case (one of
+  them 20 days ago, so its deposit and Affidavit 3 are overdue and escalating);
+- on the approved cases: a land lease expiring in 60 days, a lease that expired 12 days ago (breached, escalating), a
+  fire safety certificate with its renewal under review, a structural stability certificate, and a recorded
+  undertaking.
+
+The seeds can be rerun at any time (`docker compose exec backend python -m app.workflow.demo_seed`, then
+`python -m app.compliance.demo_seed`). For a larger expert pool for the planner:
 
 ```bash
 docker compose exec backend python -m generator.cases.seed_evc_demo --at 2026-10-28T04:30:00Z   # use today's date (UTC)
-docker compose exec backend python -m app.compliance.demo_seed
 ```
 
 - UI: http://localhost:5173 (public walk-through of the product at http://localhost:5173/#showcase)
 - API docs: http://localhost:8000/docs
 
 ClamAV downloads its signatures on first start, which takes a few minutes; until then uploads stay `scan_pending`.
-`docker compose up --build` without profiles starts only the database, backend and UI.
+`docker compose up --build` without profiles starts the database, backend, UI and deadline timer worker.
 
 **Demo sign-in (default).** The top bar has an "Acting as" switcher with these synthetic roles: Institution
 (Sunrise), Institution (Northfield), Scrutiny committee, Regional officer Southern, Regional officer Northern, Bureau
@@ -178,10 +195,9 @@ cp .env.security.example .env.security
 docker compose --env-file .env.security --profile security --profile worker --profile scanning up --build
 ```
 
-**Letters.** Letter issuance is off by default while its contract request awaits team approval
-([docs/p1/contract_requests/2026-10-26_letter_issuance.md](docs/p1/contract_requests/2026-10-26_letter_issuance.md)).
-To demo it, add a Compose override file that sets `WF_ENABLE_LETTER_ISSUANCE: "true"` in the `backend` service's
-`environment`, and pass it with `-f docker-compose.yml -f <override file>`.
+**Letters.** The demo stack issues approval letters from the case screen (`WF_ENABLE_LETTER_ISSUANCE` is set in
+`docker-compose.yml`; the code default stays off). The request is in
+[docs/p1/contract_requests/2026-10-26_letter_issuance.md](docs/p1/contract_requests/2026-10-26_letter_issuance.md).
 
 The production UI image (nginx) runs with `docker compose --profile web up --build web` on :8088. Signed audit
 checkpoints are set up as described in [docs/AUDIT.md](docs/AUDIT.md).
@@ -198,6 +214,7 @@ pip install -r backend/requirements-dev.txt
 set DATABASE_URL=postgresql+psycopg://awoc:awoc@localhost:5432/awoc     # export on macOS/Linux
 alembic -c backend/alembic.ini upgrade heads
 python generator/cases/seed_demo.py
+python -m app.platform.demo_seed && python -m app.workflow.demo_seed && python -m app.compliance.demo_seed   # DEMO_MODE=true
 uvicorn app.main:app --app-dir backend --reload
 ```
 
@@ -229,6 +246,8 @@ The path the end-to-end run drove through the UI (all profiles on, letter issuan
     Inbox and Mailpit show the notices.
 11. **Audit:** the chain verifies, a checkpoint is signed and published to the witness, replay runs, and the
     Scorecard evaluates all eight checks.
+12. **Bureau head:** the **Reports** screen shows pendency, EVC status, undertakings, document validity, overdue
+    cases and region-wise performance, each downloadable as CSV.
 
 `python scripts/smoke_demo.py --docker` checks the same ground through the API on the default stack. It moves the
 demo clock forward, so run it on a stack whose data you do not need.
@@ -294,20 +313,23 @@ Details: [docs/SECURITY.md](docs/SECURITY.md), [docs/AUDIT.md](docs/AUDIT.md),
 
 ## Known limitations
 
-- **APH sources are not verified.** Stage sequences follow a manual reading of APH 2024-27 Table 2.3, but clause
-  citations are marked `UNCONFIRMED`, and the routing answer key is a manual transcription that has not been checked
-  against the official handbook. Durations such as the deficiency response window and the EVC visit window, the expert
-  eligibility and conflict rules, and the scheduling capacity are labelled **DEMO ASSUMPTION** in the YAML and in the
-  UI. See [docs/p1/ASSUMPTIONS.md](docs/p1/ASSUMPTIONS.md) and
+- **Internal processing times are demo assumptions.** The APH sets no internal SLAs (Table 2.2 gives every
+  category's processing period as "As per Public Notice Period" or "Year round"), so the processing clock, the
+  deficiency response window, the EVC visit window, every reminder offset and escalation step, the expert eligibility
+  and conflict rules and the scheduling capacity are labelled **DEMO ASSUMPTION** in the YAML and in the UI. The
+  post-approval rules (deposit and Affidavit 3 in 15 days, remaining requirements in one month, the no-admission
+  affidavit, LoA validity, lease and certificate validity, the appeal window) cite their APH clause and page. Every
+  rule and its status: [docs/RULES_EVIDENCE.md](docs/RULES_EVIDENCE.md). Route clause citations are still marked
+  `UNCONFIRMED` and the routing answer key is a manual transcription of Table 2.3; see
+  [docs/p1/ASSUMPTIONS.md](docs/p1/ASSUMPTIONS.md) and
   [docs/handoffs/APH_CONFORMANCE_PROPOSALS.md](docs/handoffs/APH_CONFORMANCE_PROPOSALS.md).
 - **Expert panels are simulated.** A labelled stand-in selector forms panels; under the APH the real selection
   happens on AICTE's own portal.
-- **Contract approvals are pending.** Shared-contract changes need all three members' approval
-  ([docs/CONTRACT_APPROVAL.md](docs/CONTRACT_APPROVAL.md)). Letter issuance stays behind `WF_ENABLE_LETTER_ISSUANCE`
-  until its request is approved, and other requests are still open in
-  [docs/p1/contract_requests/](docs/p1/contract_requests/).
-- **Replay covers a subset.** Deadline pause, resume and close emit no events yet, so replay reports those as gaps
-  (`CONSISTENT_SUBSET`) rather than a full match.
+- **Letter issuance is a switch.** The demo stack turns `WF_ENABLE_LETTER_ISSUANCE` on; the code default stays off.
+  Shared-contract changes need all three members' approval ([docs/CONTRACT_APPROVAL.md](docs/CONTRACT_APPROVAL.md));
+  the requests are in [docs/p1/contract_requests/](docs/p1/contract_requests/).
+- **Seeded files skip ClamAV.** The demo seed scans the synthetic PDFs it builds itself with its own check (recorded as
+  scanner `demo_seed`), so the stack needs no ClamAV to start; uploads made in the UI still wait for the real scan.
 - **The demo witness is not independent.** Signed checkpoints go to a local file on the same machine.
 - **Time travel distorts one figure.** After demo time travel the scorecard's "longest lag" for alerts can show
   thousands of hours for letters dated before their deadline existed; the outcome is still correct.
