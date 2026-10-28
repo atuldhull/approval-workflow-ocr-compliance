@@ -30,7 +30,7 @@ const stageKeys = (data) => Object.fromEntries(Object.entries(data || {}).map(([
 
 const relabel = (data, label) => Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [label(k), v]));
 
-const COMMITTEE_LABEL = { SCRUTINY: "Scrutiny", RESCRUTINY: "Re-scrutiny", EVC: "Expert visit", SHC: "Standing hearing", EC: "Executive", COUNCIL: "Council" };
+const COMMITTEE_LABEL = { SCRUTINY: "Scrutiny", RESCRUTINY: "Re-scrutiny", EVC: "Expert visit", SHC: "Standing hearing", EC: "Executive", COUNCIL: "Council", SAC: "Appellate (SAC)" };
 
 
 

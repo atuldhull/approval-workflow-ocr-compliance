@@ -3,7 +3,7 @@ import { api } from "../api.js";
 import { useActionKey } from "../actionKey.js";
 import { ROLE_LABELS, sentence } from "../nav.js";
 import {
-  LETTER_ACTIONS, actionLabel, itemLabel, reasonText, refusal, workflowReasonLabel,
+  DECISION_ACTIONS, LETTER_ACTIONS, actionLabel, itemLabel, reasonText, refusal, workflowReasonLabel,
 } from "../workflowText.js";
 import { versionOptions, VersionPicker } from "./Checklist.jsx";
 import { stageLabel } from "./RouteJourney.jsx";
@@ -12,6 +12,13 @@ import { ErrorBox, useSingleFlight } from "./ui.jsx";
 // Actions the server needs a reason code for (reason_codes_required) get the ruleset's reason list; the submit
 // action is driven by the checklist panel, which collects the items and the DSC flag it needs.
 const HANDLED_ELSEWHERE = new Set(["submit"]);
+
+// A Letter of Rejection carries a speaking order (APH cl. 1.10(b)); an appeal may state its grounds. Both are kept as
+// protected notes: the ledger holds their hash, never the text.
+const NOTE_LABEL = {
+  issue_lor: "Speaking order: the specific reasons for rejection (required, stored as a protected note)",
+  file_appeal: "Grounds of appeal (optional, stored as a protected note)",
+};
 
 const todayIST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
@@ -151,6 +158,7 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
     if (name === "record_deficiency") out.payload = { item_keys: [...items].sort() };
     if (name === "submit_compliance") out.payload = { responses: openItems.map((i) => ({ item_id: i.id, response_ref: responses[i.id] })) };
     if (name === "revert") out.payload = { target_stage: target };
+    if (DECISION_ACTIONS.has(name)) out.payload = { decision_ref: letter.decision_ref };
     if (LETTER_ACTIONS[name]) {
       out.payload = {
         decision_ref: letter.decision_ref,
@@ -167,7 +175,9 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
     && (name !== "record_deficiency" || items.length > 0)
     && (name !== "submit_compliance" || (openItems.length > 0 && openItems.every((i) => responses[i.id])))
     && (name !== "revert" || target)
-    && (!LETTER_ACTIONS[name] || (letter.f_no.trim() && letter.decision_ref && application?.academic_year));
+    && (!LETTER_ACTIONS[name] || (letter.f_no.trim() && letter.decision_ref && application?.academic_year))
+    && (!DECISION_ACTIONS.has(name) || letter.decision_ref)
+    && (name !== "issue_lor" || note.trim());
 
   const submit = async (e) => {
     e.preventDefault();
@@ -215,6 +225,13 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
       {LETTER_ACTIONS[name] && (
         <LetterFields committees={committees} letter={letter} setLetter={setLetter} application={application} />
       )}
+      {DECISION_ACTIONS.has(name) && (
+        <fieldset>
+          <legend>SAC recommendation</legend>
+          <DecisionCited committees={committees} letter={letter} setLetter={setLetter} />
+          <p className="muted small">The system records the SAC's recommendation; the Council decides (APH cl. 1.11(d)-(e)).</p>
+        </fieldset>
+      )}
       {(action.reason_codes_required || ["reject", "withdraw", "revert"].includes(name)) && (
         <>
           <ReasonPicker value={reason} onChange={setReason} required={action.reason_codes_required} codes={reasonCodes} />
@@ -222,8 +239,9 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
         </>
       )}
       <label>
-        Note (optional, stored as a protected note)
-        <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        {NOTE_LABEL[name] ?? "Note (optional, stored as a protected note)"}
+        <textarea rows={name === "issue_lor" ? 4 : 2} value={note} required={name === "issue_lor"}
+          onChange={(e) => setNote(e.target.value)} />
       </label>
       <ErrorBox error={refusal(act.failure)} />
       {act.failure && act.retrying(name) && <p className="muted small">Trying again sends the same request, so it cannot be applied twice.</p>}
@@ -237,19 +255,10 @@ function ActionForm({ who, action, caseRec, application, deficiencies, docs, com
 // A letter cites the committee decision it carries out: the latest report version of a committee on this case
 // (GET /cases/{id}/committees lists each committee with its latest report).
 function LetterFields({ committees, letter, setLetter, application }) {
-  const reports = (committees ?? []).filter((c) => c.latest_report);
   return (
     <fieldset>
       <legend>Letter details</legend>
-      <label>
-        Decision cited
-        <select value={letter.decision_ref} onChange={(e) => setLetter((l) => ({ ...l, decision_ref: e.target.value }))}>
-          <option value="">Choose a committee report</option>
-          {reports.map((c) => <option key={c.latest_report.id} value={c.latest_report.id}>
-            {sentence(c.type)} committee {c.ordinal} · latest report, version {c.latest_report.version_no}
-          </option>)}
-        </select>
-      </label>
+      <DecisionCited committees={committees} letter={letter} setLetter={setLetter} />
       <label>
         Letter number (F. No.)
         <input value={letter.f_no} maxLength={100} autoComplete="off" onChange={(e) => setLetter((l) => ({ ...l, f_no: e.target.value }))} />
@@ -258,5 +267,20 @@ function LetterFields({ committees, letter, setLetter, application }) {
         Academic year {application?.academic_year ?? "not available"}; issue date is today (IST), as the portal event records it.
       </p>
     </fieldset>
+  );
+}
+
+function DecisionCited({ committees, letter, setLetter }) {
+  const reports = (committees ?? []).filter((c) => c.latest_report);
+  return (
+    <label>
+      Decision cited
+      <select value={letter.decision_ref} onChange={(e) => setLetter((l) => ({ ...l, decision_ref: e.target.value }))}>
+        <option value="">Choose a committee report</option>
+        {reports.map((c) => <option key={c.latest_report.id} value={c.latest_report.id}>
+          {sentence(c.type)} committee {c.ordinal} · latest report, version {c.latest_report.version_no}
+        </option>)}
+      </select>
+    </label>
   );
 }

@@ -11,7 +11,11 @@ import { deadlineStatusOf, ruleLabel } from "../recordText.js";
 
 import CaseActions from "./CaseActions.jsx";
 
+import CaseAppeal from "./CaseAppeal.jsx";
+
 import CaseEvc from "./CaseEvc.jsx";
+
+import CaseSummary from "./CaseSummary.jsx";
 
 import Checklist from "./Checklist.jsx";
 
@@ -39,6 +43,21 @@ const AUXILIARY = { DEFICIENT: "SCRUTINY", RESCRUTINY: "SCRUTINY" };
 
 
 
+// The appellate stage (routes.yaml appeal block) is open to every route but is not part of its plan: it is drawn
+// after the route once the case has gone to the SAC.
+
+const withAppeal = (caseRec) => (caseRec.stage === "SAC" || (caseRec.stage_history ?? []).some((v) => v.stage === "SAC")
+
+  ? [...caseRec.route, { stage: "SAC", when: "as_applicable" }] : caseRec.route);
+
+
+
+const citationText = (c) => [c.locator === "TABLE_2_3" ? "Table 2.3" : null, c.clause ? `cl. ${c.clause}` : null,
+
+  c.row ? `row ${c.row}` : null, c.page ? `p.${c.page}` : null].filter(Boolean).join(", ");
+
+
+
 // The case inspector: identity and status first, then what the signed-in role can do now (actions, checklist,
 
 // deficiencies, committees, expert visit), then the prescribed route, the dated obligations on the case
@@ -52,6 +71,8 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
   const [data, setData] = useState(null);
 
   const [error, setError] = useState(null);
+
+  const [summary, setSummary] = useState(false);
 
   const demo = who?.mode !== "oidc";
 
@@ -141,7 +162,21 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
 
         </div>
 
+        {caseRec.status !== "DRAFT" && (
+
+          <button type="button" className="secondary small no-print" aria-expanded={summary} onClick={() => setSummary((v) => !v)}>
+
+            {summary ? "Hide case summary" : "Case summary"}
+
+          </button>
+
+        )}
+
       </header>
+
+
+
+      {summary && <CaseSummary who={who} caseId={app.id} onClose={() => setSummary(false)} />}
 
 
 
@@ -153,9 +188,21 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
 
           <>
 
-            <RouteJourney route={caseRec.route} current={AUXILIARY[caseRec.stage] ?? caseRec.stage} status={caseRec.status} />
+            <RouteJourney route={withAppeal(caseRec)} current={AUXILIARY[caseRec.stage] ?? caseRec.stage} status={caseRec.status} />
 
             <p className="source">Steps are the stages prescribed for this case. Completion of an earlier stage is not reported, so it is not shown as done.</p>
+
+            {caseRec.clause_citation && (
+
+              <p className="source">
+
+                Route source: APH 2024-27 {citationText(caseRec.clause_citation)}{" "}
+
+                {caseRec.clause_citation.status === "VERIFIED" ? <Badge tone="ok">Verified</Badge> : <Badge tone="sample">Demo assumption</Badge>}
+
+              </p>
+
+            )}
 
           </>
 
@@ -188,6 +235,8 @@ export default function CaseDetail({ who, me, id, onChanged, onLoaded, onNavigat
       <CommitteeWorkspace who={who} me={me} caseRec={caseRec} list={committees} listError={committeesError} demo={demo} onChanged={changed} />
 
       <CaseEvc who={who} caseRec={caseRec} />
+
+      <CaseAppeal who={who} caseRec={caseRec} />
 
       {caseRec.status !== "DRAFT" && <Checklist who={who} me={me} appId={app.id} draft={false} />}
 

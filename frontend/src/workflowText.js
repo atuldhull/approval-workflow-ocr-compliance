@@ -51,14 +51,33 @@ export const ACTION_LABELS = {
   reject: "Reject the application",
   withdraw: "Withdraw the application",
   revert: "Send back to an earlier stage",
+  file_appeal: "File an appeal to the Council",
+  close_appeal_window: "Close the lapsed appeal window",
+  sac_recommend: "Record SAC recommendation: recommend",
+  sac_not_recommend: "Record SAC recommendation: do not recommend",
+  sac_refer_scrutiny: "Record SAC referral for Scrutiny",
+  sac_refer_evc: "Record SAC referral for an expert visit",
+  return_to_sac: "Return to the SAC after referral",
+  issue_lor: "Issue Letter of Rejection",
 };
 export const actionLabel = (action) => ACTION_LABELS[action] ?? sentence(action);
 
-export const LETTER_ACTIONS = { issue_loa: "LOA", issue_eoa: "EOA", issue_lod: "LOD" };
+export const LETTER_ACTIONS = { issue_loa: "LOA", issue_eoa: "EOA", issue_lod: "LOD", issue_lor: "LOR" };
+// SAC recommendations cite the SAC's latest report, as a letter cites the deciding committee's.
+export const DECISION_ACTIONS = new Set(["sac_recommend", "sac_not_recommend", "sac_refer_scrutiny", "sac_refer_evc"]);
 
 // Guard and refusal codes from the workflow engine (backend/app/workflow/guards.py, engine.py, deficiency.py,
 // committee.py), intake and the EVC scheduler, in plain words.
 export const REASONS = {
+  APPEAL_WINDOW_OPEN: "The LoD's appeal window is open: only the institution's appeal, or the window's lapse, can follow.",
+  APPEAL_WINDOW_NOT_OPEN: "No appeal window is open on this case.",
+  APPEAL_WINDOW_CLOSED: "The 7-day appeal window has passed (APH cl. 1.11(a) / 2.24(a)).",
+  APPEAL_WINDOW_STILL_OPEN: "The appeal window has not lapsed yet.",
+  APPEAL_NOT_AWAITING_SAC: "The SAC has already recorded its recommendation for this hearing.",
+  APPEAL_REFERRED_BACK: "The SAC referred this case back; the decision returns to the SAC and the Council.",
+  APPEAL_NOT_REFERRED_BACK: "The SAC has not referred this case back.",
+  SAC_RECOMMENDATION_REQUIRED: "The SAC's recommendation must be recorded before the Council's decision.",
+  SPEAKING_ORDER_REQUIRED: "A Letter of Rejection needs its speaking order with the specific reasons (APH cl. 1.10(b)).",
   ASSIGNMENT_REQUIRED: "You are not on an active committee for this stage. Form or join the committee for this stage first.",
   EVC_SCHEDULE_NOT_PUBLISHED: "The expert visit has not been published yet. The bureau must publish the visit schedule first.",
   EVC_REQUEST_NOT_ACTIVE: "There is no open expert-visit request for this case (it is not queued, proposed or published).",
@@ -168,11 +187,12 @@ export function refusal(error) {
 }
 
 // ---- committees ----
-export const COMMITTEE_TYPES = ["SCRUTINY", "RESCRUTINY", "EVC", "SHC", "EC", "COUNCIL"];
+export const COMMITTEE_TYPES = ["SCRUTINY", "RESCRUTINY", "EVC", "SHC", "EC", "COUNCIL", "SAC"];
 // GF-001 (docs/p1/ASSUMPTIONS.md, DEMO ASSUMPTION): which committee type staffs each stage.
 export const STAFFING = {
   SCRUTINY: ["SCRUTINY"], DEFICIENT: ["SCRUTINY", "RESCRUTINY"], RESCRUTINY: ["RESCRUTINY", "SCRUTINY"],
   SELF_DISCLOSURE: ["SCRUTINY"], EVC: ["EVC"], SHC: ["SHC"], EC: ["EC"], COUNCIL: ["COUNCIL"],
+  SAC: ["SAC"],
 };
 export const MEMBER_ROLES = ["CHAIR", "MEMBER", "SECRETARY"];
 export const TASK_TITLES = [
@@ -239,6 +259,11 @@ export const EVENT_TEXT = {
   "wf.deficiency_item_decided": "Response reviewed",
   "wf.deficiency_closed": "Deficiency closed",
   "wf.deficiency_superseded": "Deficiency carried to a new round",
+  "wf.appeal_window_opened": "Appeal window opened by the LoD",
+  "wf.appeal_filed": "Appeal filed",
+  "wf.appeal_recommended": "SAC recommendation recorded",
+  "wf.appeal_decided": "Council decision on the appeal recorded",
+  "wf.appeal_lapsed": "Appeal window lapsed unappealed",
   "dl.deadline_opened": "Deadline started",
   "dl.deadline_paused": "Deadline paused",
   "dl.deadline_resumed": "Deadline resumed with a new due date",

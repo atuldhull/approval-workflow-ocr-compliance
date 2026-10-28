@@ -22,6 +22,8 @@ export const STAGE_LABEL = {
 
   COUNCIL: "Council",
 
+  SAC: "Appellate committee (SAC)",
+
 };
 
 
