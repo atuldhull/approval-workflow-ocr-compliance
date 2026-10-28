@@ -44,10 +44,13 @@ class PersonalStore:
 
 class OutboxWriter:
     def enqueue(self, uow: UnitOfWork, msg: OutboundMessage) -> None:
-        # (alert_id, channel) is unique, so a retried command can never queue the same alert twice
+        # (alert_id, channel) is unique, so a retried command can never queue the same alert twice; a message about
+        # an event is unique per (event, recipient, channel) in the same way
+        target = ["source_event_id", "recipient_ref", "channel"] if msg.source_event_id else ["alert_id", "channel"]
         uow.session.execute(
             insert(Outbox).values(
-                created_at=port(ClockPort).now(), alert_id=msg.alert_id, channel=msg.channel,
-                template=msg.template, recipient_ref=msg.recipient_ref, status="PENDING", attempts=0,
-            ).on_conflict_do_nothing(index_elements=["alert_id", "channel"])
+                created_at=port(ClockPort).now(), alert_id=msg.alert_id, source_event_id=msg.source_event_id,
+                channel=msg.channel, template=msg.template, recipient_ref=msg.recipient_ref, status="PENDING",
+                attempts=0,
+            ).on_conflict_do_nothing(index_elements=target)
         )

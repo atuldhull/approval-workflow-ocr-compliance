@@ -7,6 +7,21 @@
 | Decide an alert exists, when, for which role, escalation, acknowledgement | yes | |
 | Queue it: `port(OutboxPort).enqueue(uow, OutboundMessage(alert_id, channel, template, recipient_ref))` inside the same unit of work | yes | |
 | Resolve `recipient_ref` to people and addresses, send, retry, dead-letter, inbox, delivery metrics | | yes |
+| Messages about recorded events (deficiency recorded, EVC visit published, evidence decided, letter registered, clock breached): read from the event log and queued by the worker per `rulesets/<ruleset>/<rev>/notifications.yaml` | | yes |
+
+## Messages about recorded events (`backend/app/platform/event_notices.py`)
+
+An outbox row is about exactly one thing: a deadline alert (`alert_id`) or a recorded domain event
+(`source_event_id`), enforced by a check constraint. Each worker loop first reads the event log from its cursor
+(`plat.notify_cursor`), looks each event type up in the ruleset's `notifications.yaml` (template, recipient roles,
+channels and, optionally, the deadline rule whose live clock gives the due date) and queues one row per event,
+recipient group and channel. The unique constraint `(source_event_id, recipient_ref, channel)` and the cursor moving
+in the same transaction make re-reading harmless. Ledger appends are serialised until commit, so no event at or
+below the newest visible one can still appear. Vacant groups are skipped: an event message has no ladder.
+
+The map is part of the ruleset revision (it is in the source checksum). It is a demo assumption: the APH does not
+say who is told about what. Adding an event (for example a document-expiry event) is one entry under `events:`;
+a template can name a document (`{document}`), and alerts on document clocks already name it.
 
 ## How delivery works (`backend/app/platform/notifier.py`)
 
@@ -66,6 +81,7 @@ that such messages may reach a recipient twice (at-least-once).
 | Guarantee | Holds? |
 |---|---|
 | One logical message per (alert, channel) | Yes - unique constraint when queued |
+| One logical message per (event, recipient group, channel) | Yes - unique constraint when queued |
 | In-app notification shown once | Yes - inbox row and DELIVERED status commit together |
 | Email / SMS sent at least once to each recipient (until DEAD) | Yes |
 | A recipient sees other recipients' addresses | No - one message per recipient |
@@ -80,8 +96,10 @@ that such messages may reach a recipient twice (at-least-once).
 | `sms` | Mock: writes to `SMS_MOCK_FILE` (JSONL) or memory | No real gateway is called |
 | tests | `FakeProvider` with scripted outcomes | |
 
-Message texts are fixed per template (`TEMPLATES`). They contain only a reference id and ask the user to sign in;
-no names, case details or free text, so nothing from an event payload can reach a message.
+Message texts are fixed per template (`TEMPLATES`). When delivered, a message is filled from what it is about - the
+alert and its deadline, or the event - with the short case reference (first 8 characters of the case id), the rule in
+words (`rule_names` in notifications.yaml), the due date in IST and what to do. Only ids, kinds and dates are used:
+no names, addresses or free text. If the record cannot be read, the generic sentence of the template is sent.
 
 ## Recipients (`backend/app/platform/recipients.py`)
 
@@ -109,5 +127,5 @@ Implemented today by `app.platform.recipients.RecipientDirectory`; a `FakeRecipi
 ```bash
 docker compose --profile worker up                       # worker next to the default stack
 python -m app.platform.notifier --once                   # from backend/, with PYTHONPATH=..;.
-python -m app.platform.demo_seed --sample-alerts         # DEMO_MODE only: queue 3 synthetic alerts on 3 channels
+python -m app.platform.demo_seed --sample-alerts         # DEMO_MODE only: queue messages about events already recorded
 ```

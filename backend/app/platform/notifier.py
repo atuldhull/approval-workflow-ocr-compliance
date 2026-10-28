@@ -5,6 +5,8 @@
 
 Guarantees:
 - One outbox row per (alert, channel) - enforced by a unique constraint when the alert is queued.
+- One outbox row per (event, recipient group, channel) for the recorded events mapped in the ruleset's
+  notifications.yaml - queued by this worker from the event log (app.platform.event_notices), same guarantee.
 - Claiming uses FOR UPDATE SKIP LOCKED plus a lease, so concurrent workers never take the same row, and a row
   held by a crashed worker is picked up again once its lease runs out. Nothing is lost on restart.
 - Every outcome update is fenced on the claiming worker, so a worker that lost its lease cannot overwrite
@@ -29,6 +31,7 @@ from uuid import UUID
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
+from app.platform import event_notices
 from app.platform.db import new_session
 from app.platform.idempotency import purge_expired
 from app.platform.models import DeliveryAttempt, DeliveryRecipient, Notification, Outbox
@@ -52,18 +55,19 @@ CLAIM = text("""
             ORDER BY created_at
             LIMIT :limit
               FOR UPDATE SKIP LOCKED)
-    RETURNING o.id, o.alert_id, o.channel, o.template, o.recipient_ref, o.attempts
+    RETURNING o.id, o.alert_id, o.channel, o.template, o.recipient_ref, o.attempts, o.source_event_id
 """)
 
 
 @dataclass(frozen=True)
 class Claimed:
     id: UUID
-    alert_id: UUID
+    alert_id: UUID | None
     channel: str
     template: str
     recipient_ref: UUID
     attempts: int
+    source_event_id: UUID | None = None
 
 
 class Notifier:
@@ -99,6 +103,22 @@ class Notifier:
             self.deliver(c)
         return len(claimed)
 
+    def dispatch_events(self, limit: int = 500) -> int:
+        """Queues the messages that recorded events call for (notifications.yaml); returns rows written."""
+        with new_session() as s:
+            written = event_notices.dispatch(s, self.now(), limit)
+            s.commit()
+        return written
+
+    def context(self, c: Claimed) -> dict | None:
+        """What the message is about (case, rule, due date); None if the record is gone, and the text stays generic."""
+        try:
+            with new_session() as s:
+                return event_notices.context_for(s, c.alert_id, c.source_event_id)
+        except Exception:  # noqa: BLE001 - a missing detail must never stop a delivery; the generic text still goes
+            log.warning("could not read the context of outbox %s", c.id)
+            return None
+
     def deliver(self, c: Claimed) -> None:
         started = self.now()
         if c.attempts > self.max_attempts:   # e.g. a message that crashed its worker every time
@@ -117,13 +137,14 @@ class Notifier:
                 addresses = directory.addresses(s, c.recipient_ref, c.channel)
             if not addresses:
                 raise DeliveryError(PERMANENT, "NO_RECIPIENT")
-            outcome, category, ref = self._send_each(c, provider, addresses)
+            outcome, category, ref = self._send_each(c, provider, addresses, self.context(c))
         except DeliveryError as e:
             self._finish(c, started, name, e.category, e.reason, None)
         else:
             self._finish(c, started, name, outcome, category, ref)
 
-    def _send_each(self, c: Claimed, provider: Provider, addresses: list[str]) -> tuple[str, str | None, str | None]:
+    def _send_each(self, c: Claimed, provider: Provider, addresses: list[str],
+                   context: dict | None = None) -> tuple[str, str | None, str | None]:
         """One message per recipient, so nobody sees another recipient's address.
 
         Each recipient's result is recorded (as a hash, never the address) as soon as it is known, so a retry only
@@ -143,7 +164,8 @@ class Notifier:
                 # another worker took the message over; stop so we do not send alongside it
                 return TRANSIENT, "LEASE_LOST", ref
             try:
-                ref = provider.send(Message(c.id, c.alert_id, c.channel, c.template, (address,), c.attempts))
+                ref = provider.send(Message(c.id, c.alert_id, c.channel, c.template, (address,), c.attempts,
+                                            c.source_event_id, context))
             except DeliveryError as e:
                 if e.per_recipient:
                     record_recipient(c.id, key, "REFUSED")
@@ -182,10 +204,10 @@ class Notifier:
         except DeliveryError as e:
             self._finish(c, started, "in_app", e.category, e.reason, None)
             return
-        self._finish(c, started, "in_app", DELIVERED, None, None, in_app=True)
+        self._finish(c, started, "in_app", DELIVERED, None, None, in_app=True, context=self.context(c))
 
     def _finish(self, c: Claimed, started: datetime, provider: str, outcome: str, category: str | None,
-                ref: str | None, in_app: bool = False) -> None:
+                ref: str | None, in_app: bool = False, context: dict | None = None) -> None:
         now = self.now()
         if outcome == DELIVERED:
             values = {"status": DELIVERED, "delivered_at": now, "last_error": None}
@@ -200,7 +222,8 @@ class Notifier:
                                                     Outbox.status == "SENDING").values(**values))
             if fenced.rowcount and in_app:
                 s.execute(insert(Notification).values(
-                    outbox_id=c.id, alert_id=c.alert_id, recipient_ref=c.recipient_ref, template=c.template,
+                    outbox_id=c.id, alert_id=c.alert_id, source_event_id=c.source_event_id,
+                    recipient_ref=c.recipient_ref, template=c.template, context=context,
                     created_at=now).on_conflict_do_nothing(index_elements=["outbox_id"]))
             s.add(DeliveryAttempt(outbox_id=c.id, attempt_no=c.attempts, worker=self.worker_id, provider=provider,
                                   started_at=started, finished_at=now,
@@ -214,6 +237,7 @@ class Notifier:
         last_purge = None
         while not stop.is_set():
             try:
+                self.dispatch_events()
                 busy = self.run_once()
                 if last_purge is None or self.now() - last_purge > timedelta(hours=1):
                     with new_session() as s:
@@ -341,6 +365,7 @@ def main() -> None:
     create_app()  # wires every module's ports (clock, ledger, ...)
     worker = Notifier(default_providers())
     if args.once:
+        log.info("queued %d event messages", worker.dispatch_events(limit=10_000))
         log.info("processed %d messages", worker.run_once(limit=1000))
         return
     stop = threading.Event()
