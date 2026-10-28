@@ -56,6 +56,37 @@ describe("reports", () => {
     expect(onNavigate).toHaveBeenCalledWith("applications", { caseId: CASE });
   });
 
+  it("puts the document validity report into words: document, date source, days left and state", async () => {
+    const validity = {
+      type: "document_validity", title: "Document validity", source: "Read from the compliance validity records and their deadline clocks",
+      scope: { region: null, as_of: "2026-10-28" },
+      columns: [{ key: "case_ref", label: "Case" }, { key: "document", label: "Document" }, { key: "validity_basis", label: "Date from" },
+        { key: "days_left", label: "Days left" }, { key: "validity_state", label: "State" }, { key: "live_lease_ok", label: "Live lease covers longest course" },
+        { key: "deadline_status", label: "Clock" }, { key: "application_id", label: "Case id" }],
+      rows: [{ application_id: CASE, case_ref: CASE.slice(0, 8), doc_type: "FIRE_NOC", document: "fire noc", validity_basis: "OFFICER_RECORDED",
+        days_left: -3, validity_state: "EXPIRED", live_lease_ok: null, deadline_status: "BREACHED" },
+      { application_id: CASE, case_ref: CASE.slice(0, 8), doc_type: "LEASE_DEED", document: "lease deed", validity_basis: "DOCUMENT_FACT",
+        days_left: 3650, validity_state: "VALID", live_lease_ok: true, deadline_status: "RUNNING" }],
+      total: { records: 2 }, coverage: { note: "Read from the compliance validity records." }, ...head,
+    };
+    fakeServer({ "GET /api/reports": [...catalogue, { type: "document_validity", title: "Document validity", source: "", columns: [] }],
+      "GET /api/reports/pendency": pendency, "GET /api/reports/document_validity": validity });
+    const user = userEvent.setup();
+    render(<ReportsView who={HEAD} me={ME(HEAD)} />);
+    await screen.findByRole("table", { name: "Pendency by region and stage" });
+    await user.click(screen.getByRole("button", { name: "Document validity" }));
+    const table = await screen.findByRole("table", { name: "Document validity" });
+    expect(table).toHaveTextContent("Fire safety no-objection certificate");
+    expect(table).toHaveTextContent("Registered land lease deed");
+    expect(table).toHaveTextContent("Recorded by an officer");
+    expect(table).toHaveTextContent("Expired 3 days ago");
+    expect(table).toHaveTextContent("3650 days left");
+    expect(within(table).getByText("Expired")).toBeInTheDocument();
+    expect(within(table).getByText("Yes")).toBeInTheDocument();
+    expect(within(table).queryByText("EXPIRED")).toBeNull();
+    expect(within(table).queryByText("OFFICER_RECORDED")).toBeNull();
+  });
+
   it("downloads the CSV through the API with the caller's identity", async () => {
     const csv = new Blob(["Region,Stage,Applications\n"], { type: "text/csv" });
     const calls = fakeServer({

@@ -137,7 +137,8 @@ describe("dashboard", () => {
         data: { requests: 2, open: 2, overdue: 1, published_schedules: 1, upcoming_visits: 1, by_status: { QUEUED: 1, PUBLISHED: 1 } } },
       { key: "compliance", title: "Compliance and obligations", status: "AVAILABLE", source: "Replayed from compliance and deadline events",
         data: { obligations: 2, overdue: 2, awaiting_verification: 1, by_status: { OPEN: 1, EVIDENCE_SUBMITTED: 1 },
-                by_kind: { DEPOSIT: 1, AFFIDAVIT: 1 }, letters: { LOA: 1 } } },
+                by_kind: { DEPOSIT: 1, AFFIDAVIT: 1, DOCUMENT_VALIDITY: 2 }, letters: { LOA: 1 },
+                document_validity: { records: 2, valid: 0, expiring_soon: 1, expired: 1, renewal_under_review: 0, renewed: 0 } } },
       { key: "alerts", title: "Alert delivery", status: "AVAILABLE", source: "Notification outbox joined to the deadline alerts raised in Southern",
         data: { by_status: { PENDING: 1, SENDING: 0, DELIVERED: 3, DEAD: 0 }, first_tries_24h: 4, first_try_success_rate_24h: 0.75,
                 alerts: { by_status: { OPEN: 2, ESCALATED: 1 }, open_by_role: { RO_OFFICER: 3 } } } },
@@ -162,6 +163,11 @@ describe("dashboard", () => {
     const compliance = screen.getByRole("heading", { name: "Compliance and obligations" }).closest("section");
     expect(within(compliance).getByText("Evidence awaiting an officer")).toBeInTheDocument();
     expect(within(compliance).getByText(/1 Letter of Approval \(LoA\)/)).toBeInTheDocument();
+    expect(within(compliance).getByRole("table", { name: "Obligations by kind" })).toHaveTextContent("Document validity");
+    const validity = within(compliance).getByRole("table", { name: "Document validity records by state" });
+    expect(validity).toHaveTextContent("Expiring soon");
+    expect(validity).toHaveTextContent("Expired");
+    expect(validity).not.toHaveTextContent("EXPIRING_SOON");
     const alerts = screen.getByRole("heading", { name: "Alert delivery" }).closest("section");
     expect(within(alerts).getByText("75%")).toBeInTheDocument();
     expect(within(alerts).getByRole("table", { name: "Alerts by status" })).toHaveTextContent("Escalated to the next level");

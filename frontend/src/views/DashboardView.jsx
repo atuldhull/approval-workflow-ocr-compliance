@@ -12,7 +12,7 @@ import { Badge, BarList, Card, Empty, ErrorBox, Kpis, Loading, NotAvailable, Sta
 
 import { sentence } from "../nav.js";
 
-import { alertStatusOf, deadlineStatusOf, letterLabel, obligationStatusOf, ruleLabel } from "../recordText.js";
+import { alertStatusOf, deadlineStatusOf, kindLabel, letterLabel, obligationStatusOf, ruleLabel, validityStateOf } from "../recordText.js";
 
 import { evcStatusOf } from "../workflowText.js";
 
@@ -29,6 +29,10 @@ const stageKeys = (data) => Object.fromEntries(Object.entries(data || {}).map(([
 // Readable keys for a count map: rule ids, statuses and letter types become the words used on their own screens.
 
 const relabel = (data, label) => Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [label(k), v]));
+
+// Document validity states in the order a record moves through them (backend/app/compliance/validity.py).
+
+const VALIDITY_ORDER = ["VALID", "EXPIRING_SOON", "EXPIRED", "RENEWAL_UNDER_REVIEW", "RENEWED"];
 
 const COMMITTEE_LABEL = { SCRUTINY: "Scrutiny", RESCRUTINY: "Re-scrutiny", EVC: "Expert visit", SHC: "Standing hearing", EC: "Executive", COUNCIL: "Council" };
 
@@ -346,7 +350,19 @@ function Section({ s, who, me }) {
 
           <h3>By kind</h3>
 
-          <BarList data={relabel(d.by_kind, sentence)} label="Obligations by kind" />
+          <BarList data={relabel(d.by_kind, kindLabel)} label="Obligations by kind" />
+
+          {d.document_validity?.records > 0 && (
+
+            <>
+
+              <h3>Document validity</h3>
+
+              <BarList data={relabel(Object.fromEntries(VALIDITY_ORDER.map((k) => [k, d.document_validity[k.toLowerCase()] ?? 0])), (k) => validityStateOf(k).label)} label="Document validity records by state" />
+
+            </>
+
+          )}
 
           {Object.keys(d.letters).length > 0 && <p className="source">Letters registered: {Object.entries(d.letters).map(([k, n]) => `${n} ${letterLabel(k)}`).join(", ")}.</p>}
 

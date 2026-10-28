@@ -4,11 +4,12 @@ import { Icon } from "../components/Icons.jsx";
 import { stageLabel } from "../components/RouteJourney.jsx";
 import { Badge, Card, Empty, ErrorBox, Loading, Toast, useApi, useSingleFlight } from "../components/ui.jsx";
 import { ROLE_LABELS, sentence } from "../nav.js";
-import { deadlineStatusOf, obligationStatusOf, ruleLabel } from "../recordText.js";
+import { checklistLabel, daysLeftText, deadlineStatusOf, obligationStatusOf, ruleLabel, validityStateOf } from "../recordText.js";
 
 const CSV = new Set(["text/csv"]);
 const pct = (r) => (r == null ? "—" : `${Math.round(r * 100)}%`);
 const num = (v) => (v == null ? "—" : v);
+const VALIDITY_BASIS = { DOCUMENT_FACT: "The document, confirmed by two officers", OFFICER_RECORDED: "Recorded by an officer", APH_PERIOD: "APH period from the issue date" };
 
 // How each column reads on screen. The CSV keeps the server's own values; only the table is put into words.
 const CELLS = {
@@ -18,9 +19,15 @@ const CELLS = {
   kind: sentence,
   completion_rate: pct,
   alerts_acknowledged_on_time: pct,
+  validity_basis: (b) => VALIDITY_BASIS[b] ?? (b ? sentence(b) : "—"),
+  days_left: daysLeftText,
+  live_lease_ok: (v) => (v == null ? "—" : v ? "Yes" : "No"),
 };
 const STATUS_OF = { overdue: deadlineStatusOf, undertakings: obligationStatusOf };
-const NUMERIC = (key) => !["region", "stage", "rule_id", "owner_role", "kind", "status", "case_ref", "due_date"].includes(key);
+// Columns shown as a badge whatever the report: a validity record's state and the state of its clock.
+const BADGES = { validity_state: validityStateOf, deadline_status: deadlineStatusOf };
+const NUMERIC = (key) => !["region", "stage", "rule_id", "owner_role", "kind", "status", "case_ref", "due_date", "document",
+  "valid_until", "validity_basis", "days_left", "validity_state", "eoa_stop_year", "live_lease_ok", "deadline_status"].includes(key);
 
 // Reports computed from the event log, each with the ledger entry and snapshot hash it was computed at, so a
 // figure here can be recomputed and checked. The table shows the same rows as the CSV download.
@@ -64,6 +71,12 @@ export default function ReportsView({ who, me, onNavigate }) {
       const s = STATUS_OF[type](row.status);
       return <Badge tone={s.tone}>{s.label}</Badge>;
     }
+    if (BADGES[c.key]) {
+      if (row[c.key] == null) return "—";
+      const s = BADGES[c.key](row[c.key]);
+      return <Badge tone={s.tone}>{s.label}</Badge>;
+    }
+    if (c.key === "document" && row.doc_type) return checklistLabel(row.doc_type);
     return (CELLS[c.key] ?? num)(row[c.key]);
   };
 
