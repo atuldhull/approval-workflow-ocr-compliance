@@ -23,7 +23,7 @@ Exactly one of `alert_id` and `source_event_id` is set; the constructor refuses 
 
 ## Ruleset file `rulesets/aph-2024-27/r1/notifications.yaml`
 
-Event type → template, recipient roles (`owner` = the role that owns the clock in the event), optional channels and the deadline rule whose live clock gives the due date; plus `rule_names`, the rules in words. Shipped map (demo assumption — the APH does not say who is told what): `wf.deficiency_recorded` → institution; `evc.assignment_published` → institution and scrutiny committee; `cmp.evidence_verified` → institution (accepted or rejected wording by `decision`); `cmp.letter_registered` → institution; `dl.deadline_breached` → owner role. The file is added to the ruleset source manifest (`workflow/loader.py`), so the r1 checksum changes; accepted for this sprint.
+Event type → template, recipient roles (`owner` = the role that owns the clock in the event), optional channels and the deadline rule whose live clock gives the due date; plus `rule_names`, the rules in words. Shipped map (demo assumption — the APH does not say who is told what): `wf.deficiency_recorded` → institution; `evc.assignment_published` → institution and scrutiny committee; `cmp.evidence_verified` → institution (accepted or rejected wording by `decision`); `cmp.letter_registered` → institution; `dl.deadline_breached` → owner role, unless the rule's alert ladder already tells that role at the due time (an AICTE clock's regional officer gets the ladder's "Deadline missed" alert, not a second notice). The file is added to the ruleset source manifest (`workflow/loader.py`), so the r1 checksum changes; accepted for this sprint.
 
 ## Generated OpenAPI
 

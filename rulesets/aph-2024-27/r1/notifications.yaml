@@ -28,6 +28,7 @@ events:
     to: [INSTITUTION]
   dl.deadline_breached:
     template: deadline.missed
+    # not sent to a role the rule's alert ladder already tells at the due time (that alert says the same thing)
     to: [owner]
 
 rule_names:
@@ -41,3 +42,7 @@ rule_names:
   LOA_DEPOSIT_AFFIDAVIT_15D: the fifteen days after an LoA for the deposit proof and affidavit
   NO_ADMISSION_AFFIDAVIT_7D: the seven days for the no-admission affidavit
   LOA_VALIDITY_2Y: the LoA's two-year validity
+  DOCUMENT_EXPIRY: the renewal of an expiring document
+  STRUCTURAL_STABILITY_VALIDITY: the five-year validity of a structural stability certificate
+  UNDERTAKING_DUE_DATE: the due date the undertaking states
+  AFFIDAVIT3_REMAINING_1M: the month after an LoA to complete the remaining requirements (Affidavit 3)

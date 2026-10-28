@@ -1,9 +1,12 @@
 """Messages about recorded events: the ruleset map, idempotent queueing from the event log, and contextual wording."""
+from datetime import timedelta
+from hashlib import sha256
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
+from app.compliance.service import IST
 from app.deadlines.wiring import clock
 from app.deadlines.worker import TimerWorker
 from app.platform import event_notices
@@ -129,17 +132,66 @@ def test_rejected_evidence_names_the_obligation_and_its_due_date(env):
 
 def test_a_breached_clock_tells_the_role_that_owns_it(env):
     app_id = submit(env)
+    register_loa(env, app_id)
     clock.advance(31)
     TimerWorker(worker_id="t1", now=clock.now).run_once()
     deliver()
-    rows = outbox("deadline.missed")
-    assert {r.recipient_ref for r in rows} == {group_ref(Role.RO_OFFICER, "Southern")}   # AICTE's clock: the RO
-    [item] = [n for n in inbox(env, SOUTH_RO) if n["template"] == "deadline.missed"]
-    assert item["text"].startswith(f"Case {app_id[:8]}: AICTE's processing time for a submitted application was due on ")
-    assert item["text"].endswith("(IST) and has passed.") and item["links"]["application_id"] == app_id
-    # the alert ladder's own messages now name the case and the rule too
+    # the LoA's deposit clock is the institution's; its ladder tells the regional office at the due time
+    missed = [n for n in inbox(env) if n["template"] == "deadline.missed"]
+    assert missed and all(n["text"].startswith(f"Case {app_id[:8]}: ") and n["text"].endswith("(IST) and has passed.")
+                          for n in missed)
+    assert any("the fifteen days to pay the security deposit was due on" in n["text"] for n in missed)
+    assert all(n["links"]["application_id"] == app_id for n in missed)
+    # AICTE's processing clock is the RO's, and its ladder already tells the RO at the due time: no second message
+    assert not [n for n in inbox(env, SOUTH_RO) if n["template"] == "deadline.missed"]
+    assert group_ref(Role.RO_OFFICER, "Southern") not in {r.recipient_ref for r in outbox("deadline.missed")}
     alerts = [n for n in inbox(env, SOUTH_RO) if n["alert_id"]]
-    assert alerts and all(n["text"].startswith(f"Case {app_id[:8]}: AICTE's processing time") for n in alerts)
+    processing = [n for n in alerts if n["text"].startswith(f"Case {app_id[:8]}: AICTE's processing time")]
+    assert sorted(n["template"] for n in processing) == ["deadline.breached", "deadline.reminder"]
+
+
+def fire_certificate(app_id) -> str:
+    """A version of the case's fire safety certificate, scanned clean."""
+    document_id, version_id = uuid4(), uuid4()
+    digest = sha256(version_id.bytes).hexdigest()
+    with new_session() as s:
+        s.execute(text("INSERT INTO doc.document (document_id, application_id, institution_id, doc_type, created_at, "
+                       "updated_at) VALUES (:d, :a, :i, 'FIRE_NOC', now(), now())"),
+                  {"d": document_id, "a": app_id, "i": SUNRISE})
+        s.execute(text(
+            "INSERT INTO doc.document_version (document_version_id, document_id, application_id, institution_id, "
+            "version_no, original_filename, media_type, size_bytes, sha256, storage_ref, status, uploaded_by, "
+            "created_at, updated_at) VALUES (:v, :d, :a, :i, 1, 'synthetic.pdf', 'application/pdf', 8, :h, :s, "
+            "'QUARANTINED', :u, now(), now())"),
+            {"v": version_id, "d": document_id, "a": app_id, "i": SUNRISE, "h": digest,
+             "s": f"quarantine/{SUNRISE}/{app_id}/sha256/{digest}/{uuid4()}", "u": uuid4()})
+        s.execute(text("UPDATE doc.document_version SET scan_status = 'clean', status = 'AVAILABLE', scanned_at = now() "
+                       "WHERE document_version_id = :v"), {"v": version_id})
+        s.commit()
+    return str(version_id)
+
+
+def test_a_document_expiry_reminder_and_breach_name_the_document_and_the_case(env):
+    app_id = submit(env)
+    version = fire_certificate(app_id)
+    until = clock.now().astimezone(IST).date() + timedelta(days=100)
+    r = env.post("/api/compliance/validity", headers=SOUTH_RO,
+                 json={"document_version_id": version, "valid_until": until.isoformat()})
+    assert r.status_code == 201, r.text
+    clock.advance(11)                                                # 90 days before expiry
+    TimerWorker(worker_id="t1", now=clock.now).run_once()
+    deliver()
+    [reminder] = [n for n in inbox(env) if n["template"] == "deadline.reminder"]
+    assert reminder["text"] == (f"Case {app_id[:8]}: the renewal of an expiring document is due on "
+                                f"{until.strftime('%d %b %Y')} (IST). Document: fire noc.")
+    assert reminder["links"]["application_id"] == app_id
+    clock.advance(91)                                                # past the expiry
+    TimerWorker(worker_id="t1", now=clock.now).run_once()
+    deliver()
+    [missed] = [n for n in inbox(env) if n["template"] == "deadline.missed"]   # the institution owns the clock
+    assert missed["text"].endswith("has passed. Document: fire noc.") and app_id[:8] in missed["text"]
+    ro = [n["template"] for n in inbox(env, SOUTH_RO) if n["text"].endswith("Document: fire noc.")]
+    assert ro == ["deadline.breached"]                               # the expiry ladder, not a second notice
 
 
 def test_a_recorded_deficiency_names_the_round_and_the_answer_date(env, monkeypatch):

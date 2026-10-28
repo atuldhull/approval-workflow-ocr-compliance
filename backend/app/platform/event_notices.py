@@ -16,7 +16,7 @@ used - never names, addresses or free text.
 import logging
 import threading
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -163,9 +163,12 @@ def application_of(session: Session, subject_type: str, subject_id) -> str | Non
 
 
 def document_name(session: Session, subject_type: str, subject_id) -> str | None:
-    """The checklist item a document deadline is about, in words (its doc_type), never the file name."""
+    """The checklist item a document deadline is about, in words (its doc_type), never the file name. A document
+    validity obligation names the document it tracks."""
     if subject_type == "document":
         sql = "SELECT doc_type FROM doc.document WHERE document_id = :id"
+    elif subject_type == "obligation":
+        sql = "SELECT doc_type FROM cmp.obligation WHERE id = :id"
     elif subject_type == "document_version":
         sql = ("SELECT d.doc_type FROM doc.document_version v JOIN doc.document d ON d.document_id = v.document_id "
                "WHERE v.document_version_id = :id")
@@ -183,6 +186,18 @@ def _owner_role(ruleset_rev: str | None, clock_owner: str) -> Role | None:
     except Exception:  # noqa: BLE001 - an unreadable ruleset leaves the owner unknown; the event is skipped
         return None
     return alerts.owner_roles.get(str(clock_owner)) if alerts is not None else None
+
+
+def _alerted_at_breach(ruleset_rev: str | None, rule_id: str | None, clock_owner: str) -> set[Role]:
+    """Roles the rule's alert ladder already tells at the due time; a breach notice to them would say it twice."""
+    try:
+        rules = port(RulesetPort).get(ruleset_rev or settings.default_ruleset).deadline_rules
+        alerts, rule = getattr(rules, "alerts", None), rules.get(rule_id) if rule_id else None
+        if alerts is None or rule is None:
+            return set()
+        return {alerts.role_for(step, clock_owner) for step in alerts.ladder(rule) if step.offset == timedelta(0)}
+    except Exception:  # noqa: BLE001 - an unreadable ruleset suppresses nothing
+        return set()
 
 
 def messages_for(session: Session, event_id: UUID, event_type: str, payload: dict,
@@ -206,9 +221,11 @@ def messages_for(session: Session, event_id: UUID, event_type: str, payload: dic
     resource = ResourceRef("application", case.application_id, owner_institution_id=case.institution_id,
                            region=case.region)
     refs: list[UUID] = []
+    skip = (_alerted_at_breach(ruleset_rev, payload.get("rule_id"), payload.get("clock_owner", ""))
+            if event_type == "dl.deadline_breached" else set())
     for to in notice.to:
         role = _owner_role(ruleset_rev, payload.get("clock_owner", "")) if to == OWNER else Role(to)
-        if role is None:
+        if role is None or role in skip:
             continue
         ref = directory.resolve(role, resource)
         if ref not in refs and directory.has_members(session, ref):
