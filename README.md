@@ -36,11 +36,15 @@ written to a hash-chained, signed and replayable audit ledger.
 | ![Bureau head dashboard with the operations pulse and the alert queue](docs/screenshots/dashboard.png) | ![Public showcase opening on the application dossier](docs/screenshots/showcase.png) |
 | Dashboard: stage counts rebuilt from the audit event log, a case route to inspect, alerts that need the role | Showcase at `#showcase`: a guided walk-through of the product that ends in the workspace |
 | ![Scrutiny committee recording a deficiency on a case](docs/screenshots/scrutiny-deficiency.png) | ![Regional officer planning expert visits with the CP-SAT optimiser](docs/screenshots/evc-scheduling.png) |
-| Case under scrutiny: the prescribed route, deficiency round, committee workspace, demo-assumption labels | EVC scheduling: visit requests, CP-SAT or earliest-deadline-first planning, simulated panel selection |
+| Case under scrutiny: the prescribed route, deficiency round, committee workspace, demo-assumption labels | EVC scheduling: queued visit requests (including a random inspection), CP-SAT or earliest-deadline-first planning, simulated panel selection |
 | ![Fact review with blind entry before the OCR reading is revealed](docs/screenshots/fact-review-blind-entry.png) | ![Deadline alerts with escalation levels and acknowledgement](docs/screenshots/deadline-alerts.png) |
 | Fact review: the officer types the value first; the OCR reading is revealed only after that | Alerts: escalation ladder per deadline, acknowledgement by the addressed role |
 | ![Audit view: hash chain, signed checkpoint and replay](docs/screenshots/audit.png) | ![Scorecard listing how each check was measured](docs/screenshots/scorecard.png) |
 | Audit: hash chain, signed checkpoint held by a witness, replay of read models | Scorecard: each check says how it was measured and what it found |
+| ![Compliance screen with the document validity panel](docs/screenshots/document-validity.png) | ![Reports screen with the pendency report](docs/screenshots/reports.png) |
+| Document validity: lease and certificate expiry with days left, the source of each date and the APH clause | Reports: pendency, EVC status, undertakings, overdue clocks, regional performance and document validity, each as CSV |
+| ![Case with the appeal panel and the days left in the window](docs/screenshots/appeal.png) | |
+| Appeal: the LoD's 7-day window with days left (APH cl. 2.24(a)); filing, SAC recommendation and Council decision on the same panel | |
 
 All screenshots come from the end-to-end run described under [Tests](#tests) and show synthetic data. The
 background atmosphere can be set to Auto, Full, Reduced or Static from the control at the top of each screen, and
