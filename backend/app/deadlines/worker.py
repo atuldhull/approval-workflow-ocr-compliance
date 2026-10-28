@@ -36,7 +36,7 @@ from app.deadlines.service import DeadlineEngine
 from app.platform.db import new_session, unit_of_work
 from app.platform.registry import port
 from contracts.enums import DeadlineStatus, Role
-from contracts.ports import ClockPort
+from contracts.ports import ClockPort, DeadlineExpiryPort
 from contracts.types import Principal
 
 log = logging.getLogger("deadline-timer")
@@ -107,10 +107,25 @@ class TimerWorker:
                 log.info("marked %d deadline(s) breached", breached)
         except Exception as e:  # noqa: BLE001 - alerts still fire; the next run marks them
             log.error("marking breached deadlines failed: %s", type(e).__name__)
+        self.run_expiry_actions(limit)
         done = 0
         for c in self.claim(limit):
             done += self.process(c)
         return done
+
+    def run_expiry_actions(self, limit: int = 50) -> int:
+        """Rules with on_expiry (e.g. APPEAL_7D: close_appeal_window) are acted on by the module that opened the
+        clock, once it is BREACHED. Optional: without a wired DeadlineExpiryPort nothing happens."""
+        try:
+            applied = port(DeadlineExpiryPort).run_due(limit)
+        except RuntimeError:
+            return 0
+        except Exception as e:  # noqa: BLE001 - alerts still fire; the next run tries again
+            log.error("expiry actions failed: %s", type(e).__name__)
+            return 0
+        if applied:
+            log.info("applied %d expiry action(s)", applied)
+        return applied
 
     def process(self, c: Claim) -> int:
         now = self.now()
