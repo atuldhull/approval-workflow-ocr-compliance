@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEMO_USERS } from "../api.js";
 import CaseDetail from "../components/CaseDetail.jsx";
 import { fakeServer } from "./fakeServer.js";
+import { sentence } from "../nav.js";
 
 const user = (key) => DEMO_USERS.find((u) => u.key === key);
 const ME = (u) => ({ user_id: u.user, role: u.role, region: u.region ?? null, institution_id: u.institution ?? null });
@@ -111,5 +112,12 @@ describe("electronic case summary", () => {
     await u.click(within(doc).getByRole("button", { name: "Print" }));
     expect(print).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("appeal wording", () => {
+  it("writes the SAC as an acronym in committee names", () => {
+    expect(sentence("SAC")).toBe("SAC");
+    expect(sentence("SHC")).toBe("SHC");
   });
 });

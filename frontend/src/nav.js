@@ -40,7 +40,7 @@ export const ROLE_LABELS = {
 
 export const humanise = (s) => (s ? s.replaceAll("_", " ").toLowerCase() : "");
 
-const ACRONYMS = /\b(aicte|evc|shc|eoa|aph|nri|ro|ec)\b/g;
+const ACRONYMS = /\b(aicte|evc|shc|sac|eoa|aph|nri|ro|ec)\b/g;
 export const sentence = (s) => {
   const h = humanise(s)?.replace(ACRONYMS, (m) => m.toUpperCase());
   return h ? h[0].toUpperCase() + h.slice(1) : h;
