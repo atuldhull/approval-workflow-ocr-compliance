@@ -92,7 +92,7 @@ def test_loader_idempotent_without_reading_clock_or_changing_metadata(client):
         assert all(r.status == "DRAFT" and r.approved_at is None and r.approved_by_ref is None for r in rows)
         assert all(r.created_at == AT for r in rows)
         assert [r.demo_only for r in rows] == [False, True]
-        assert [len(r.source_files) for r in rows] == [3, 4]
+        assert [len(r.source_files) for r in rows] == [4, 5]   # routes, deadlines, checklists, notifications (+ overlay)
         assert session.scalar(select(func.count()).select_from(RouteDefinition)) == 44
         transitions = session.scalar(select(func.count()).select_from(TransitionDefinition))
         assert transitions > 0
