@@ -24,7 +24,7 @@ below now describe what runs.
 | Regional officer case and deadline lists | **Waiting P1 / P2** | Refused by policy (safe) until lists filter by region; deadline explain is refused too | P1 #2-3, P2 #4 |
 | Stage and assignment permissions | **Waiting P1**, Contract approval (C3) | `AUTHZ_REQUIRE_ASSIGNMENT` refuses committee case access in production until then | P1 #5 |
 | EVC scheduling | **Waiting P1**, Demo only (preview screen) | No EVC API or events | P1 #6 |
-| Deadline status events (met / breached / extended) | **Waiting P2** | Only `dl.deadline_opened` exists; dashboard deadlines section is PARTIAL | P2 #3 |
+| Deadline status events (opened / paused / resumed / closed / breached) | **Integrated** | `dl.deadline_paused`, `dl.deadline_resumed`, `dl.deadline_closed` and `dl.deadline_breached` are emitted by the deadline service and timer worker and replayed; the dashboard deadlines section reads them ([contract request](../p1/contract_requests/2026-10-28_deadline_lifecycle_events.md)) | P2 #3 |
 | Compliance letters, obligations and evidence | **Integrated** | `test_compliance.py`, role matrix rows, `smoke_demo.py` (LoA from a confirmed fact, evidence, verification); compliance screen | P2 #7 |
 | Documents: upload, scan, extraction, review, four-eyes | **Integrated** | `test_documents_*.py`, role matrix rows, `smoke_demo.py` with real ClamAV and the local text engine in Docker; documents and fact review screens | P2 #6 |
 | Alert creation and escalation | **Integrated** for application deadlines | Timer worker in compose, `test_deadline_timer.py`, `smoke_demo.py`; obligation and letter deadlines never alert (scope lookup) | P2 status note |
@@ -32,7 +32,7 @@ below now describe what runs.
 | Recipient groups and vacancy check | **Platform ready**, Contract approval (C2) | `platform/recipients.py`; `RecipientPort` proposed | P2 #2 |
 | Alert acknowledgement | **Integrated** | Alerts screen; addressed role only (role matrix) | P2 #5 |
 | Audit events, hash chain, checkpoints | **Integrated** for today's events | `test_audit.py`; local witness is DEMO ONLY | - |
-| Replay completeness | **Integrated** for `wf.application_created/submitted`, `dl.deadline_opened` | Verdict is CONSISTENT_SUBSET as soon as other event types are stored; MISMATCH if a stored event cannot be read | P1 #4, P2 #3 |
+| Replay completeness | **Integrated** for workflow transitions, committees, deficiencies, EVC, compliance, alerts and the full deadline lifecycle | The seeded demo stack replays as VERIFIED_COMPLETE; any event type a projection does not read is reported, and the verdict drops to CONSISTENT_SUBSET; MISMATCH if a stored event cannot be read | P1 #4, P2 #3 |
 | Replay and dashboard reads of `wf.application` / `dl.deadline` | **Approval needed** | Read-only SQL today, not yet an approved interface | P1 #7, P2 #7b |
 | Frontend: applications, case view, inbox, audit, delivery, scorecard | **Integrated** | `frontend/src/test/app.test.jsx` (25 tests) | - |
 | Frontend: documents, fact review, compliance, alerts | **Integrated** | Real API screens, `frontend/src/test/*.test.jsx`; EVC stays a labelled preview | P1 #6 |

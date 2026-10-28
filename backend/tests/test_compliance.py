@@ -421,29 +421,64 @@ def test_no_note_redacted_note_and_tampered_note(client, loa):
 
 # ---- demo seed ----
 
-def test_demo_letters_are_dated_from_the_demo_clock_with_one_overdue(client):
+def test_demo_records_sit_on_the_approved_demo_cases(client, tmp_path, monkeypatch):
     from app.compliance import demo_seed
     from app.deadlines.wiring import clock
+    from app.documents import service as documents
+    from app.documents.config import DocumentLimits
+    from app.documents.storage import LocalQuarantineStorage
+    from app.workflow import demo_seed as cases_seed
 
-    ensure_intake_rules(client)  # the seed submits through intake, whose rules startup imports
-    clock.advance(40)  # the seed follows the demo clock, not the calendar
-    today = clock.now().astimezone(service.IST).date()
-    created = demo_seed.seed_letters()
-    assert len(created) == 3 and demo_seed.seed_letters() == []  # rerunning adds nothing
-    with new_session() as s:
-        letters = {a.f_no: a for a in s.scalars(select(ApprovalLetter)).all()}
-        assert len(letters) == 3 and all(f.startswith("F.No. DEMO-SEED/") for f in letters)
-        overdue = 0
-        for f_no, a in letters.items():
-            due = {o.due_date for o in s.scalars(select(Obligation).where(
-                Obligation.source_letter_id == a.id, Obligation.kind.in_(("DEPOSIT", "AFFIDAVIT"))))}
-            assert len(due) == 1 and a.issue_date <= today
-            if "OVERDUE" in f_no:
-                overdue += 1
-                assert due == {today - timedelta(days=demo_seed.OVERDUE_BY_DAYS)}
-            else:
-                assert min(due) > today and a.valid_until > today
-        assert overdue == 1
+    monkeypatch.setenv("WF_ENABLE_LETTER_ISSUANCE", "true")
+    documents.configure(storage=LocalQuarantineStorage(tmp_path / "store", limits=DocumentLimits(
+        10 * 1024 * 1024, 20, 4_000_000)))
+    try:
+        with client:
+            with pytest.raises(RuntimeError, match="run app.workflow.demo_seed first"):
+                demo_seed.seed(client)
+            clock.advance(40)  # the seed follows the demo clock, not the calendar
+            today = clock.now().astimezone(service.IST).date()
+            cases = cases_seed.seed_cases(client)
+            assert demo_seed.seed(client) == {"validity": 4, "renewal": 1, "undertaking": 1}
+            assert demo_seed.seed(client) == {"validity": 0, "renewal": 0, "undertaking": 0}  # rerunning adds nothing
+            records = client.get("/api/compliance/obligations", headers=BUREAU,
+                                 params={"kind": "DOCUMENT_VALIDITY"}).json()
+            states = {(r["application_id"], r["doc_type"]): (r["validity_state"], r["days_left"]) for r in records}
+            south, overdue = str(cases["LOA-SOUTH"]), str(cases["LOA-OVERDUE"])
+            assert len(records) == 4 and states[(south, "LEASE_DEED")] == ("EXPIRING_SOON", 60)
+            assert states[(south, "FIRE_NOC")] == ("RENEWAL_UNDER_REVIEW", 20)
+            assert states[(south, "STRUCTURAL_STABILITY")][0] == "VALID"
+            assert states[(overdue, "LEASE_DEED")] == ("EXPIRED", -12)
+            stability = next(r for r in records if r["doc_type"] == "STRUCTURAL_STABILITY")
+            assert stability["validity_basis"] == "APH_PERIOD" and stability["valid_until"] > today.isoformat()
+            expired = next(r for r in records if r["validity_state"] == "EXPIRED")
+            assert expired["deadline_status"] == "BREACHED" and expired["overdue"] is True
+            [undertaking] = [o for o in client.get("/api/compliance/obligations", headers=BUREAU, params={
+                "application_id": str(cases["LOA-NORTH"]), "kind": "UNDERTAKING"}).json()
+                if o["title"] == demo_seed.UNDERTAKING_TITLE]
+            assert undertaking["due_date"] == (today + timedelta(days=21)).isoformat()
+        with new_session() as s:
+            scanned = s.scalars(select(DomainEvent).where(DomainEvent.event_type == "doc.document_scanned")).all()
+            assert len(scanned) == 5 and {e.payload["scanner"] for e in scanned} == {"demo_seed"}
+    finally:
+        documents.configure(storage=None, scanner=None)
+        with new_session() as s, s.begin():
+            s.execute(text("TRUNCATE evc.assignment_expert, evc.assignment, evc.availability, evc.coi, evc.slot, "
+                           "evc.schedule_run_request, evc.schedule_run, evc.evc_request, evc.expert"))
+
+
+def test_the_demo_scanner_passes_only_its_own_files():
+    import io
+
+    from app.compliance.demo_seed import SeedScanner, synthetic_pdf
+    from app.documents.scanning import ScannerUnavailable, ScanVerdict
+    from hashlib import sha256 as digest
+
+    scanner, own = SeedScanner(), synthetic_pdf("X")
+    scanner.allowed.add(digest(own).hexdigest())
+    assert scanner.scan(io.BytesIO(own)).verdict is ScanVerdict.CLEAN
+    with pytest.raises(ScannerUnavailable):
+        scanner.scan(io.BytesIO(own + b"tampered"))
 
 
 def test_the_demo_seed_refuses_outside_demo_mode(monkeypatch):

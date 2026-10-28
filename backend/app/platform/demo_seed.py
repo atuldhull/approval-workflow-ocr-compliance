@@ -8,6 +8,7 @@ reach a real person even if a provider were misconfigured.
 """
 import argparse
 import sys
+from contextlib import contextmanager
 from uuid import UUID
 
 from app.platform.registry import port
@@ -83,6 +84,34 @@ def sample_alerts(limit: int = 3) -> int:
                         s, OutboundMessage(None, channel, "case.update", ref, source_event_id=event_id), now)
         s.commit()
     return written
+
+
+@contextmanager
+def demo_client():
+    """The app in this process, read with the demo identities in X-Demo headers, for the seeds that drive the API
+    as the demo accounts. Demo mode only; the dependency override is removed again on exit."""
+    from app.platform.settings import settings
+
+    if not settings.demo_mode:
+        raise RuntimeError("the demo client requires DEMO_MODE")
+    from fastapi import Header
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.platform import auth
+    from contracts.enums import Role
+
+    def demo_principal(x_demo_user: UUID | None = Header(default=None), x_demo_role: Role | None = Header(default=None),
+                       x_demo_institution: UUID | None = Header(default=None),
+                       x_demo_region: str | None = Header(default=None)):
+        return auth._demo_principal(x_demo_user, x_demo_role, x_demo_institution, x_demo_region)
+
+    app.dependency_overrides[auth.current_principal] = demo_principal
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(auth.current_principal, None)
 
 
 def main() -> int:
