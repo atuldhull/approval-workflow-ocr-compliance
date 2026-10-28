@@ -27,7 +27,7 @@ FAKE_FOR = {
     ports.AuthzPort: fakes.AllowAllAuthz, ports.RulesetPort: fakes.FakeRulesets, ports.CasePort: fakes.FakeCases,
     ports.DeadlineRuleParserPort: fakes.FakeDeadlineRuleParser, ports.DeadlinePort: fakes.FakeDeadlines,
     ports.CompliancePort: fakes.FakeCompliance, ports.ClockPort: fakes.FakeClock,
-    ports.EvcPort: fakes.FakeEvc,
+    ports.EvcPort: fakes.FakeEvc, ports.DeadlineExpiryPort: fakes.FakeDeadlineExpiry,
 }
 
 
