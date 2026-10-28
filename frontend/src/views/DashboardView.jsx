@@ -48,6 +48,18 @@ function officerName(ref, who, me) {
 
 
 
+// Institutions are references in the record too; demo institutions are named from the demo accounts.
+
+function institutionName(ref, who) {
+
+  const user = who?.mode !== "oidc" ? DEMO_USERS.find((u) => u.institution === ref) : null;
+
+  return user ? user.label.replace(/^Institution - /, "") : `Institution ${ref.slice(0, 8)}`;
+
+}
+
+
+
 function Section({ s, who, me }) {
 
   if (s.status === "NOT_AVAILABLE") {
@@ -99,6 +111,112 @@ function Section({ s, who, me }) {
       )}
 
       {s.key === "ageing" && <BarList data={d.buckets} label="Time since submission" />}
+
+      {s.key === "flow" && (
+
+        <>
+
+          <div className="stats">
+
+            <StatTile label="Bottleneck" value={d.bottleneck ? stageLabel(d.bottleneck) : "—"} hint="stage holding the most cases" />
+
+            <StatTile label="Slowest stage" value={d.slowest ? stageLabel(d.slowest) : "—"} hint="longest median time in stage" />
+
+          </div>
+
+          <h3>Time in current stage</h3>
+
+          <BarList data={d.buckets} label="Time in current stage" />
+
+          {d.by_stage.length > 0 && (
+
+            <div className="table-wrap">
+
+              <table className="table" tabIndex={0} aria-label="Cases and time by current stage">
+
+                <thead>
+
+                  <tr><th scope="col">Stage</th><th scope="col" className="num">Cases</th><th scope="col" className="num">Median days</th><th scope="col" className="num">Longest (days)</th></tr>
+
+                </thead>
+
+                <tbody>
+
+                  {d.by_stage.map((r) => (
+
+                    <tr key={r.stage}>
+
+                      <th scope="row">{stageLabel(r.stage)}</th>
+
+                      <td className="num">{r.cases}</td>
+
+                      <td className="num">{r.median_days}</td>
+
+                      <td className="num">{r.max_days}</td>
+
+                    </tr>
+
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+        </>
+
+      )}
+
+      {s.key === "institutions" && (
+
+        d.rows.length === 0 ? <Empty>No institutions have applications in this scope.</Empty> : (
+
+          <>
+
+            <div className="table-wrap">
+
+              <table className="table" tabIndex={0} aria-label="Applications by institution">
+
+                <thead>
+
+                  <tr><th scope="col">Institution</th><th scope="col" className="num">Applications</th><th scope="col" className="num">In process</th><th scope="col" className="num">Overdue clocks</th></tr>
+
+                </thead>
+
+                <tbody>
+
+                  {d.rows.map((r) => (
+
+                    <tr key={r.institution_id}>
+
+                      <th scope="row" title={r.institution_id}>{institutionName(r.institution_id, who)}</th>
+
+                      <td className="num">{r.cases}</td>
+
+                      <td className="num">{r.in_process}</td>
+
+                      <td className="num">{r.overdue}</td>
+
+                    </tr>
+
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+            {d.institutions > d.rows.length && <p className="source">The {d.rows.length} institutions with the most overdue clocks of {d.institutions} are listed.</p>}
+
+          </>
+
+        )
+
+      )}
 
       {s.key === "deadlines" && (
 

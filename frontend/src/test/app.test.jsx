@@ -540,10 +540,10 @@ describe("navigation matrix (mirrors backend/app/platform/policy.py)", () => {
   const EXPECTED = {
     INSTITUTION: ["overview", "applications", "inbox", "alerts", "documents", "compliance"],
     SCRUTINY_COMMITTEE: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance"],
-    RO_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance"],
-    BUREAU_OFFICER: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
-    BUREAU_HEAD: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
-    AUDITOR: ["dashboard", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
+    RO_OFFICER: ["dashboard", "reports", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance"],
+    BUREAU_OFFICER: ["dashboard", "reports", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
+    BUREAU_HEAD: ["dashboard", "reports", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
+    AUDITOR: ["dashboard", "reports", "applications", "inbox", "alerts", "documents", "ocr", "evc", "compliance", "audit", "delivery", "scorecard"],
   };
   for (const [role, keys] of Object.entries(EXPECTED)) {
     it(`${role} sees exactly its screens`, () => {

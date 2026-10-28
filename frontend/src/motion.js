@@ -159,6 +159,7 @@ export function useScrollProgress(ref) {
 export const WORLDS = {
   overview: { motion: "zoom", world: "mission" },
   dashboard: { motion: "pan", world: "control" },
+  reports: { motion: "rise", world: "board" },
   applications: { motion: "slide", world: "cases" },
   inbox: { motion: "drift", world: "signal" },
   alerts: { motion: "drift", world: "signal" },

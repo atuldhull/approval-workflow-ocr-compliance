@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Identity, Index, Integer, Text, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Identity, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -69,14 +69,22 @@ class PersonalData(Base):
 
 
 class Outbox(Base):
-    """Written in the same transaction as the alert; the notifier delivers it after commit."""
+    """Written in the same transaction as the alert, or by the notifier for a recorded event; delivered after commit.
+
+    A row is about one alert (one row per alert and channel) or one domain event (one row per event, recipient and
+    channel), never both."""
     __tablename__ = "outbox"
     __table_args__ = (UniqueConstraint("alert_id", "channel"),
+                      UniqueConstraint("source_event_id", "recipient_ref", "channel",
+                                       name="uq_plat_outbox_event_recipient_channel"),
+                      CheckConstraint("(alert_id IS NULL) <> (source_event_id IS NULL)",
+                                      name="ck_plat_outbox_one_subject"),
                       Index("ix_plat_outbox_due", "status", "next_attempt_at"), {"schema": SCHEMA})
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    alert_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    alert_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    source_event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     channel: Mapped[str] = mapped_column(Text)
     template: Mapped[str] = mapped_column(Text)
     recipient_ref: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
@@ -160,11 +168,24 @@ class Notification(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     outbox_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.outbox.id"), unique=True)
-    alert_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    alert_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    source_event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     recipient_ref: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
     template: Mapped[str] = mapped_column(Text)
+    # what the message was about, worked out once at delivery: case, rule, due date, links. Ids and dates only.
+    context: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class NotifyCursor(Base):
+    """How far the notifier has read the event log for event notifications. One row per consumer."""
+    __tablename__ = "notify_cursor"
+    __table_args__ = {"schema": SCHEMA}
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    seq: Mapped[int] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class RecipientMember(Base):

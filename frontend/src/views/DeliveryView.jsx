@@ -6,6 +6,8 @@ import { STATUS, errorText, outcomeText } from "../deliveryText.js";
 import { templateLabel } from "../recordText.js";
 
 const pct = (r) => (r == null ? "—" : `${Math.round(r * 100)}%`);
+// A message is about a deadline alert or about a recorded event (a deficiency, a letter, a decided piece of evidence).
+const about = (o) => (o.alert_id ? ["Alert", o.alert_id] : ["Event", o.source_event_id]);
 
 export default function DeliveryView({ who, me }) {
   const [status, setStatus] = useState("");
@@ -84,7 +86,7 @@ export default function DeliveryView({ who, me }) {
             )}
           </>
         )}
-        <p className="muted small">Each recipient gets a separate message, so no one sees another recipient's address. Email and SMS are delivered at least once: a retry after an unclear provider failure can repeat a message to that recipient.</p>
+        <p className="muted small">Messages come from deadline alerts and from recorded events mapped in the ruleset's notification map. Each recipient gets a separate message, so no one sees another recipient's address. Email and SMS are delivered at least once: a retry after an unclear provider failure can repeat a message to that recipient.</p>
       </Card>
 
       <div className="split delivery-layout">
@@ -121,6 +123,7 @@ export default function DeliveryView({ who, me }) {
                 <th scope="col">Queued</th>
                 <th scope="col">Channel</th>
                 <th scope="col">Template</th>
+                <th scope="col">About</th>
                 <th scope="col">Status</th>
                 <th scope="col">Attempts</th>
                 <th scope="col">Last problem</th>
@@ -135,6 +138,7 @@ export default function DeliveryView({ who, me }) {
                     <td>{when(o.created_at)}</td>
                     <td>{o.channel}</td>
                     <td>{templateLabel(o.template)}</td>
+                    <td><span className="small">{about(o)[0]}</span> <code title={about(o)[1] ?? undefined}>{String(about(o)[1] ?? "").slice(0, 8)}</code></td>
                     <td><Badge tone={STATUS[o.status]?.tone}>{o.status}</Badge></td>
                     <td>{o.attempts}</td>
                     <td>{errorText(o.last_error) ?? "—"}</td>

@@ -4,8 +4,9 @@ import { Icon } from "../components/Icons.jsx";
 import { Card, Empty, ErrorBox, Inspector, Loading, dateIST, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import Lifecycle from "../components/Lifecycle.jsx";
 
-// Templates the alerts module marks as needing action soon; the rest are informational.
-const URGENT = new Set(["deadline.breached", "deadline.escalated"]);
+// Templates that need action soon; the rest are informational.
+const URGENT = new Set(["deadline.breached", "deadline.escalated", "deadline.missed", "compliance.evidence_rejected"]);
+// Fallback wording for messages delivered before the server described them (text and action come with each item).
 const MEANING = {
   "deadline.reminder": "A deadline on a case you handle is approaching.",
   "deadline.breached": "A deadline on a case you handle has passed.",
@@ -13,6 +14,7 @@ const MEANING = {
   "obligation.due": "A compliance item for your institution is due.",
   "case.update": "A case you follow has changed.",
 };
+const reference = (n) => n.case_ref ? `case ${n.case_ref}` : `ref ${String(n.alert_id ?? n.source_event_id ?? "").slice(0, 8)}`;
 const FILTERS = [["all", "All"], ["unread", "Unread"], ["urgent", "Urgent"]];
 
 // The inbox as a signal stream: grouped by day (IST), unread signals pulse softly, urgent ones carry the
@@ -81,7 +83,7 @@ export default function InboxView({ who, onNavigate }) {
                   <button className="signal-main" onClick={() => setOpenId(n.id === openId ? null : n.id)} aria-expanded={openId === n.id}>
                     <span className="signal-subject">{n.subject}</span>
                     <span className="signal-meta muted">
-                      {when(n.created_at)} · ref <code>{n.alert_id.slice(0, 8)}</code>
+                      {when(n.created_at)} · <code>{reference(n)}</code>
                       {!n.read_at && <span className="sr-only"> · unread</span>}
                     </span>
                   </button>
@@ -99,27 +101,31 @@ export default function InboxView({ who, onNavigate }) {
             </ul>
           </section>
         ))}
-        <p className="muted small">Deadline alerts are acknowledged on the Alerts screen, by the role they are addressed to.</p>
+        <p className="muted small">Deadline alerts are acknowledged on the Alerts screen, by the role they are addressed to. Other notices tell you that something was recorded on a case.</p>
       </Card>
 
       <div className="split-detail">
         {open ? (
           <Inspector label="Notification detail" eyebrow={open.read_at ? "Read" : "Unread"} title={open.subject} onClose={() => setOpenId(null)}>
             <div key={open.id} className="inspector-swap">
-              <p>{MEANING[open.template] ?? "A notification from the approval system."}</p>
+              <p>{open.text ?? MEANING[open.template] ?? "A notification from the approval system."}</p>
+              {open.action && <p className="small"><strong>What to do:</strong> {open.action}</p>}
               <dl className="facts">
                 <dt>Received</dt><dd>{when(open.created_at)}</dd>
-                <dt>Alert reference</dt><dd><code>{open.alert_id}</code></dd>
+                {open.case_ref && <><dt>Case</dt><dd><code>{open.case_ref}</code></dd></>}
+                {open.alert_id
+                  ? <><dt>Alert reference</dt><dd><code>{open.alert_id}</code></dd></>
+                  : open.source_event_id && <><dt>Recorded event</dt><dd><code>{open.source_event_id}</code></dd></>}
                 <dt>Read</dt><dd>{open.read_at ? when(open.read_at) : "Not yet"}</dd>
               </dl>
-              <p className="muted small">Messages carry no case details by design; sign-in is how the details are seen.</p>
+              <p className="muted small">Messages name a case by its short reference, the rule and the due date; never a person, an address or free text.</p>
               <div className="actions">
                 {!open.read_at && (
                   <button className="secondary small" disabled={busy !== null} onClick={() => markRead(open.id)}>
                     {busy === open.id ? "Marking…" : "Mark read"}
                   </button>
                 )}
-                {onNavigate && <button className="ghost small" onClick={() => onNavigate("alerts")}>Open alerts to acknowledge</button>}
+                {onNavigate && <Links n={open} onNavigate={onNavigate} />}
               </div>
             </div>
           </Inspector>
@@ -129,5 +135,23 @@ export default function InboxView({ who, onNavigate }) {
       </div>
     </div>
     </div>
+  );
+}
+
+// Where to act on a notice: the case, the obligation, the EVC schedule, or the alert to acknowledge. Each link is
+// offered only when the server named that record; navigation still checks the role's screens.
+function Links({ n, onNavigate }) {
+  const links = n.links ?? {};
+  return (
+    <>
+      {links.obligation_id && (
+        <button className="ghost small" onClick={() => onNavigate("compliance", { obligationId: links.obligation_id })}>Open the obligation</button>
+      )}
+      {links.evc_request_id && <button className="ghost small" onClick={() => onNavigate("evc")}>Open EVC scheduling</button>}
+      {links.application_id && (
+        <button className="ghost small" onClick={() => onNavigate("applications", { caseId: links.application_id })}>Open the case</button>
+      )}
+      {n.alert_id && <button className="ghost small" onClick={() => onNavigate("alerts")}>Open alerts to acknowledge</button>}
+    </>
   );
 }

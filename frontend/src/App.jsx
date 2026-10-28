@@ -19,10 +19,12 @@ import DocumentsView from "./views/DocumentsView.jsx";
 import FactReviewView from "./views/FactReviewView.jsx";
 import EvcView from "./views/EvcView.jsx";
 import ScorecardView from "./views/ScorecardView.jsx";
+import ReportsView from "./views/ReportsView.jsx";
 
 const VIEWS = {
   overview: OverviewView,
   dashboard: DashboardView,
+  reports: ReportsView,
   applications: ApplicationsView,
   inbox: InboxView,
   alerts: AlertsView,
@@ -57,6 +59,7 @@ const SUBTITLES = {
   overview: "Where each of your applications stands on its approval route, and what is due next.",
   dashboard: "Applications, ageing and deadlines, rebuilt from the audit event log.",
   applications: "File, submit and follow each case along its route.",
+  reports: "Pendency, EVC, undertakings, overdue clocks and regional performance, each recomputable from the event log.",
   inbox: "Signals sent to you or to the role you hold.",
   alerts: "Deadline alerts addressed to your role, their escalation level, and acknowledgement.",
   documents: "Checklist documents, every uploaded version, and what its malware scan found.",
@@ -64,7 +67,7 @@ const SUBTITLES = {
   evc: "Expert-visit requests, the expert pool, proposed schedules and their publication.",
   compliance: "Approval letters, the obligations they create, and the evidence that meets them.",
   audit: "Three independent layers of evidence that the record has not been altered.",
-  delivery: "Every alert message, its attempts and where it is now.",
+  delivery: "Every message, about an alert or a recorded event, its attempts and where it is now.",
   scorecard: "What the system can show about its own correctness, and how each line was measured.",
 };
 

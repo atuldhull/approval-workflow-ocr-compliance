@@ -1,0 +1,43 @@
+# Messages sent when something is recorded on a case, read by the notification worker (python -m app.platform.notifier).
+# Deadline alerts and their escalation ladder are configured in deadlines.yaml (alerts:); this file covers the
+# events that are not alerts.
+# demo_assumption: the APH does not say who is told about what, or how; every recipient, channel and wording here is
+# a configurable placeholder until the team confirms one.
+#
+# events: event type -> template (providers.TEMPLATES), recipient roles and, optionally, the deadline rule whose
+#   live clock on the case gives the due date the message names. `owner` is the role that owns the clock
+#   (deadlines.yaml alerts.owner_roles). A template can depend on one payload field: {field: <name>, <value>: <template>}.
+# rule_names: deadline rules in plain words, as messages name them. A rule missing here is named by its id.
+source: {status: demo_assumption}
+channels: [in_app, email]
+
+events:
+  wf.deficiency_recorded:
+    template: case.deficiency_recorded
+    to: [INSTITUTION]
+    rule: INSTITUTION_RESPONSE
+  evc.assignment_published:
+    template: evc.visit_scheduled
+    to: [INSTITUTION, SCRUTINY_COMMITTEE]
+    rule: EVC_PROCESSING
+  cmp.evidence_verified:
+    template: {field: decision, ACCEPTED: compliance.evidence_accepted, REJECTED: compliance.evidence_rejected}
+    to: [INSTITUTION]
+  cmp.letter_registered:
+    template: letter.registered
+    to: [INSTITUTION]
+  dl.deadline_breached:
+    template: deadline.missed
+    to: [owner]
+
+rule_names:
+  AICTE_PROCESSING: AICTE's processing time for a submitted application
+  EVC_PROCESSING: the time to hold the expert visit
+  INSTITUTION_RESPONSE: the institution's time to answer the deficiencies
+  APPEAL_7D: the seven days to appeal a decision
+  DEPOSIT_15D: the fifteen days to pay the security deposit
+  EOA_DEFICIENCY_6M: the six months to clear the deficiencies an EoA lists
+  LEASE_EOA_STOP: the last year an extension can be granted before the lease ends
+  LOA_DEPOSIT_AFFIDAVIT_15D: the fifteen days after an LoA for the deposit proof and affidavit
+  NO_ADMISSION_AFFIDAVIT_7D: the seven days for the no-admission affidavit
+  LOA_VALIDITY_2Y: the LoA's two-year validity

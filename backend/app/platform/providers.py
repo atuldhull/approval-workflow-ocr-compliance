@@ -14,18 +14,67 @@ import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Protocol
+from typing import NamedTuple, Protocol
 from uuid import UUID
 
 TRANSIENT, PERMANENT, AMBIGUOUS = "TRANSIENT", "PERMANENT", "AMBIGUOUS"
 
-# Fixed texts only. Messages never carry names, case details or free text - just a reference to sign in and see.
-TEMPLATES: dict[str, tuple[str, str]] = {
-    "deadline.reminder": ("Deadline reminder", "A deadline on a case you handle is approaching."),
-    "deadline.breached": ("Deadline missed", "A deadline on a case you handle has passed."),
-    "deadline.escalated": ("Deadline escalated", "An overdue case has been escalated to you."),
-    "obligation.due": ("Compliance item due", "A compliance item for your institution is due."),
-    "case.update": ("Case updated", "A case you follow has changed."),
+class Template(NamedTuple):
+    """Fixed wording. `lines` name the case, the rule and the due date from the message context; a line is left out
+    when the context lacks one of its fields, and `generic` is used when the first line cannot be filled.
+    Context values are short case references, rule names, kinds and dates - never names, addresses or free text."""
+    subject: str
+    generic: str
+    lines: tuple[str, ...]
+    action: str
+
+
+TEMPLATES: dict[str, Template] = {
+    "deadline.reminder": Template(
+        "Deadline reminder", "A deadline on a case you handle is approaching.",
+        ("Case {case}: {rule} is due on {due} (IST).", "Document: {document}."),
+        "Act on the case before the due date, then acknowledge this alert on the Alerts screen."),
+    "deadline.breached": Template(
+        "Deadline missed", "A deadline on a case you handle has passed.",
+        ("Case {case}: {rule} was due on {due} (IST) and has passed.", "Document: {document}."),
+        "Act on the case now and acknowledge this alert on the Alerts screen."),
+    "deadline.escalated": Template(
+        "Deadline escalated", "An overdue case has been escalated to you.",
+        ("Case {case}: {rule}, due on {due} (IST), is overdue and has been escalated to you.",
+         "Document: {document}."),
+        "Review the case and acknowledge this alert on the Alerts screen."),
+    "deadline.missed": Template(
+        "Deadline missed on your case", "A deadline your role is responsible for has passed.",
+        ("Case {case}: {rule} was due on {due} (IST) and has passed.", "Document: {document}."),
+        "Act on the case now; until then the alert ladder escalates it."),
+    "obligation.due": Template(
+        "Compliance item due", "A compliance item for your institution is due.",
+        ("Case {case}: the {obligation} is due on {due} (IST) under {rule}.", "Document: {document}."),
+        "Submit the evidence on the Compliance screen before the due date."),
+    "case.update": Template(
+        "Case updated", "A case you follow has changed.",
+        ("Case {case}: {change}.",),
+        "Open the case to see what changed."),
+    "case.deficiency_recorded": Template(
+        "Deficiencies recorded", "Deficiencies were recorded on one of your applications.",
+        ("Case {case}: {items} deficiency item(s) recorded in round {round}.", "Due date: {due} (IST), set by {rule}."),
+        "Answer each item and submit your compliance on the case before the due date."),
+    "evc.visit_scheduled": Template(
+        "Expert visit scheduled", "An expert visit has been scheduled for a case.",
+        ("Case {case}: the expert visit is scheduled for {visit} ({slot}).", "Due date: {due} (IST), set by {rule}."),
+        "Prepare for the visit; the case's EVC panel shows the schedule."),
+    "compliance.evidence_accepted": Template(
+        "Evidence accepted", "Evidence your institution submitted was accepted.",
+        ("Case {case}: the evidence for the {obligation} was accepted.",),
+        "Nothing more is needed for this item."),
+    "compliance.evidence_rejected": Template(
+        "Evidence rejected", "Evidence your institution submitted was rejected.",
+        ("Case {case}: the evidence for the {obligation} was rejected ({reason}).", "It is due on {due} (IST)."),
+        "Submit new evidence on the Compliance screen before the due date."),
+    "letter.registered": Template(
+        "Letter registered", "A letter was registered for one of your applications.",
+        ("Case {case}: {letter} dated {issued} has been registered.",),
+        "See the letter and any obligations it creates on the Compliance screen."),
 }
 
 
@@ -41,19 +90,40 @@ class DeliveryError(Exception):
 @dataclass(frozen=True)
 class Message:
     outbox_id: UUID
-    alert_id: UUID
+    alert_id: UUID | None
     channel: str
     template: str
     addresses: tuple[str, ...]
     attempt: int
+    source_event_id: UUID | None = None
+    context: dict | None = None
+
+    @property
+    def reference(self) -> UUID | None:
+        return self.alert_id or self.source_event_id
 
 
-def render(template: str, alert_id: UUID) -> tuple[str, str]:
+def _fill(line: str, context: dict) -> str | None:
     try:
-        subject, line = TEMPLATES[template]
+        return line.format_map(context)
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
+def describe(template: str, context: dict | None = None) -> tuple[str, str, str]:
+    """(subject, what happened, what to do) for a template and the message's context."""
+    try:
+        t = TEMPLATES[template]
     except KeyError:
         raise DeliveryError(PERMANENT, "UNKNOWN_TEMPLATE") from None
-    return subject, f"{line}\nSign in to the approval portal to see it. Reference: {alert_id}\n"
+    filled = [_fill(line, context) for line in t.lines] if context else [None]
+    text = " ".join(f for f in filled if f) if filled[0] else t.generic
+    return t.subject, text, t.action
+
+
+def render(template: str, reference: UUID | None, context: dict | None = None) -> tuple[str, str]:
+    subject, text, action = describe(template, context)
+    return subject, f"{text}\n{action}\nSign in to the approval portal to see it. Reference: {reference}\n"
 
 
 class Provider(Protocol):
@@ -75,7 +145,7 @@ class SmtpProvider:
             # one message per recipient, so no recipient ever sees another's address (the notifier splits them)
             raise ValueError("SmtpProvider sends to exactly one recipient per message")
         (to,) = msg.addresses
-        subject, body = render(msg.template, msg.alert_id)
+        subject, body = render(msg.template, msg.reference, msg.context)
         email = EmailMessage()
         email["From"], email["To"], email["Subject"] = self.sender, to, subject
         # Stable per (message, recipient) across retries, so receiving systems can drop duplicates; not all do.
@@ -108,7 +178,7 @@ class MockSmsProvider:
         self.sent: list[dict] = []
 
     def send(self, msg: Message) -> str | None:
-        _, body = render(msg.template, msg.alert_id)
+        _, body = render(msg.template, msg.reference, msg.context)
         record = {"outbox_id": str(msg.outbox_id), "to": [a[:-4] + "****" for a in msg.addresses],
                   "text": body.strip()}
         self.sent.append(record)
@@ -129,7 +199,7 @@ class FakeProvider:
         self.sent: list[Message] = []
 
     def send(self, msg: Message) -> str | None:
-        render(msg.template, msg.alert_id)
+        render(msg.template, msg.reference, msg.context)
         outcome = self.script.pop(0) if self.script else None
         if outcome == "REFUSED":   # this recipient is refused; other recipients are unaffected
             raise DeliveryError(PERMANENT, "SCRIPTED_REFUSED", per_recipient=True)

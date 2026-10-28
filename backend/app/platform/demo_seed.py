@@ -1,19 +1,18 @@
-"""DEMO ONLY: recipient groups and synthetic contacts for the demo accounts, plus optional sample alerts.
+"""DEMO ONLY: recipient groups and synthetic contacts for the demo accounts, plus optional sample messages.
 
     python -m app.platform.demo_seed                 # directory only (safe to rerun)
-    python -m app.platform.demo_seed --sample-alerts # also queue a few synthetic alerts for the delivery demo
+    python -m app.platform.demo_seed --sample-alerts # also queue messages about records already in the log
 
 Refuses to run unless DEMO_MODE=true. Addresses use the reserved .invalid domain and 0000 numbers, so nothing can
 reach a real person even if a provider were misconfigured.
 """
 import argparse
 import sys
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from app.platform.registry import port
 from contracts.enums import Role
-from contracts.ports import OutboxPort
-from contracts.types import OutboundMessage, Principal
+from contracts.types import OutboundMessage
 
 SUNRISE = UUID("00000000-0000-4000-8000-000000000001")
 NORTHFIELD = UUID("00000000-0000-4000-8000-000000000002")
@@ -48,20 +47,42 @@ def seed_directory() -> int:
     return len(DEMO_PEOPLE)
 
 
-def sample_alerts() -> int:
-    from app.platform.db import unit_of_work
-    from app.platform.recipients import group_ref
+def sample_alerts(limit: int = 3) -> int:
+    """Messages for the delivery demo, every one about a real record, so its links lead somewhere.
 
-    system = Principal(UUID(int=0), Role.SYSTEM)
-    southern_ro = group_ref(Role.RO_OFFICER, "Southern")
-    sunrise = group_ref(Role.INSTITUTION, institution_id=SUNRISE)
-    with unit_of_work(system) as uow:
-        for template, ref in (("deadline.reminder", sunrise), ("deadline.breached", southern_ro),
-                              ("deadline.escalated", group_ref(Role.BUREAU_HEAD))):
-            alert = uuid4()
-            for channel in ("in_app", "email", "sms"):
-                port(OutboxPort).enqueue(uow, OutboundMessage(alert, channel, template, ref))
-    return 3
+    Queues what notifications.yaml maps for the events already recorded, and a "case updated" message on every
+    channel for the latest submitted applications (to their institution and regional office). Nothing is invented:
+    with an empty log, nothing is queued. Safe to rerun - each message is unique per event, recipient and channel.
+    """
+    from sqlalchemy import text
+
+    from app.platform import event_notices
+    from app.platform.db import new_session
+    from app.platform.recipients import directory, group_ref
+    from contracts.errors import NotFound
+    from contracts.ports import CasePort, ClockPort
+
+    now = port(ClockPort).now()
+    written = 0
+    with new_session() as s:
+        written += event_notices.dispatch(s, now, limit=10_000)
+        submitted = s.execute(text(
+            "SELECT id, aggregate_id FROM plat.domain_event WHERE event_type = 'wf.application_submitted' "
+            "ORDER BY seq DESC LIMIT :n"), {"n": limit}).all()
+        for event_id, app_id in submitted:
+            try:
+                case = port(CasePort).lookup(s, app_id)
+            except NotFound:
+                continue
+            for ref in (group_ref(Role.INSTITUTION, institution_id=case.institution_id),
+                        group_ref(Role.RO_OFFICER, case.region)):
+                if not directory.has_members(s, ref):
+                    continue
+                for channel in ("in_app", "email", "sms"):
+                    written += event_notices.queue(
+                        s, OutboundMessage(None, channel, "case.update", ref, source_event_id=event_id), now)
+        s.commit()
+    return written
 
 
 def main() -> int:
@@ -77,7 +98,7 @@ def main() -> int:
     create_app()
     print(f"seeded recipient directory for {seed_directory()} demo accounts")
     if args.sample_alerts:
-        print(f"queued {sample_alerts()} synthetic alerts on 3 channels")
+        print(f"queued {sample_alerts()} messages about recorded events")
     return 0
 
 

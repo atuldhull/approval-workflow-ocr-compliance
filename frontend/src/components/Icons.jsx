@@ -2,6 +2,7 @@
 const P = {
   overview: "M3 13.5V8l5-4.5L13 8v5.5H9.5v-3h-3v3H3z",
   dashboard: "M2.5 13.5h11M4 11V7m4 4V4m4 7V8.5",
+  reports: "M4 2.5h5.5L12 5v8.5H4zM9.5 2.5V5H12M6 8.5h4M6 11h4M6 6h1.5",
   applications: "M3 3.5h10M3 8h10M3 12.5h6",
   inbox: "M2.5 9.5 4 3.5h8l1.5 6M2.5 9.5V13h11V9.5H10a2 2 0 0 1-4 0H2.5z",
   ocr: "M4 2.5h5.5L12 5v8.5H4zM9.5 2.5V5H12M6 8h4M6 10.5h3",

@@ -33,8 +33,9 @@ class ApplicationsProjection:
                           "ruleset_rev": None, "created_at": ev.at.isoformat(), "submitted_at": None,
                           "stage_visit": None, "stage_since": None}
         elif ev.event_type == "wf.application_submitted" and key in state:
+            # submission enters the first stage at that instant, whether or not a wf.stage_entered follows
             state[key].update(status="IN_PROCESS", current_stage=p["first_stage"], ruleset_rev=p["ruleset_rev"],
-                              submitted_at=ev.at.isoformat())
+                              submitted_at=ev.at.isoformat(), stage_visit=None, stage_since=ev.at.isoformat())
         elif ev.event_type == "wf.transition_applied" and key in state:
             stage = p["to_state"] if p["to_state"] in STAGES else None
             state[key].update(status=p["to_status"], current_stage=stage, ruleset_rev=p["ruleset_rev"])
