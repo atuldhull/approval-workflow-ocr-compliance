@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dl.deadline_paused v1",
+  "description": "An internal clock was paused by a workflow action (legal clocks never pause). It raises no alerts until resumed. from_status is RUNNING, or BREACHED when the clock had already run out.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["deadline_id", "subject_type", "subject_id", "rule_id", "from_status", "due_date", "due_version"],
+  "properties": {
+    "deadline_id": {"type": "string", "format": "uuid"},
+    "subject_type": {"type": "string", "pattern": "^[a-z_]+$"},
+    "subject_id": {"type": "string", "format": "uuid"},
+    "rule_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "from_status": {"type": "string", "enum": ["RUNNING", "BREACHED"]},
+    "due_date": {"type": "string", "format": "date"},
+    "due_version": {"type": "integer", "minimum": 1}
+  }
+}

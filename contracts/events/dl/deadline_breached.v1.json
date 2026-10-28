@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dl.deadline_breached v1",
+  "description": "The timer worker found a running clock past its due time and marked it BREACHED. Written once per due_version. A breached clock keeps its alert ladder and can still be closed (as MET, late) or paused.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["deadline_id", "subject_type", "subject_id", "rule_id", "clock_kind", "clock_owner", "due_date", "due_version"],
+  "properties": {
+    "deadline_id": {"type": "string", "format": "uuid"},
+    "subject_type": {"type": "string", "pattern": "^[a-z_]+$"},
+    "subject_id": {"type": "string", "format": "uuid"},
+    "rule_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "clock_kind": {"type": "string", "enum": ["LEGAL", "INTERNAL"]},
+    "clock_owner": {"type": "string", "enum": ["AICTE", "INSTITUTION", "COMMITTEE"]},
+    "due_date": {"type": "string", "format": "date"},
+    "due_version": {"type": "integer", "minimum": 1}
+  }
+}

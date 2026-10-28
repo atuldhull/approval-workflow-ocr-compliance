@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dl.deadline_resumed v1",
+  "description": "A paused internal clock is running again. The time it was held is added to the due time, so due_date and due_version are the new ones; a new due_version starts its alert ladder again.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["deadline_id", "subject_type", "subject_id", "rule_id", "due_date", "due_version", "held_seconds"],
+  "properties": {
+    "deadline_id": {"type": "string", "format": "uuid"},
+    "subject_type": {"type": "string", "pattern": "^[a-z_]+$"},
+    "subject_id": {"type": "string", "format": "uuid"},
+    "rule_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "due_date": {"type": "string", "format": "date"},
+    "due_version": {"type": "integer", "minimum": 2},
+    "held_seconds": {"type": "integer", "minimum": 0}
+  }
+}

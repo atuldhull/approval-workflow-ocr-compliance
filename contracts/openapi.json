@@ -3192,6 +3192,17 @@
             ],
             "title": "Deadline Id"
           },
+          "deadline_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Status"
+          },
           "due_date": {
             "anyOf": [
               {
@@ -3234,6 +3245,11 @@
               }
             ],
             "title": "Met At"
+          },
+          "overdue": {
+            "default": false,
+            "title": "Overdue",
+            "type": "boolean"
           },
           "region": {
             "title": "Region",

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dl.deadline_closed v1",
+  "description": "A live deadline was closed as MET or WAIVED by the module that owns its subject. from_status is the state it closed from; late is true when it closed after its due time (a BREACHED clock met late keeps its dl.deadline_breached event).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["deadline_id", "subject_type", "subject_id", "rule_id", "outcome", "from_status", "late", "due_date", "due_version"],
+  "properties": {
+    "deadline_id": {"type": "string", "format": "uuid"},
+    "subject_type": {"type": "string", "pattern": "^[a-z_]+$"},
+    "subject_id": {"type": "string", "format": "uuid"},
+    "rule_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "outcome": {"type": "string", "enum": ["MET", "WAIVED"]},
+    "from_status": {"type": "string", "enum": ["RUNNING", "PAUSED", "BREACHED"]},
+    "late": {"type": "boolean"},
+    "due_date": {"type": "string", "format": "date"},
+    "due_version": {"type": "integer", "minimum": 1}
+  }
+}
