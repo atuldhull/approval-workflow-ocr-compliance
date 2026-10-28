@@ -72,10 +72,11 @@ reminder and escalation step.
 | Letter issued at the last applicable stage (LoA / EoA / LoD) | Official | cl. 1.10. Issue date is today's date on the demo clock (PORTAL_EVENT). |
 | Deficiency vocabulary (item keys and reason codes) | Demo assumption | Fictional `DEMO_*` codes. |
 | Expert pool, selector, panel of three, one visit per expert per day, EDF / CP-SAT planning | Demo assumption | The real selection happens on AICTE's portal; the selector is a labelled stand-in. |
-| "Only EVC" routes (random inspection, complaint EVC) | Not built | cl. 2.3.5(a) (p.31) and cl. 7.10 (p.89). |
-| Appeal to the Standing Appellate Committee (SAC) and Letter of Rejection | Not built | cl. 1.11(a)–(e) (p.25), cl. 2.24(a) (p.45); LoR carries a speaking order, cl. 1.10(b). `APPEAL_7D` is defined but no route opens it. |
-
-<!-- Rows for the Only-EVC routes and the SAC appeal are updated when that workflow work is merged. -->
+| "Only EVC" routes (random inspection, complaint EVC) | Official | cl. 2.3.5(a) (p.31): EVC of an existing institution selected at random; cl. 7.10(c)-(d) (p.89): EVC on a verified complaint, its report before the SHC. Routes `RANDOM_INSPECTION` and `COMPLAINT_EVC` start at the EVC; SHC follows "as applicable". Their checklists stay `DEMO_*`. |
+| Per-route EVC timeline (`EVC_NEW_INSTITUTION`) | Demo assumption | The APH sets no EVC duration; the route only picks which demo rule runs. |
+| Appeal once, within 7 days of the LoD, to the Standing Appellate Committee (SAC) | Official | cl. 1.11(a) (p.25), cl. 2.24(a) (p.45). `APPEAL_7D` opens on `issue_lod`; one appeal per case; a lapsed window rejects the case. |
+| SAC recommends / does not recommend / refers back for Scrutiny or EVC; Council decision final | Official | cl. 1.11(d)–(e) (p.25). The bureau head records the Council's decision; after a referral the case returns to the SAC. |
+| Letter of Rejection carries a speaking order | Official | cl. 1.10(b) (p.24): the decision comes with a speaking order; cl. 1.11(g) (p.25): an LoR states the reasons for rejection. `issue_lor` is refused without a speaking-order note. |
 
 ## Checklists (`checklists.yaml`)
 

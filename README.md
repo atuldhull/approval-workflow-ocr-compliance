@@ -57,6 +57,9 @@ Each row is something PS 26262 asks for. "How to verify" points at a screen in t
 | Intake checks before submission | Per-category checklist and DSC confirmation; submit is refused with per-item reasons | `backend/app/intake` | `GET /api/applications/{id}/checklist`; `backend/tests/test_intake_checklists.py`, `backend/tests/test_checklist_read.py` |
 | Scrutiny, deficiency and re-scrutiny | Committees with tasks, observations and versioned reports; a deficiency pauses the processing clock and opens the response window; re-scrutiny reviews only the open items | `backend/app/workflow` | `POST /api/cases/{id}/actions`, `GET /api/cases/{id}/deficiencies`; `backend/tests/test_deficiency_loop.py`, `backend/tests/test_rescrutiny.py`, `backend/tests/test_committee.py` |
 | Expert visit (EVC) scheduling | Visit queue, expert pool with availability and conflicts of interest, simulated panel selector, earliest-deadline-first baseline and CP-SAT optimiser, propose / discard / publish | `backend/app/evc` | screen **EVC scheduling**; `POST /api/evc/schedule:propose`, `POST /api/evc/schedule:publish`; `backend/tests/test_scheduler_cpsat.py`, `backend/tests/test_scheduler_edf.py`, `backend/tests/test_evc_decisions.py` |
+| "Only EVC" routes (A1) | Random inspection of an existing institution (APH cl. 2.3.5(a), p.31) and the EVC on a verified complaint (cl. 7.10, p.89): the case starts at the expert visit and its request is queued on submission; each route can carry its own EVC timeline (the new institution route uses `EVC_NEW_INSTITUTION`) | `backend/app/workflow`, `rulesets/aph-2024-27/r1/routes.yaml` | screen **EVC scheduling**; `GET /api/applications/{id}/evc`; `backend/tests/test_appeal.py`, `backend/tests/test_routing_answer_key.py` |
+| Case summary (A4) | One read of a case: route and clause, stage history, committees and reports, deficiency rounds, EVC visit, letters, obligations, clocks and the appeal; a printable view | `backend/app/workflow` | case screen (Print summary); `GET /api/cases/{id}/summary`; `backend/tests/test_appeal.py` |
+| Appeal to the SAC and Letter of Rejection | An LoD opens the 7-day appeal window (APH cl. 1.11(a), p.25; cl. 2.24(a), p.45); the institution may appeal once; the Standing Appellate Committee recommends, does not recommend or refers the case back for Scrutiny or EVC; the bureau head records the Council's final decision: LoA / EoA, or a Letter of Rejection that must carry a speaking order (cl. 1.10(b)). An unappealed window lapses and the LoD stands | `backend/app/workflow` | case screen (Appeal panel); `GET /api/cases/{id}/appeal`, `POST /api/cases/{id}/actions` (`file_appeal`, `sac_recommend`, `issue_lor`); `backend/tests/test_appeal.py` |
 | Approval letters | LoA / EoA / LoD only at the last applicable stage and only when the cited report authorises the decision; issued from the case screen in the demo stack | `backend/app/workflow`, `backend/app/compliance` | `GET /api/compliance/letters`; `backend/tests/test_guard_facts_runtime.py`, `backend/tests/test_compliance.py` |
 | Document upload and malware scan | Idempotent upload, versions, ClamAV scan; nothing is used before it is scanned clean | `backend/app/documents` | screen **Documents**; `POST /api/document-versions/{id}/scan`; `backend/tests/test_documents_api.py` |
 | OCR with human confirmation | PDF text layer or Tesseract (English and Hindi); blind entry before the OCR value is revealed; review; four-eyes confirmation by a second officer | `backend/app/documents` | screen **Fact review**; `POST /api/document-facts/{id}/entry`, `POST /api/document-facts/{id}/reveal`; `backend/tests/test_documents_ocr.py`, `backend/tests/test_documents_review.py` |
@@ -117,6 +120,7 @@ stateDiagram-v2
     [*] --> DRAFT
     DRAFT --> SELF_DISCLOSURE: submit (EoA self-disclosure, NRI seats)
     DRAFT --> SCRUTINY: submit (all other routes)
+    DRAFT --> EVC: submit (Only EVC: random inspection, complaint)
     SCRUTINY --> DEFICIENT: record_deficiency
     DEFICIENT --> RESCRUTINY: submit_compliance
     RESCRUTINY --> RESCRUTINY: start_rescrutiny
@@ -135,7 +139,14 @@ stateDiagram-v2
     SHC --> LETTER
     COUNCIL --> LETTER
     LETTER --> APPROVED: issue_loa / issue_eoa
-    LETTER --> REJECTED: issue_lod
+    LETTER --> APPEAL_WINDOW: issue_lod (7 days)
+    APPEAL_WINDOW --> SAC: file_appeal (once)
+    APPEAL_WINDOW --> REJECTED: close_appeal_window (lapsed)
+    SAC --> SAC: sac_recommend / sac_not_recommend
+    SAC --> SCRUTINY: sac_refer_scrutiny
+    SAC --> EVC: sac_refer_evc
+    SAC --> APPROVED: issue_loa / issue_eoa (Council)
+    SAC --> REJECTED: issue_lor + speaking order (Council)
     APPROVED --> [*]
     REJECTED --> [*]
     WITHDRAWN --> [*]
@@ -160,10 +171,12 @@ On start the backend applies the migrations and seeds the demo data, dated from 
 work without manual setup (the first start takes about half a minute longer; later starts add nothing):
 
 - the demo institutions and the notification directory;
-- eleven demo cases driven through the case API: two under scrutiny with their processing clock overdue, one fresh
+- fourteen demo cases driven through the case API: two under scrutiny with their processing clock overdue, one fresh
   under scrutiny, one deficient awaiting the institution's reply, two in the EVC queue with visit requests for the
-  planner, one with its EVC visit published, one at SHC, and three approved with an LoA issued from the case (one of
-  them 20 days ago, so its deposit and Affidavit 3 are overdue and escalating);
+  planner, one random inspection (an "Only EVC" route) queued for its visit, one with its EVC visit published, one at
+  SHC, one with an LoD issued three days ago and its appeal window open, one whose appeal was filed and waits at the
+  SAC, and three approved with an LoA issued from the case (one of them 20 days ago, so its deposit and Affidavit 3
+  are overdue and escalating);
 - on the approved cases: a land lease expiring in 60 days, a lease that expired 12 days ago (breached, escalating), a
   fire safety certificate with its renewal under review, a structural stability certificate, and a recorded
   undertaking.
@@ -246,7 +259,11 @@ The path the end-to-end run drove through the UI (all profiles on, letter issuan
     Inbox and Mailpit show the notices.
 11. **Audit:** the chain verifies, a checkpoint is signed and published to the witness, replay runs, and the
     Scorecard evaluates all eight checks.
-12. **Bureau head:** the **Reports** screen shows pendency, EVC status, undertakings, document validity, overdue
+12. **Appeal (seeded case `LOD-APPEAL-OPEN`):** the **institution (Riverbend)** sees the LoD with the days left in
+    the appeal window and files the appeal with its grounds; the case moves to SAC. The **scrutiny committee** forms
+    the SAC committee, saves its report and recommends. The **bureau head** records the Council's decision; a Letter
+    of Rejection is refused without a speaking order. The case summary prints the whole history.
+13. **Bureau head:** the **Reports** screen shows pendency, EVC status, undertakings, document validity, overdue
     cases and region-wise performance, each downloadable as CSV.
 
 `python scripts/smoke_demo.py --docker` checks the same ground through the API on the default stack. It moves the
