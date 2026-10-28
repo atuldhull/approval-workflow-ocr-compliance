@@ -134,7 +134,7 @@ describe("lifecycle and compliance axis", () => {
     const { container } = render(<ComplianceView who={user("bureau-officer")} me={ME(user("bureau-officer"))} />);
     await screen.findByRole("heading", { name: "Due dates" });
     expect(container.querySelectorAll(".axis-group")).toHaveLength(1);
-    await u.click(screen.getByRole("button", { name: /^Deposit, case aaaaaaaa, due/ }));
-    await waitFor(() => expect(screen.getByRole("complementary", { name: "Obligation detail" })).toHaveTextContent("Deposit"));
+    await u.click(screen.getByRole("button", { name: /^Security deposit, case aaaaaaaa, due/ }));
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Obligation detail" })).toHaveTextContent("Security deposit"));
   });
 });

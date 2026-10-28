@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons.jsx";
 import { STAGE_LABEL, RouteTrack, stageLabel } from "../components/RouteJourney.jsx";
 import { Badge, Empty, ErrorBox, Kpis, Loading, dateIST, useApi } from "../components/ui.jsx";
 import { sentence } from "../nav.js";
-import { obligationStatusOf, ruleLabel } from "../recordText.js";
+import { checklistLabel, daysLeftText, obligationStatusOf, ruleLabel, validityStateOf } from "../recordText.js";
 
 const ORDER = Object.keys(STAGE_LABEL);
 const MAX_DEADLINE_LOOKUPS = 12;
@@ -17,6 +17,7 @@ const STATUS_TONE = { DRAFT: "draft", IN_PROCESS: "info", APPROVED: "ok", REJECT
 export default function OverviewView({ who, onNavigate }) {
   const { data: apps, error, loading, reload } = useApi(who, "/applications");
   const obligations = useApi(who, "/compliance/obligations?status=OPEN");
+  const validity = useApi(who, "/compliance/obligations?kind=DOCUMENT_VALIDITY");
   const [deadlines, setDeadlines] = useState(null);
   const [deadlineError, setDeadlineError] = useState(null);
 
@@ -44,6 +45,9 @@ export default function OverviewView({ who, onNavigate }) {
   const openObligations = obligations.data ?? [];
   const evidenceNeeded = openObligations.reduce((m, o) => ({ ...m, [o.application_id]: (m[o.application_id] ?? 0) + 1 }), {});
   const openCase = (id) => onNavigate?.("applications", { caseId: id });
+  // the tracked document (lease, completion, structural stability, fire safety) that expires first and is not renewed
+  const expiry = (validity.data ?? []).filter((o) => o.kind === "DOCUMENT_VALIDITY" && o.status !== "MET" && o.valid_until)
+    .sort((a, b) => a.valid_until.localeCompare(b.valid_until))[0];
 
   if (apps.length === 0) {
     return (
@@ -67,6 +71,9 @@ export default function OverviewView({ who, onNavigate }) {
         { label: "Next deadline", value: next ? dateIST(next.due_date) : deadlines ? "None running" : "…",
           hint: next ? `${ruleLabel(next.rule_id)} · ${internalRef(next.app)}` : undefined, tone: next ? "attention" : undefined },
         { label: "Obligations needing evidence", value: obligations.data ? openObligations.length : obligations.error ? "—" : "…" },
+        { label: "Next document expiry", value: expiry ? dateIST(expiry.valid_until) : validity.data ? "None tracked" : validity.error ? "—" : "…",
+          hint: expiry ? `${checklistLabel(expiry.doc_type)} · ${validityStateOf(expiry.validity_state).label} · ${daysLeftText(expiry.days_left)}` : undefined,
+          tone: expiry && ["EXPIRED", "EXPIRING_SOON"].includes(expiry.validity_state) ? "attention" : undefined },
       ]} />
 
       <div className="overview-grid">

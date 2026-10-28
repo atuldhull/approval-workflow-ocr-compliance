@@ -82,6 +82,7 @@ export function Workspace({ who, me, config, identityControl }) {
   const [phase, setPhase] = useState("in");
   const [focusCase, setFocusCase] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('case'));
   const [focusObligation, setFocusObligation] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('obligation'));
+  const [focusDocType, setFocusDocType] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('doc'));
   const [collapsed, setCollapsed] = useState(() => remembered.get("awoc.sidebar") === "rail");
   const contentRef = useRef(null);
   const timer = useRef(null);
@@ -121,6 +122,7 @@ export function Workspace({ who, me, config, identityControl }) {
       const params = new URLSearchParams(window.location.hash.split('?')[1]);
       setFocusCase(params.get('case'));
       setFocusObligation(params.get('obligation'));
+      setFocusDocType(params.get('doc'));
       requestAnimationFrame(() => contentRef.current?.focus({ preventScroll: true }));
       const top = event.state?.operationsScroll || 0;
       const started = performance.now();
@@ -140,7 +142,9 @@ export function Workspace({ who, me, config, identityControl }) {
     if (!items.some(i => i.key === key)) return;
     setFocusCase(opts.caseId || null);
     setFocusObligation(opts.obligationId || null);
-    const query = opts.caseId ? '?case=' + encodeURIComponent(opts.caseId)
+    setFocusDocType(opts.docType || null);
+    // a document type travels with its case: "upload the renewal of this document for this case"
+    const query = opts.caseId ? '?case=' + encodeURIComponent(opts.caseId) + (opts.docType ? '&doc=' + encodeURIComponent(opts.docType) : '')
       : opts.obligationId ? '?obligation=' + encodeURIComponent(opts.obligationId) : '';
     history.replaceState({ ...history.state, operationsScroll: window.scrollY }, '');
     history.pushState({ operationsScroll: 0 }, '', `#${key}${query}`);
@@ -187,7 +191,8 @@ export function Workspace({ who, me, config, identityControl }) {
           {View && (
             <View key={`${shown}-${me.user_id}`} who={who} me={me} onNavigate={navigate}
               focusCase={shown === "applications" || shown === "documents" ? focusCase : undefined}
-              focusObligation={shown === "compliance" ? focusObligation : undefined} />
+              focusObligation={shown === "compliance" ? focusObligation : undefined}
+              focusDocType={shown === "documents" ? focusDocType : undefined} />
           )}
         </main>
       </div>

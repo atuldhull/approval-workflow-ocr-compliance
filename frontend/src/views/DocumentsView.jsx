@@ -28,8 +28,8 @@ export function ScanBadge({ version }) {
   return <Badge tone={s.tone}>{s.label}</Badge>;
 }
 
-export default function DocumentsView({ who, me, focusCase }) {
-  return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} focusCase={focusCase} /> : <ScopeDocuments who={who} canScan={RESCANNERS.has(me.role)} />;
+export default function DocumentsView({ who, me, focusCase, focusDocType }) {
+  return me.role === "INSTITUTION" ? <InstitutionDocuments who={who} focusCase={focusCase} focusDocType={focusDocType} /> : <ScopeDocuments who={who} canScan={RESCANNERS.has(me.role)} />;
 }
 
 // The version shown on the reading surface: the one chosen, else the first version that passed the scan.
@@ -41,8 +41,9 @@ function previewVersion(docs, id) {
 
 // ---- institution: its own applications, upload, versions and confirmed facts ----
 
-// Opened from a case's checklist (#documents?case=...), the list starts on that case.
-function InstitutionDocuments({ who, focusCase }) {
+// Opened from a case's checklist (#documents?case=...), the list starts on that case; from a validity record's
+// "Upload renewal" (#documents?case=...&doc=...), the upload form also starts on that document type.
+function InstitutionDocuments({ who, focusCase, focusDocType }) {
   const apps = useApi(who, "/applications");
   const [appId, setAppId] = useState(null);
   const [previewId, setPreviewId] = useState(null);
@@ -85,7 +86,7 @@ function InstitutionDocuments({ who, focusCase }) {
               previewId={shown?.version_id} onPreview={setPreviewId} />
           </Card>
           <Card title="Add a document" className="upload-card">
-            <UploadForm key={chosen} who={who} appId={chosen} onUploaded={changed} />
+            <UploadForm key={chosen} who={who} appId={chosen} onUploaded={changed} initialType={chosen === focused ? focusDocType : null} />
           </Card>
         </div>
         <section className="workbench-reader" aria-label="Document reader">
@@ -97,11 +98,11 @@ function InstitutionDocuments({ who, focusCase }) {
   );
 }
 
-export function UploadForm({ who, appId, onUploaded }) {
+export function UploadForm({ who, appId, onUploaded, initialType = null }) {
   // The application's own checklist (server) first, then supporting documents that are not checklist items.
   const checklist = useApi(who, appId ? `/applications/${appId}/checklist` : null);
   const items = checklist.data?.items ?? [];
-  const [chosenType, setDocType] = useState(null);
+  const [chosenType, setDocType] = useState(initialType);
   const docType = chosenType ?? items[0]?.item_key ?? SUPPORTING_DOCUMENTS[0][0];
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -154,7 +155,7 @@ export function UploadForm({ who, appId, onUploaded }) {
             </optgroup>
           )}
           <optgroup label="Supporting documents (not checklist items)">
-            {SUPPORTING_DOCUMENTS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {SUPPORTING_DOCUMENTS.filter(([code]) => !items.some((i) => i.item_key === code)).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </optgroup>
         </select>
       </label>

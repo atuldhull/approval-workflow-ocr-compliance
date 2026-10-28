@@ -9,9 +9,11 @@ import { itemLabel } from "./workflowText.js";
 // checklist item; only linking a version to an item does.
 export const SUPPORTING_DOCUMENTS = [
   ["LAND_DEED", "Land ownership or registered lease deed"],
+  ["LEASE_DEED", "Registered land lease deed"],
   ["BUILDING_PLAN", "Approved building plan"],
   ["BUILDING_COMPLETION", "Building completion certificate"],
   ["FIRE_NOC", "Fire safety no-objection certificate"],
+  ["STRUCTURAL_STABILITY", "Structural stability certificate"],
   ["AFFIDAVIT", "Affidavit on stamp paper"],
   ["UNDERTAKING", "Signed undertaking"],
   ["FDR_DEPOSIT", "Fixed deposit receipt (security deposit)"],
@@ -48,6 +50,8 @@ export const FIELD_LABELS = {
   lease_end_date: "Lease end date",
   letter_issue_date: "Letter issue date",
   letter_file_number: "Letter file number",
+  valid_until: "Valid until",
+  certificate_issue_date: "Certificate issue date",
 };
 export const fieldLabel = (key) => FIELD_LABELS[key] ?? sentence(key);
 
@@ -96,6 +100,52 @@ export const REASON_CODES = [
 ];
 export const reasonLabel = (code) => REASON_CODES.find(([c]) => c === code)?.[1] ?? (code ? sentence(code) : "");
 
+// Obligation kinds in words (contracts/enums.py ObligationKind).
+export const OBLIGATION_KINDS = [
+  ["UNDERTAKING", "Undertaking"],
+  ["AFFIDAVIT", "Affidavit"],
+  ["DEPOSIT", "Security deposit"],
+  ["LETTER_CONDITION", "Condition in the letter"],
+  ["RECURRING_FILING", "Recurring filing"],
+  ["DOCUMENT_VALIDITY", "Document validity"],
+];
+export const kindLabel = (k) => OBLIGATION_KINDS.find(([c]) => c === k)?.[1] ?? (k ? sentence(k) : "Obligation");
+
+// Official rules an officer may time a recorded obligation by (deadlines.yaml `recordable: true`).
+export const RECORDABLE_RULES = [
+  ["NO_ADMISSION_AFFIDAVIT_7D", "No-admission affidavit: seven days (APH cl. 1.10(b)(i))"],
+];
+
+// Document validity (backend/app/compliance/validity.py): the state of a record and where its expiry date comes from.
+export const VALIDITY_STATE = {
+  VALID: { tone: "ok", label: "Valid" },
+  EXPIRING_SOON: { tone: "warn", label: "Expiring soon" },
+  EXPIRED: { tone: "bad", label: "Expired" },
+  RENEWAL_UNDER_REVIEW: { tone: "neutral", label: "Renewal under review" },
+  RENEWED: { tone: "ok", label: "Renewed" },
+};
+export const validityStateOf = (s) => VALIDITY_STATE[s] ?? { tone: "neutral", label: sentence(s) || "State not supplied" };
+// Tracked document types with the APH clause that requires them to be valid; only the structural stability
+// certificate has an APH period (five years from issue), the others' expiry is read from the document.
+export const VALIDITY_DOCUMENTS = {
+  LEASE_DEED: { clause: "6.17(a)", lease: true },
+  LAND_DEED: { clause: "6.17(a)", lease: true },
+  BUILDING_COMPLETION: { clause: "6.17(g)" },
+  STRUCTURAL_STABILITY: { clause: "6.17(h)", period: true },
+  FIRE_NOC: { clause: "6.17(i)" },
+};
+export function validitySource(o) {
+  if (o.validity_basis === "APH_PERIOD") return `APH cl. ${o.source_clause}: five years from the issue date`;
+  if (o.validity_basis === "OFFICER_RECORDED") return "Recorded by an officer from the document";
+  return "From the document, confirmed by two officers";
+}
+export function daysLeftText(days) {
+  if (days == null) return "—";
+  if (days === 0) return "Expires today";
+  if (days < 0) return `Expired ${-days} day${days === -1 ? "" : "s"} ago`;
+  return `${days} day${days === 1 ? "" : "s"} left`;
+}
+
 export const ORIGIN = {
   OFFICER_CONFIRMED: "Created from a fact an officer confirmed",
   RULE_DEFAULT: "Created by the configured rules for this letter type",
@@ -121,6 +171,10 @@ export const RULES = {
   LOA_DEPOSIT_AFFIDAVIT_15D: "Fifteen days after an LoA for the deposit proof and affidavit",
   NO_ADMISSION_AFFIDAVIT_7D: "Seven days for the no-admission affidavit",
   LOA_VALIDITY_2Y: "The LoA's two-year validity",
+  AFFIDAVIT3_REMAINING_1M: "One month to complete the remaining requirements of Affidavit 3",
+  DOCUMENT_EXPIRY: "A document's expiry date",
+  STRUCTURAL_STABILITY_VALIDITY: "Five-year validity of a structural stability certificate",
+  UNDERTAKING_DUE_DATE: "The due date an undertaking states",
 };
 export const ruleLabel = (id) => RULES[id] ?? (id ? sentence(id) : "Rule not supplied");
 

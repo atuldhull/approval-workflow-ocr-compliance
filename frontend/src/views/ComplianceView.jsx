@@ -6,30 +6,35 @@ import { Badge, Card, Empty, ErrorBox, Inspector, Loading, dateIST, useApi, useS
 import { ROLE_LABELS, sentence } from "../nav.js";
 import { INTERNAL_REF_TITLE, deadlineSource, internalRef } from "../provenance.js";
 import {
-  LETTER_TYPES, ORIGIN, REASON_CODES, checklistLabel, evidenceStatusOf, explain, isAvailable, letterLabel,
-  obligationStatusOf, reasonLabel,
+  LETTER_TYPES, OBLIGATION_KINDS, ORIGIN, REASON_CODES, RECORDABLE_RULES, VALIDITY_DOCUMENTS, checklistLabel,
+  daysLeftText, evidenceStatusOf, explain, isAvailable, kindLabel, letterLabel, obligationStatusOf, reasonLabel,
+  validitySource, validityStateOf,
 } from "../recordText.js";
 
 // Letters, the obligations they create, and the evidence that meets them (backend/app/compliance).
 // An obligation is met only when an officer accepts evidence; registering or acknowledging a letter never is.
 const OFFICERS = new Set(["SCRUTINY_COMMITTEE", "RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]);
 const REGISTRARS = new Set(["BUREAU_OFFICER", "BUREAU_HEAD"]);
+// compliance.validity.record and compliance.obligation.record (backend/app/platform/policy.py)
+const RECORDERS = new Set(["RO_OFFICER", "BUREAU_OFFICER", "BUREAU_HEAD"]);
 const FILTERS = [["", "All"], ["OPEN", "Open"], ["EVIDENCE_SUBMITTED", "Awaiting verification"], ["MET", "Met"]];
 // GET /compliance/evidence/{id}/note: officers who may verify and the owning institution. The server narrows this
 // further (region, assignment); auditors only learn that a note exists.
 const NOTE_READERS = new Set(["INSTITUTION", ...OFFICERS]);
 const NOTE_CODES = { NoteIntegrityError: "The stored note does not match the decision's record, so it is not shown. Tell the bureau." };
 
-export default function ComplianceView({ who, me, focusObligation }) {
+export default function ComplianceView({ who, me, focusObligation, onNavigate }) {
   const [status, setStatus] = useState("");
   const [openId, setOpenId] = useState(focusObligation ?? null);
   const letters = useApi(who, "/compliance/letters");
   const obligations = useApi(who, `/compliance/obligations${status ? `?status=${status}` : ""}`);
-  const refresh = () => { letters.reload(); obligations.reload(); };
+  const validity = useApi(who, "/compliance/obligations?kind=DOCUMENT_VALIDITY");
+  const refresh = () => { letters.reload(); obligations.reload(); validity.reload(); };
 
 
   return (
     <div className="compliance">
+      <DocumentValidity who={who} me={me} state={validity} openId={openId} onOpen={setOpenId} onNavigate={onNavigate} onChanged={refresh} />
       <ObligationTimeline state={obligations} openId={openId} onOpen={setOpenId} />
       <div className="split compliance-layout">
         <Card title="Obligations" className="split-list"
@@ -45,7 +50,7 @@ export default function ComplianceView({ who, me, focusObligation }) {
         </Card>
         <div className="split-detail">
           {openId ? (
-            <ObligationDetail key={openId} who={who} me={me} id={openId} onClose={() => setOpenId(null)} onChanged={obligations.reload} />
+            <ObligationDetail key={openId} who={who} me={me} id={openId} onClose={() => setOpenId(null)} onChanged={refresh} />
           ) : (
             <div className="card placeholder-case">
               <Empty>Open an obligation to see what it requires, its source, the evidence submitted and what is still unverified.</Empty>
@@ -53,12 +58,302 @@ export default function ComplianceView({ who, me, focusObligation }) {
           )}
         </div>
       </div>
+      {RECORDERS.has(me.role) && (
+        <Card title="Record an undertaking" className="record-undertaking">
+          <p className="muted small">An undertaking or other obligation stated in a letter or affidavit: its clause, what it asks, the evidence that meets it, and its due date or the official rule that times it.</p>
+          <RecordUndertaking who={who} onRecorded={refresh} />
+        </Card>
+      )}
       <Card title="Approval letters" className="letters">
         <p className="muted small">Each registered letter creates the obligations its rules attach. Registering a letter never meets an obligation.</p>
         <LetterTable state={letters} />
         {REGISTRARS.has(me.role) && <RegisterLetter who={who} onRegistered={refresh} />}
       </Card>
     </div>
+  );
+}
+
+// ---- document validity (APH cl. 6.17) ----
+
+const VALIDITY_ORDER = { EXPIRED: 0, RENEWAL_UNDER_REVIEW: 1, EXPIRING_SOON: 2, VALID: 3, RENEWED: 4 };
+
+// Lease deeds, completion/occupancy, structural stability and fire safety certificates whose expiry is tracked. A
+// record falls due on the document's expiry date; a renewal is a new version of the same document, offered as
+// evidence and accepted by an officer once its own expiry date is confirmed.
+function DocumentValidity({ who, me, state, openId, onOpen, onNavigate, onChanged }) {
+  const [recording, setRecording] = useState(false);
+  const tracked = (state.data ?? []).filter((o) => o.kind === "DOCUMENT_VALIDITY");
+  const rows = tracked.filter((o) => o.status !== "MET")
+    .sort((a, b) => (VALIDITY_ORDER[a.validity_state] ?? 9) - (VALIDITY_ORDER[b.validity_state] ?? 9) || a.valid_until.localeCompare(b.valid_until));
+  const renewed = tracked.length - rows.length;
+  const institution = me.role === "INSTITUTION";
+  return (
+    <section className="card validity-panel" aria-labelledby="validity-title">
+      <header className="card-head">
+        <h2 id="validity-title">Document validity</h2>
+        {RECORDERS.has(me.role) && !recording && (
+          <button className="secondary small" onClick={() => setRecording(true)}>Record a validity date</button>
+        )}
+      </header>
+      <p className="muted small">
+        APH 2024-27 cl. 6.17: the land lease, the occupancy or completion certificate, the structural stability certificate
+        and the fire safety certificate must stay valid. Reminders before an expiry (90, 30 and 7 days) and the escalation after it are demo assumptions.
+      </p>
+      {state.loading && !state.data && <Loading what="Loading validity records" rows={2} />}
+      <ErrorBox error={state.error} onRetry={state.reload} />
+      {state.data && rows.length === 0 && <Empty>No document validity is being tracked in your scope.</Empty>}
+      {rows.length > 0 && (
+        <div className="table-wrap"><table className="table" tabIndex={0} aria-label="Document validity">
+          <thead>
+            <tr>
+              <th scope="col">Document</th><th scope="col">Case</th><th scope="col">Valid until</th><th scope="col">Days left</th>
+              <th scope="col">State</th><th scope="col">Source</th><th scope="col"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((o) => {
+              const s = validityStateOf(o.validity_state);
+              const lease = VALIDITY_DOCUMENTS[o.doc_type]?.lease;
+              return (
+                <tr key={o.id} className={openId === o.id ? "current" : undefined}>
+                  <td>
+                    {checklistLabel(o.doc_type)}<span className="muted small"> · v{o.document_version_no ?? "?"}</span>
+                    {lease && o.eoa_stop_year && <p className="muted small">No extension of approval from {o.eoa_stop_year} unless the lease is extended (APH cl. 2.1(e))</p>}
+                    {lease && o.live_lease_ok === false && <p className="small"><Badge tone="bad">Live lease shorter than the longest course</Badge> APH cl. 6.17(a)</p>}
+                  </td>
+                  <td><code title={INTERNAL_REF_TITLE}>{internalRef(o.application_id)}</code></td>
+                  <td className="nowrap">{dateIST(o.valid_until)}</td>
+                  <td className="nowrap num">{daysLeftText(o.days_left)}</td>
+                  <td><Badge tone={s.tone}>{s.label}</Badge></td>
+                  <td className="small">{validitySource(o)}<span className="muted"> · APH cl. {o.source_clause}</span></td>
+                  <td className="actions">
+                    {institution && o.status === "OPEN" && onNavigate && (
+                      <button className="secondary small" onClick={() => onNavigate("documents", { caseId: o.application_id, docType: o.doc_type })}
+                        aria-label={`Upload a renewal of the ${checklistLabel(o.doc_type).toLowerCase()} for case ${internalRef(o.application_id)}`}>
+                        Upload renewal
+                      </button>
+                    )}
+                    <button className="ghost small" aria-expanded={openId === o.id} onClick={() => onOpen(openId === o.id ? null : o.id)}
+                      aria-label={`${o.validity_state === "RENEWAL_UNDER_REVIEW" && !institution ? "Verify the renewal of" : "Open"} the ${checklistLabel(o.doc_type).toLowerCase()} record for case ${internalRef(o.application_id)}`}>
+                      {o.validity_state === "RENEWAL_UNDER_REVIEW" && OFFICERS.has(me.role) ? "Verify renewal" : institution && o.status === "OPEN" ? "Submit renewal" : "Open"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table></div>
+      )}
+      {renewed > 0 && <p className="source">{renewed} earlier record{renewed === 1 ? " was" : "s were"} met by an accepted renewal; the older versions stay on file.</p>}
+      {recording && <RecordValidity who={who} onDone={() => setRecording(false)} onRecorded={onChanged} />}
+    </section>
+  );
+}
+
+function RecordValidity({ who, onDone, onRecorded }) {
+  const apps = useApi(who, "/applications");
+  const [appId, setAppId] = useState("");
+  const app = apps.data?.find((a) => a.id === appId) ?? apps.data?.[0];
+  const docs = useApi(who, app ? `/applications/${app.id}/documents` : null);
+  const versions = [];
+  for (const d of docs.data ?? []) {
+    if (!VALIDITY_DOCUMENTS[d.doc_type]) continue;
+    for (const v of d.versions) if (isAvailable(v)) versions.push({ id: v.version_id, doc_type: d.doc_type, label: `${checklistLabel(d.doc_type)} · v${v.version_no} · ${v.original_filename}` });
+  }
+  const [picked, setPicked] = useState("");
+  const version = versions.find((v) => v.id === picked) ?? versions[0];
+  const spec = version ? VALIDITY_DOCUMENTS[version.doc_type] : null;
+  const [mode, setMode] = useState("valid_until");
+  const [day, setDay] = useState("");
+  const [years, setYears] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(null);
+  const pendingKey = useRef(null);
+  const once = useSingleFlight();
+  const usedMode = spec?.period ? mode : "valid_until";
+  const edited = (fn) => (e) => { fn(e.target.value); pendingKey.current = null; setDone(null); };
+
+  const submit = (e) => {
+    e.preventDefault();
+    return once(async () => {
+      if (!version || !day) return;
+      setBusy(true);
+      setError(null);
+      pendingKey.current ??= newIdempotencyKey();
+      const body = { document_version_id: version.id, [usedMode]: day, ...(spec?.lease && years ? { max_course_duration_years: Number(years) } : {}) };
+      try {
+        const o = await api(who, "/compliance/validity", { method: "POST", body, headers: { "Idempotency-Key": pendingKey.current } });
+        pendingKey.current = null;
+        setDone(o);
+        onRecorded?.();
+      } catch (err) {
+        if (err.status && err.status < 500) pendingKey.current = null;
+        setError(err);
+      } finally {
+        setBusy(false);
+      }
+    });
+  };
+
+  return (
+    <form onSubmit={submit} className="record-validity" aria-label="Record a validity date">
+      <h3>Record a validity date</h3>
+      {apps.loading && !apps.data && <Loading what="Loading applications" rows={1} />}
+      <ErrorBox error={apps.error} onRetry={apps.reload} />
+      {app && (
+        <div className="form-grid">
+          <label>
+            Application
+            <select value={app.id} onChange={edited((v) => { setAppId(v); setPicked(""); })}>
+              {apps.data.map((a) => <option key={a.id} value={a.id}>{sentence(a.category)} · {a.academic_year} · ref {internalRef(a.id)}</option>)}
+            </select>
+          </label>
+          {docs.loading && !docs.data && <Loading what="Loading documents" rows={1} />}
+          {docs.data && versions.length === 0 && <p className="muted">This application has no lease deed, completion, structural stability or fire safety certificate that passed the malware scan.</p>}
+          {version && (
+            <>
+              <label>
+                Document version
+                <select value={version.id} onChange={edited(setPicked)}>
+                  {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                </select>
+              </label>
+              {spec?.period && (
+                <label>
+                  Date read from the certificate
+                  <select value={mode} onChange={edited(setMode)}>
+                    <option value="valid_until">The date it is valid until</option>
+                    <option value="issue_date">Its issue date (valid five years, APH cl. 6.17(h))</option>
+                  </select>
+                </label>
+              )}
+              <label>
+                {usedMode === "issue_date" ? "Issue date" : "Valid until"}
+                <input type="date" value={day} onChange={edited(setDay)} required />
+              </label>
+              {spec?.lease && (
+                <label>
+                  Longest course, in years (optional)
+                  <input type="number" min={1} max={10} value={years} onChange={edited(setYears)} />
+                </label>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      <p className="muted small">Record the date only from the document itself. The record falls due on that date; the institution renews by uploading a new version.</p>
+      <ErrorBox error={error} />
+      {done && <p className="ok" role="status">Recorded. Valid until {dateIST(done.valid_until)}.</p>}
+      <div className="actions">
+        <button disabled={!version || !day || busy}>{busy ? "Recording…" : "Record date"}</button>
+        <button type="button" className="ghost small" onClick={onDone}>Close</button>
+      </div>
+    </form>
+  );
+}
+
+function RecordUndertaking({ who, onRecorded }) {
+  const [open, setOpen] = useState(false);
+  const apps = useApi(who, open ? "/applications" : null);
+  const [form, setForm] = useState({ application_id: "", kind: "UNDERTAKING", title: "", evidence_required: "",
+    source_clause: "", timing: "date", due_date: "", rule_id: RECORDABLE_RULES[0][0] });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(null);
+  const pendingKey = useRef(null);
+  const once = useSingleFlight();
+  const app = apps.data?.find((a) => a.id === form.application_id) ?? apps.data?.[0];
+  const set = (field) => (e) => { setForm((f) => ({ ...f, [field]: e.target.value })); pendingKey.current = null; setDone(null); };
+  const byDate = form.timing === "date";
+
+  const submit = (e) => {
+    e.preventDefault();
+    return once(async () => {
+      if (!app) return;
+      setBusy(true);
+      setError(null);
+      pendingKey.current ??= newIdempotencyKey();
+      const body = {
+        application_id: app.id, kind: form.kind, title: form.title.trim(), evidence_required: form.evidence_required.trim(),
+        source_clause: form.source_clause.trim() || null,
+        ...(byDate ? { due_date: form.due_date } : { rule_id: form.rule_id }),
+      };
+      try {
+        const o = await api(who, "/compliance/obligations", { method: "POST", body, headers: { "Idempotency-Key": pendingKey.current } });
+        pendingKey.current = null;
+        setDone(o);
+        onRecorded?.();
+      } catch (err) {
+        if (err.status && err.status < 500) pendingKey.current = null;
+        setError(err);
+      } finally {
+        setBusy(false);
+      }
+    });
+  };
+
+  if (!open) return <button className="secondary small register-open" onClick={() => setOpen(true)}>Record an undertaking</button>;
+  return (
+    <form onSubmit={submit} className="register-letter record-undertaking-form" aria-label="Record an undertaking">
+      {apps.loading && !apps.data && <Loading what="Loading applications" rows={1} />}
+      <ErrorBox error={apps.error} onRetry={apps.reload} />
+      {app && (
+        <div className="form-grid">
+          <label>
+            Application
+            <select value={app.id} onChange={set("application_id")}>
+              {apps.data.map((a) => <option key={a.id} value={a.id}>{sentence(a.category)} · {a.academic_year} · ref {internalRef(a.id)}</option>)}
+            </select>
+          </label>
+          <label>
+            Kind
+            <select value={form.kind} onChange={set("kind")}>
+              {OBLIGATION_KINDS.filter(([k]) => k !== "DOCUMENT_VALIDITY").map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </label>
+          <label>
+            What it asks for
+            <input value={form.title} onChange={set("title")} maxLength={200} required autoComplete="off" />
+          </label>
+          <label>
+            Evidence that meets it
+            <input value={form.evidence_required} onChange={set("evidence_required")} maxLength={500} required autoComplete="off" />
+          </label>
+          <label>
+            Clause it comes from{byDate ? "" : " (optional: the rule's clause is used)"}
+            <input value={form.source_clause} onChange={set("source_clause")} maxLength={32} required={byDate}
+              pattern="[0-9A-Za-z.()/ \-]{1,32}" placeholder="e.g. 2.25(f)" autoComplete="off" />
+          </label>
+          <label>
+            Timing
+            <select value={form.timing} onChange={set("timing")}>
+              <option value="date">The due date the undertaking states</option>
+              <option value="rule">An official rule, counted from today</option>
+            </select>
+          </label>
+          {byDate ? (
+            <label>
+              Due date
+              <input type="date" value={form.due_date} onChange={set("due_date")} required />
+            </label>
+          ) : (
+            <label>
+              Rule
+              <select value={form.rule_id} onChange={set("rule_id")}>
+                {RECORDABLE_RULES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+      <ErrorBox error={error} />
+      {done && <p className="ok" role="status">Recorded. Due {dateIST(done.due_date)}; the institution is reminded before then.</p>}
+      <div className="actions">
+        <button disabled={!app || busy}>{busy ? "Recording…" : "Record obligation"}</button>
+        <button type="button" className="ghost small" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </form>
   );
 }
 
@@ -99,8 +394,8 @@ function ObligationTimeline({ state, openId, onOpen }) {
               {g.items.map((o) => (
                 <button key={o.id} className={`axis-mark tone-${toneOf(o)}${openId === o.id ? " is-selected" : ""}`}
                   aria-pressed={openId === o.id} onClick={() => onOpen(o.id)}
-                  aria-label={`${sentence(o.kind)}, case ${internalRef(o.application_id)}, due ${dateIST(o.due_date)}, ${obligationStatusOf(o.status).label}${o.overdue ? ", overdue" : ""}`}>
-                  {sentence(o.kind)}, case <code>{internalRef(o.application_id)}</code>
+                  aria-label={`${kindLabel(o.kind)}, case ${internalRef(o.application_id)}, due ${dateIST(o.due_date)}, ${obligationStatusOf(o.status).label}${o.overdue ? ", overdue" : ""}`}>
+                  {kindLabel(o.kind)}, case <code>{internalRef(o.application_id)}</code>
                 </button>
               ))}
             </span>
@@ -162,14 +457,14 @@ function ObligationTable({ state, openId, onOpen }) {
           const s = obligationStatusOf(o.status);
           return (
             <tr key={o.id} className={openId === o.id ? "current" : undefined}>
-              <td>{sentence(o.kind)}</td>
+              <td>{kindLabel(o.kind)}{(o.title || o.doc_type) && <span className="muted small"> · {o.title ?? checklistLabel(o.doc_type)}</span>}</td>
               <td><code title={INTERNAL_REF_TITLE}>{internalRef(o.application_id)}</code></td>
               <td className="nowrap">{o.due_date ? dateIST(o.due_date) : "No due date"}</td>
               <td><Badge tone={s.tone}>{s.label}</Badge>{o.overdue && <> <Badge tone="bad">Overdue</Badge></>}</td>
               <td className="small">{evidenceSummary(o.evidence)}</td>
               <td>
                 <button className="secondary small" aria-expanded={openId === o.id} onClick={() => onOpen(openId === o.id ? null : o.id)}
-                  aria-label={`${openId === o.id ? "Close" : "Open"} ${sentence(o.kind).toLowerCase()} for case ${internalRef(o.application_id)}`}>
+                  aria-label={`${openId === o.id ? "Close" : "Open"} ${kindLabel(o.kind).toLowerCase()} for case ${internalRef(o.application_id)}`}>
                   {openId === o.id ? "Close" : "Open"}
                 </button>
               </td>
@@ -208,7 +503,7 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
   return (
     <aside className="card inspector obligation-detail" aria-label="Obligation detail">
       <header className="card-head">
-        <h2>{o ? sentence(o.kind) : "Obligation"}</h2>
+        <h2>{o ? kindLabel(o.kind) : "Obligation"}</h2>
         <button className="ghost icon-only" aria-label="Close obligation" onClick={onClose}><Icon name="close" /></button>
       </header>
       {ob.loading && !o && <Loading what="Opening the obligation" rows={4} />}
@@ -222,7 +517,29 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
             <dt>Source</dt><dd><Badge tone={source.tone}>{source.label}</Badge> <span className="muted small">{source.detail}</span></dd>
             <dt>Origin</dt><dd>{ORIGIN[o.state_origin] ?? sentence(o.state_origin)}</dd>
             {o.met_at && <><dt>Met</dt><dd>{when(o.met_at)}</dd></>}
+            {o.title && <><dt>Asks for</dt><dd>{o.title}</dd></>}
+            {o.evidence_required && <><dt>Evidence</dt><dd>{o.evidence_required}</dd></>}
+            {o.valid_until && (
+              <>
+                <dt>Document</dt><dd>{checklistLabel(o.doc_type)} · v{o.document_version_no ?? "?"}</dd>
+                <dt>Valid until</dt><dd>{dateIST(o.valid_until)} <Badge tone={validityStateOf(o.validity_state).tone}>{validityStateOf(o.validity_state).label}</Badge> <span className="muted small">{daysLeftText(o.days_left)}</span></dd>
+                <dt>Date from</dt><dd>{validitySource(o)}</dd>
+                {o.eoa_stop_year && <><dt>EoA stop year</dt><dd>{o.eoa_stop_year} <span className="muted small">no extension of approval from this academic year unless the lease is extended (APH cl. 2.1(e))</span></dd></>}
+              </>
+            )}
           </dl>
+          {o.penalty_notes?.length > 0 && (
+            <div className="penalty-notes" role="note" aria-label="Penalty notes for the competent authority">
+              <h3>Penalty notes</h3>
+              <ul>{o.penalty_notes.map((n) => <li key={n} className="small">{n}</li>)}</ul>
+            </div>
+          )}
+          {o.kind === "DOCUMENT_VALIDITY" && o.status !== "MET" && (
+            <p className="muted small">
+              Renewal: the institution uploads a new version of this document and submits it here. Officers confirm its expiry date
+              under fact review; accepting it meets this record and opens the next one from that date.
+            </p>
+          )}
           <ol className="obligation-flow" aria-label="Who does what">
             <li className={o.evidence.length ? "done" : "now"}><strong>Institution</strong> submits a scanned-clean document version as evidence</li>
             <li className={o.status === "EVIDENCE_SUBMITTED" ? "now" : o.status === "MET" ? "done" : undefined}><strong>Officer</strong> accepts or rejects it</li>
@@ -250,7 +567,7 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
             </ul>
           )}
           {me.role === "INSTITUTION" && o.status === "OPEN" && (
-            <EvidencePicker who={who} obligation={o} docs={docs} onSubmitted={changed} />
+            <EvidencePicker who={who} obligation={o} docs={renewalsOnly(docs, o)} onSubmitted={changed} />
           )}
           {me.role === "INSTITUTION" && o.status === "EVIDENCE_SUBMITTED" && (
             <p className="muted small">Your evidence is with an officer. You can submit again only if it is rejected.</p>
@@ -260,6 +577,14 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
       )}
     </aside>
   );
+}
+
+// A validity record is met only by a newer version of the same document (its renewal).
+function renewalsOnly(docs, o) {
+  if (!o.document_id || !docs.data) return docs;
+  const data = docs.data.filter((d) => d.document_id === o.document_id)
+    .map((d) => ({ ...d, versions: d.versions.filter((v) => v.version_id !== o.document_version_id) }));
+  return { ...docs, data };
 }
 
 // Only versions whose status is AVAILABLE (scanned clean) can be evidence.
@@ -313,10 +638,17 @@ function EvidencePicker({ who, obligation, docs, onSubmitted }) {
     <form onSubmit={submit} className="evidence-picker" aria-label="Submit evidence">
       <h3>Submit evidence</h3>
       {options.length === 0 ? (
-        <p className="muted">
-          None of this application's documents has a version that passed the malware scan. Upload one under Documents;
-          it can be used here once the scan is clean.
-        </p>
+        obligation.document_id ? (
+          <p className="muted">
+            No new version of this document has passed the malware scan yet. Upload the renewal under Documents; it can be
+            submitted here once the scan is clean.
+          </p>
+        ) : (
+          <p className="muted">
+            None of this application's documents has a version that passed the malware scan. Upload one under Documents;
+            it can be used here once the scan is clean.
+          </p>
+        )
       ) : (
         <>
           <label>

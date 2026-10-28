@@ -352,7 +352,13 @@
 .evidence-list { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: var(--s2); }
 .evidence { padding: var(--s2) var(--s3); border: 1px solid var(--line); border-left: 2px solid var(--teal); border-radius: var(--radius-sm); background: var(--ink-1); }
 .evidence p { margin: 0 0 4px; }
-.evidence-picker, .verify-evidence, .register-letter { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
+.evidence-picker, .verify-evidence, .register-letter, .record-validity { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
+.validity-panel { margin-bottom: var(--s4); }
+.validity-panel td.actions { display: flex; flex-wrap: wrap; gap: var(--s1); justify-content: flex-end; }
+.validity-panel td p { margin: 2px 0 0; }
+.penalty-notes { margin: var(--s3) 0; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-left: 2px solid var(--amber); border-radius: var(--radius-sm); }
+.penalty-notes h3 { margin: 0 0 4px; }
+.penalty-notes ul { margin: 0; padding-left: var(--s3); }
 .note-text { margin: var(--s2) 0; padding: var(--s2) var(--s3); border-left: 2px solid var(--line-strong); color: var(--text-2); }
 .register-open { margin-top: var(--s3); }
 
