@@ -188,7 +188,8 @@ def compliance(api: httpx.Client, app_id: str, doc: dict, a) -> None:
                  f"{letter.status_code} {letter.text[:200] if letter.status_code != 201 else ''}"):
         return
     obligations = letter.json()["obligation_ids"]
-    check("LoA created its obligations", len(obligations) == 2, f"{len(obligations)}, valid until "
+    # deposit and Affidavit 3 (15 days) and the remaining-requirements undertaking (one month)
+    check("LoA created its obligations", len(obligations) == 3, f"{len(obligations)}, valid until "
           f"{letter.json().get('valid_until')}")
     refused = api.post("/compliance/letters", headers=INST, json={
         "application_id": app_id, "institution_id": SUNRISE, "letter_type": "LOA", "academic_year": "2026-27",
