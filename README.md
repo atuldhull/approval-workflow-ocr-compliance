@@ -259,7 +259,7 @@ The path the end-to-end run drove through the UI (all profiles on, letter issuan
     Inbox and Mailpit show the notices.
 11. **Audit:** the chain verifies, a checkpoint is signed and published to the witness, replay runs, and the
     Scorecard evaluates all eight checks.
-12. **Appeal (seeded case `LOD-APPEAL-OPEN`):** the **institution (Riverbend)** sees the LoD with the days left in
+12. **Appeal (seeded case `LOD-APPEAL-OPEN`):** the **institution (Sunrise)** sees the LoD with the days left in
     the appeal window and files the appeal with its grounds; the case moves to SAC. The **scrutiny committee** forms
     the SAC committee, saves its report and recommends. The **bureau head** records the Council's decision; a Letter
     of Rejection is refused without a speaking order. The case summary prints the whole history.
