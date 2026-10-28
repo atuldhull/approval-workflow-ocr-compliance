@@ -1,7 +1,6 @@
 """Read models rebuilt purely from events. They feed the dashboards and the replay consistency check.
 
-Only what today's events can reconstruct is projected and compared. When new events arrive (stage transitions,
-deadline closure, obligations), their owners extend or add projectors - see docs/AUDIT.md.
+Only what the events can reconstruct is projected and compared - see docs/AUDIT.md.
 
 The `live` readers are read-only SELECTs on the owning module's tables, used only to check that projection and
 live state agree. Nothing here writes to another module's schema.
@@ -47,27 +46,56 @@ class ApplicationsProjection:
                                 "ruleset_rev"), r[1:])) for r in rows}
 
 
+LIFECYCLE = ("dl.deadline_closed", "dl.deadline_paused", "dl.deadline_resumed", "dl.deadline_breached")
+
+
 class DeadlinesProjection:
     name = "deadlines"
-    owner = "Person 2 events, projection in analytics"
-    handles = frozenset({("dl.deadline_opened", 1)})
-    # status (MET, BREACHED, ...) is not compared: no event reports it yet. due_date is the date the deadline opened
-    # with; a pause and resume moves it (due_version > 1) without an event, so a moved date is reported as a gap.
-    compared_fields = ("subject_type", "subject_id", "rule_id", "clock_kind", "clock_owner", "due_date")
+    owner = "Deadline events, projection in analytics"
+    handles = frozenset({("dl.deadline_opened", 1)} | {(t, 1) for t in LIFECYCLE})
+    compared_fields = ("subject_type", "subject_id", "rule_id", "clock_kind", "clock_owner", "due_date",
+                       "due_version", "status")
 
     def apply(self, state: dict[str, dict], ev: EventRecord) -> None:
         p = ev.payload
-        state[str(p["deadline_id"])] = {k: str(p[k]) for k in ("subject_type", "subject_id", "rule_id", "clock_kind",
-                                                               "clock_owner", "due_date", "ruleset_rev")}
+        key = str(p["deadline_id"])
+        if ev.event_type == "dl.deadline_opened":
+            state[key] = {k: str(p[k]) for k in ("subject_type", "subject_id", "rule_id", "clock_kind",
+                                                   "clock_owner", "due_date", "ruleset_rev")}
+            state[key].update(due_version=1, status="RUNNING", late=False)
+            return
+        d = state.get(key)
+        if d is None:
+            return
+        # every lifecycle event carries the clock's due date and version as they are after the change
+        d.update(due_date=str(p["due_date"]), due_version=p["due_version"])
+        if ev.event_type == "dl.deadline_closed":
+            d.update(status=p["outcome"], late=p["late"])
+        elif ev.event_type == "dl.deadline_paused":
+            d["status"] = "PAUSED"
+        elif ev.event_type == "dl.deadline_resumed":
+            d["status"] = "RUNNING"
+        elif ev.event_type == "dl.deadline_breached":
+            d.update(status="BREACHED", late=True)
 
     def live(self, session: Session) -> dict[str, dict]:
         rows = session.execute(text(
             "SELECT id::text, subject_type, subject_id::text, rule_id, clock_kind, clock_owner, due_date::text, "
-            "due_version FROM dl.deadline")).all()
-        live = {r[0]: dict(zip(self.compared_fields, r[1:7])) for r in rows}
-        for r in rows:
-            if r[7] > 1:
-                live[r[0]]["due_date"] = UNRECORDED
+            "due_version, status FROM dl.deadline")).all()
+        live = {r[0]: dict(zip(self.compared_fields, r[1:])) for r in rows}
+        # Clocks closed, paused or resumed before these changes were recorded as events: their status and moved due
+        # date are reported as changed without an event rather than as a mismatch.
+        recorded = dict(session.execute(text(
+            "SELECT aggregate_id::text, count(*) FROM plat.domain_event "
+            "WHERE aggregate_type = 'deadline' AND event_type = ANY(:types) GROUP BY aggregate_id"),
+            {"types": list(LIFECYCLE)}).all())
+        for key, d in live.items():
+            if key in recorded:
+                continue
+            if d["status"] != "RUNNING":
+                d["status"] = UNRECORDED
+            if d["due_version"] > 1:
+                d["due_date"] = d["due_version"] = UNRECORDED
         return live
 
 

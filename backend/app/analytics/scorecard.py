@@ -133,7 +133,7 @@ def _due_levels(d: Deadline, ladder, config, raised: dict[int, Alert], cutoff: d
 
 def _alert_timeliness(session, now: datetime) -> dict:
     key, title = "alerts", "Deadline alerts raised when due (missed / duplicate / early)"
-    method = ("For every running deadline, works out from its alert ladder which levels have fallen due "
+    method = ("For every running or breached deadline, works out from its alert ladder which levels have fallen due "
               f"(allowing {int(ALERT_GRACE.total_seconds() // 60)} minutes for the timer worker) and compares them "
               "with "
               "the alerts actually raised for the current due date. Acknowledged deadlines stop their ladder.")
@@ -146,7 +146,9 @@ def _alert_timeliness(session, now: datetime) -> dict:
     expected = on_time = missed = early = 0
     lag_hours: list[float] = []
     missed_by_subject: Counter = Counter()
-    for d in session.scalars(select(Deadline).where(Deadline.status == DeadlineStatus.RUNNING)).all():
+    # a breached clock keeps its ladder, so its levels are checked like a running one's
+    for d in session.scalars(select(Deadline).where(
+            Deadline.status.in_((DeadlineStatus.RUNNING, DeadlineStatus.BREACHED)))).all():
         current = {a.level: a for a in by_deadline.get(d.id, ()) if a.due_version == d.due_version}
         acked = [a.acknowledged_at for a in current.values() if a.status == "ACKNOWLEDGED" and a.acknowledged_at]
         # an acknowledgement stops the ladder: only levels that fell due before it should exist

@@ -27,7 +27,7 @@ export default function OverviewView({ who, onNavigate }) {
     let alive = true;
     const ids = inProcess.slice(0, MAX_DEADLINE_LOOKUPS).map((a) => a.id);
     Promise.all(ids.map((id) => api(who, `/deadlines?subject_id=${id}`).then((ds) => ds.map((d) => ({ ...d, app: id })))))
-      .then((lists) => alive && setDeadlines(lists.flat().filter((d) => d.status === "RUNNING" || d.status === "PAUSED")))
+      .then((lists) => alive && setDeadlines(lists.flat().filter((d) => ["RUNNING", "PAUSED", "BREACHED"].includes(d.status))))
       .catch((e) => alive && setDeadlineError(e));
     return () => { alive = false; };
   }, [apps, inProcess, who]);
