@@ -34,17 +34,22 @@ rules:
     # not appealing is the institution's choice, not a breach: remind only, never escalate
     alert_ladder: reminder_only
 
+  # APH 2024-27 cl. 2.25(f), p.47: security deposit and Affidavit 3 within 15 days of the intimation. Opened for
+  # the DEPOSIT and AFFIDAVIT obligations of a registered LoA, whose issue date is the intimation.
   - id: DEPOSIT_15D
     clock_kind: LEGAL
     clock_owner: INSTITUTION
-    source: {clause: "1.12 / 2.25(f)", status: verified}
-    anchor: deposit.intimated
+    source: {clause: "2.25(f)", page: 47, status: verified}
+    anchor: letter.issue_date
     duration: {value: 15, unit: calendar_days}
-    # reminders and escalation are demo assumptions; penalty tiers are a suggestion only
+    # demo assumption: one reminder to the institution per offset before the due date
     reminders: [-7d, -2d, -1d]
-    # (the escalation list below is not read yet; the timer worker uses alerts.ladders)
+    # (the escalation list below is not read; after the due date the timer worker uses alerts.ladders)
     escalation: [{after: 0d, to: RO_OFFICER}, {after: 5d, to: BUREAU_HEAD}]
+    # cl. 2.25(f): a late deposit carries a 10 % penalty up to 31 May and 20 % up to 31 July, beyond which the
+    # approval is withdrawn. Shown to officers as notes for the competent authority; the system never applies them.
     penalty_tiers: [{until: "05-31", pct: 10}, {until: "07-31", pct: 20}]
+    beyond_last_tier: approval_withdrawn
 
   - id: EOA_DEFICIENCY_6M
     clock_kind: LEGAL
@@ -61,41 +66,95 @@ rules:
     duration: {value: 6, unit: months, month_end: clamp}
     reminders: [-60d, -30d, -7d]
 
+  # APH cl. 2.1(e), p.28: no EoA from the academic year in which the live lease equals the longest course
+  # duration, unless the lease is extended by a further 30 years. Computed for every lease validity record.
   - id: LEASE_EOA_STOP
     clock_kind: LEGAL
     clock_owner: INSTITUTION
-    source: {clause: "2.1(e)", status: verified}
+    source: {clause: "2.1(e)", page: 28, status: verified}
     computed: lease_eoa_stop_year
     inputs: [lease_end_date, max_course_duration_years, ay_start_rule]
     # ay_start_rule comes from academic_year.starts below
     # relative to the start of the stop academic year; demo assumption
     reminders: [-18mo, -12mo, -6mo]
+    # demo assumption: the case does not record its programmes' durations, so the longest course is taken as
+    # four years unless the officer recording the lease states it
+    max_course_duration_years: 4
+    # cl. 6.17(a), p.72: a lease of at least 30 years, and a live lease at least as long as the longest course at
+    # the time of submission
+    lease_minimum_years: 30
 
-  # ---- compliance obligations created from an LoA (configurable demo assumptions) ----
-  # The clause numbers point at the handbook text the obligation comes from, but the anchor (the letter's issue
-  # date), the day-count convention and the durations below are demo assumptions until the team confirms them.
+  # ---- document validity (APH cl. 6.17) ----
+  # A document whose validity a confirmed fact (or an officer) records - land lease deed (6.17(a)), occupancy or
+  # completion certificate (6.17(g)), structural stability certificate (6.17(h)), fire safety certificate
+  # (6.17(i)) - opens a DOCUMENT_VALIDITY obligation that falls due on its expiry date. The expiry date is read
+  # from the document itself; the APH sets the period only for the structural stability certificate.
+  - id: DOCUMENT_EXPIRY
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {clause: "6.17", page: 72, status: verified}
+    anchor: document.valid_until
+    due: on_anchor_date
+    # demo assumption: advance reminders to the institution; the document_expiry ladder takes over at expiry
+    reminders: [-90d, -30d, -7d]
+    alert_ladder: document_expiry
 
+  # APH cl. 6.17(h), p.73: the structural stability certificate is valid for five years from its issue. Used to
+  # work out the expiry when only the issue date is known; never opened as a clock of its own.
+  - id: STRUCTURAL_STABILITY_VALIDITY
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {clause: "6.17(h)", page: 73, status: verified}
+    anchor: certificate.issue_date
+    duration: {value: 60, unit: months, month_end: clamp}
+    applies_to: validity_period
+
+  # An obligation an officer records with the due date the undertaking or letter itself states.
+  - id: UNDERTAKING_DUE_DATE
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {doc: "the undertaking or letter the officer records", status: verified_letter_text}
+    anchor: obligation.recorded_due_date
+    due: on_anchor_date
+    # demo assumption
+    reminders: [-7d, -2d]
+
+  # ---- compliance obligations created from an LoA ----
+
+  # Superseded by DEPOSIT_15D (official, cl. 2.25(f)). No longer opened; kept so clocks opened under it before
+  # this change still resolve their rule.
   - id: LOA_DEPOSIT_AFFIDAVIT_15D
     clock_kind: LEGAL
     clock_owner: INSTITUTION
-    # security-deposit proof and the affidavit; anchored on the LoA issue date for the demo
     source: {clause: "1.12", status: demo_assumption}
     anchor: letter.issue_date
     duration: {value: 15, unit: calendar_days}
 
+  # APH p.205, Affidavit 3 item 5: the remaining requirements are completed within one month of the approval
+  # letter. Opened as an UNDERTAKING with every LoA.
+  - id: AFFIDAVIT3_REMAINING_1M
+    clock_kind: LEGAL
+    clock_owner: INSTITUTION
+    source: {clause: "Affidavit 3 item 5", page: 205, status: verified}
+    anchor: letter.issue_date
+    duration: {value: 1, unit: months, month_end: clamp}
+
+  # APH cl. 1.10(b)(i), p.24: affidavit within seven days when no admissions are made after the LoA. Opened when an
+  # officer records the obligation (recordable), anchored on the day the officer records it.
   - id: NO_ADMISSION_AFFIDAVIT_7D
     clock_kind: LEGAL
     clock_owner: INSTITUTION
-    # affidavit when no admissions were made after the LoA; opened only once that fact is recorded
-    source: {clause: "1.10(b)(i)", status: demo_assumption}
+    source: {clause: "1.10(b)(i)", page: 24, status: verified}
     anchor: no_admission.recorded
     duration: {value: 7, unit: calendar_days}
+    recordable: true
 
+  # APH cl. 1.10(b)(ii), p.25: an LoA is valid for two academic years. Counted as 24 months from the issue date,
+  # the calendar reading of two academic years.
   - id: LOA_VALIDITY_2Y
     clock_kind: LEGAL
     clock_owner: INSTITUTION
-    # "valid for two academic years"; approximated as 24 months from the issue date for the demo
-    source: {status: demo_assumption}
+    source: {clause: "1.10(b)(ii)", page: 25, status: verified}
     anchor: letter.issue_date
     duration: {value: 24, unit: months, month_end: clamp}
 
@@ -126,3 +185,8 @@ alerts:
       - {level: 3, to: BUREAU_HEAD, at: 7d, template: deadline.escalated}
     reminder_only:
       - {level: 0, to: owner, at: -2d, template: deadline.reminder}
+    # an expired document; DOCUMENT_EXPIRY's own advance reminders go to the institution before these
+    document_expiry:
+      - {level: 0, to: RO_OFFICER, at: 0d, template: deadline.breached}
+      - {level: 1, to: BUREAU_OFFICER, at: 7d, template: deadline.escalated}
+      - {level: 2, to: BUREAU_HEAD, at: 30d, template: deadline.escalated}

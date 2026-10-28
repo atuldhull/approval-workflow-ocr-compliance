@@ -13,6 +13,8 @@ from contracts.errors import ValidationFailed
 IST = ZoneInfo("Asia/Kolkata")
 SOURCE_STATUSES = {"verified", "verified_letter_text", "demo_assumption"}
 UNITS = {"calendar_days", "working_days", "months"}
+# `due: on_anchor_date`: the clock falls due on the anchor's own date (an expiry date read from a document)
+DUE_MODES = {"on_anchor_date"}
 
 
 @dataclass(frozen=True)
@@ -30,11 +32,12 @@ class DeadlineRule:
     source_status: str
     clause: str | None
     anchor: str | None
-    duration: Duration | None  # None for computed rules (e.g. lease stop year)
+    duration: Duration | None  # None for computed rules (e.g. lease stop year) and rules due on the anchor date
     computed: str | None
     calendar_id: str | None
     count_anchor_day: bool | None
     extra: dict[str, Any] = field(default_factory=dict)  # reminders, escalation, applies_when ...
+    due: str | None = None  # "on_anchor_date": due on the anchor's date rather than a duration after it
 
 
 def parse_rule(raw: dict[str, Any]) -> DeadlineRule:
@@ -71,8 +74,11 @@ def parse_rule(raw: dict[str, Any]) -> DeadlineRule:
     computed = raw.get("computed")
     if computed is not None and (not isinstance(computed, str) or not computed.strip()):
         raise ValidationFailed(f"{rid}: computed must be a non-empty rule name")
-    if (duration is None) == (computed is None):
-        raise ValidationFailed(f"{rid}: give exactly one of duration or computed")
+    due = raw.get("due")
+    if due is not None and due not in DUE_MODES:
+        raise ValidationFailed(f"{rid}: due must be one of {sorted(DUE_MODES)}")
+    if sum(x is not None for x in (duration, computed, due)) != 1:
+        raise ValidationFailed(f"{rid}: give exactly one of duration, computed or due")
 
     calendar_id = raw.get("calendar_id")
     count_anchor_day = raw.get("count_anchor_day")
@@ -83,13 +89,13 @@ def parse_rule(raw: dict[str, Any]) -> DeadlineRule:
     elif calendar_id is not None or count_anchor_day is not None:
         raise ValidationFailed(f"{rid}: calendar_id and count_anchor_day apply only to working_days")
 
-    known = {"id", "clock_kind", "clock_owner", "source", "anchor", "duration", "computed",
+    known = {"id", "clock_kind", "clock_owner", "source", "anchor", "duration", "computed", "due",
              "calendar_id", "count_anchor_day"}
     return DeadlineRule(
         id=rid, clock_kind=kind, clock_owner=owner, source_status=source["status"], clause=source.get("clause"),
         anchor=raw.get("anchor"), duration=duration, computed=computed,
         calendar_id=calendar_id, count_anchor_day=count_anchor_day,
-        extra={k: v for k, v in raw.items() if k not in known},
+        extra={k: v for k, v in raw.items() if k not in known}, due=due,
     )
 
 

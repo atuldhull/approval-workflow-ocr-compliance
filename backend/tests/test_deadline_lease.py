@@ -139,3 +139,43 @@ def test_offsets():
     assert parse_offset("-2d", "x").days == -2
     assert parse_offset("12h", "x").total_seconds() == 12 * 3600
     assert parse_offset("+0d", "x").total_seconds() == 0
+
+
+# ---- a rule's own reminders ----
+
+def test_a_rules_reminders_replace_the_ladders_advance_steps():
+    rules = RuleParser().parse(shipped())
+    ladder = rules.alerts.ladder(rules["DEPOSIT_15D"])
+    assert [(s.level, s.to, s.offset.days, s.template, s.advance) for s in ladder] == [
+        (0, OWNER, -7, "deadline.reminder", True), (1, OWNER, -2, "deadline.reminder", True),
+        (2, OWNER, -1, "deadline.reminder", True), (3, "RO_OFFICER", 0, "deadline.breached", False),
+        (4, "BUREAU_OFFICER", 3, "deadline.escalated", False), (5, "BUREAU_HEAD", 7, "deadline.escalated", False)]
+    expiry = rules.alerts.ladder(rules["DOCUMENT_EXPIRY"])
+    assert [(s.to, s.offset.days) for s in expiry] == [
+        (OWNER, -90), (OWNER, -30), (OWNER, -7), ("RO_OFFICER", 0), ("BUREAU_OFFICER", 7), ("BUREAU_HEAD", 30)]
+    # a computed rule has no clock; its reminders (months before the stop year) stay information
+    assert rules.alerts.ladder(rules["LEASE_EOA_STOP"]) == rules.alerts.ladders["standard"]
+
+
+@pytest.mark.parametrize("reminders, message", [
+    (["2d"], "before the due time"),
+    (["-2d", "-7d"], "earliest first"),
+    (["-7d", "-7d"], "earliest first"),
+    ("-7d", "non-empty list"),
+    (["-2 weeks"], "offset"),
+    ([f"-{n}d" for n in range(20, 11, -1)], "exceed"),
+])
+def test_bad_rule_reminders_are_refused(reminders, message):
+    raw = shipped()
+    rule = next(r for r in raw["rules"] if r["id"] == "AICTE_PROCESSING")
+    rule["reminders"] = reminders
+    with pytest.raises(ValidationFailed, match=message):
+        RuleParser().parse(raw)
+
+
+def test_reminders_need_a_ladder():
+    raw = shipped()
+    rule = next(r for r in raw["rules"] if r["id"] == "AICTE_PROCESSING")
+    rule["reminders"], rule["alert_ladder"] = ["-2d"], "none"
+    with pytest.raises(ValidationFailed, match="alert ladder"):
+        RuleParser().parse(raw)

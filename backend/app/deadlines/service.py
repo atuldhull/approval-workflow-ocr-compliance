@@ -19,6 +19,9 @@ LIVE = (DeadlineStatus.RUNNING, DeadlineStatus.PAUSED, DeadlineStatus.BREACHED)
 def explain(rule: DeadlineRule, anchor: Anchor, due) -> str:
     source = f"clause {rule.clause}" if rule.clause else rule.source_status.replace("_", " ")
     d = rule.duration
+    if d is None:
+        return (f"{rule.id} ({source}): due on {rule.anchor or 'the anchor date'}, {due.isoformat()}; "
+                f"{rule.clock_kind} clock owned by {rule.clock_owner}")
     count_note = ""
     if d.unit == "working_days":
         count_note = (f" using calendar {rule.calendar_id}; anchor day "
@@ -45,22 +48,30 @@ class DeadlineEngine:
         rule = rules.get(rule_id)
         if rule is None:
             raise ValidationFailed(f"no deadline rule {rule_id} in {ruleset_key}")
-        if rule.duration is None:
+        if rule.duration is None and rule.due is None:
             raise ValidationFailed(f"{rule_id} is computed and cannot be opened from an anchor alone")
         if self._live(uow, subject, rule_id) is not None:
             raise Conflict(f"{rule_id} is already running for this {subject.type}")
 
-        calendar = None
-        if rule.duration.unit == "working_days":
-            if not rule.calendar_id or rule.count_anchor_day is None:
-                raise ValidationFailed(f"{rule_id} needs a versioned calendar and anchor-day convention")
-            calendar = load_calendar(uow.session, rule.calendar_id)
-        due = due_date(anchor.at, rule.duration, calendar=calendar, count_anchor_day=rule.count_anchor_day)
+        if rule.due == "on_anchor_date":
+            # an expiry: the anchor is the last valid day itself (read in IST), so the clock runs out at its end
+            if anchor.at.tzinfo is None or anchor.at.utcoffset() is None:
+                raise ValidationFailed("deadline anchor must be a timezone-aware datetime")
+            due = anchor.at.astimezone(IST).date()
+        else:
+            calendar = None
+            if rule.duration.unit == "working_days":
+                if not rule.calendar_id or rule.count_anchor_day is None:
+                    raise ValidationFailed(f"{rule_id} needs a versioned calendar and anchor-day convention")
+                calendar = load_calendar(uow.session, rule.calendar_id)
+            due = due_date(anchor.at, rule.duration, calendar=calendar, count_anchor_day=rule.count_anchor_day)
         ruleset, _, revision = ruleset_key.partition("@")
         row = Deadline(
             subject_type=subject.type, subject_id=subject.id, rule_id=rule_id, ruleset=ruleset, revision=revision,
             clause=rule.clause, source_status=rule.source_status, anchor_event_seq=anchor.event_seq,
-            anchor_at=anchor.at, duration_value=rule.duration.value, duration_unit=rule.duration.unit,
+            anchor_at=anchor.at, duration_value=rule.duration.value if rule.duration else None,
+            duration_unit=rule.duration.unit if rule.duration else None,
+
             clock_kind=rule.clock_kind, clock_owner=rule.clock_owner, status=DeadlineStatus.RUNNING,
             calendar_id=rule.calendar_id, count_anchor_day=rule.count_anchor_day,
             due_at=end_of_day(due), due_date=due, due_version=1, explanation=explain(rule, anchor, due),

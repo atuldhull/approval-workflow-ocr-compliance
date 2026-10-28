@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -93,9 +93,13 @@ def scope_of(session: Session, subject_type: str, subject_id) -> Scope:
     return Scope(case.institution_id, case.region)
 
 
-def is_acknowledged(session: Session, deadline_id: UUID, due_version: int) -> bool:
-    return bool(session.scalar(select(exists().where(
-        Alert.deadline_id == deadline_id, Alert.due_version == due_version, Alert.status == ACKNOWLEDGED))))
+def is_acknowledged(session: Session, deadline_id: UUID, due_version: int,
+                    ladder: tuple[LadderStep, ...] = ()) -> bool:
+    """Whether an acknowledgement stops the ladder for this due_version. Acknowledging one of a rule's advance
+    reminders does not: the levels at and after the due time still fire if the clock runs out."""
+    levels = session.scalars(select(Alert.level).where(
+        Alert.deadline_id == deadline_id, Alert.due_version == due_version, Alert.status == ACKNOWLEDGED)).all()
+    return any(level >= len(ladder) or not ladder[level].advance for level in levels) if ladder else bool(levels)
 
 
 class AlertEngine:
@@ -112,7 +116,7 @@ class AlertEngine:
         config, ladder = alert_config(d)
         if not ladder:
             return Advance("LADDER_DONE", 0, None)
-        if is_acknowledged(session, d.id, d.due_version):
+        if is_acknowledged(session, d.id, d.due_version, ladder):
             return Advance("ACKNOWLEDGED", 0, None)
         scope: Scope | None = None
         raised = 0
@@ -215,8 +219,11 @@ class AlertEngine:
             payload={"alert_id": a.id, "deadline_id": d.id, "level": a.level, "role": a.role,
                      "due_version": a.due_version},
         ))
-        if d.due_version == a.due_version:
+        _, ladder = alert_config(d)
+        advance = a.level < len(ladder) and ladder[a.level].advance
+        if d.due_version == a.due_version and not advance:
             d.next_fire_at = None   # nothing further for this due_version
+
         session.flush()
         return a
 

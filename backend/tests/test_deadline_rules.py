@@ -204,3 +204,16 @@ def test_rule_parser_rejects_unsupported_month_end_policy():
 def test_anchor_count_fields_are_rejected_for_non_working_rules():
     with pytest.raises(ValidationFailed, match="apply only to working_days"):
         RuleParser().parse({"rules": [rule(calendar_id="TEST@v1", count_anchor_day=False)]})
+
+
+def test_a_rule_can_fall_due_on_its_anchor_date():
+    on_date = {k: v for k, v in rule(due="on_anchor_date").items() if k != "duration"}
+    parsed = RuleParser().parse({"rules": [on_date]})
+    assert parsed["X"].due == "on_anchor_date" and parsed["X"].duration is None
+    r1 = RuleParser().parse(yaml.safe_load(R1.read_text(encoding="utf-8")))
+    assert r1["DOCUMENT_EXPIRY"].due == "on_anchor_date" and r1["DOCUMENT_EXPIRY"].source_status == "verified"
+    assert r1["STRUCTURAL_STABILITY_VALIDITY"].duration == Duration(60, "months", "clamp")
+    with pytest.raises(ValidationFailed, match="exactly one"):
+        RuleParser().parse({"rules": [rule(due="on_anchor_date")]})
+    with pytest.raises(ValidationFailed, match="due must be"):
+        RuleParser().parse({"rules": [{k: v for k, v in rule(due="whenever").items() if k != "duration"}]})

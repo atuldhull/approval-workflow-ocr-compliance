@@ -13,6 +13,7 @@ from contracts.enums import ClockOwner, Role
 from contracts.errors import ValidationFailed
 
 OWNER = "owner"  # the role responsible for the clock, from owner_roles
+REMINDER_TEMPLATE = "deadline.reminder"
 CHANNELS = frozenset({"in_app", "email", "sms"})
 ADDRESSABLE = frozenset(Role) - {Role.SYSTEM, Role.AUDITOR}
 MAX_LEVELS = 10
@@ -35,6 +36,8 @@ class LadderStep:
     to: str          # OWNER or a Role value
     offset: timedelta
     template: str
+    # one of the rule's own advance reminders: acknowledging it does not stop the levels at and after the due time
+    advance: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,8 +50,21 @@ class AlertConfig:
     retry_after: timedelta
 
     def ladder(self, rule) -> tuple[LadderStep, ...]:
+        """The rule's ladder. A rule that lists its own `reminders:` gets one reminder to the clock's owner per
+        offset in place of the ladder's advance steps (those before the due time); the steps at and after the due
+        time follow unchanged."""
         name = (getattr(rule, "extra", None) or {}).get("alert_ladder", self.default_ladder)
-        return () if name == "none" else self.ladders[name]
+        if name == "none":
+            return ()
+        base = self.ladders[name]
+        reminders = rule_reminders(rule)
+        if not reminders:
+            return base
+        steps = [LadderStep(i, OWNER, offset, REMINDER_TEMPLATE, advance=True) for i, offset in enumerate(reminders)]
+        for step in base:
+            if step.offset >= timedelta(0):
+                steps.append(LadderStep(len(steps), step.to, step.offset, step.template))
+        return tuple(steps)
 
     def role_for(self, step: LadderStep, clock_owner: str) -> Role:
         return self.owner_roles[str(clock_owner)] if step.to == OWNER else Role(step.to)
@@ -111,10 +127,31 @@ def parse_alert_config(raw: object) -> AlertConfig | None:
     return AlertConfig(source["status"], tuple(channels), owner_roles, ladders, default, timedelta(minutes=retry))
 
 
+def rule_reminders(rule) -> tuple[timedelta, ...]:
+    """A clock rule's advance reminders, earliest first. Computed rules (no clock) keep theirs as information."""
+    raw = (getattr(rule, "extra", None) or {}).get("reminders")
+    if not raw or getattr(rule, "computed", None) is not None:
+        return ()
+    return tuple(parse_offset(r, f"{rule.id} reminders") for r in raw)
+
+
 def check_rule_ladders(rules: dict[str, Any], config: AlertConfig | None) -> None:
     for rule in rules.values():
         name = rule.extra.get("alert_ladder")
-        if name is None or name == "none":
-            continue
-        if config is None or name not in config.ladders:
+        if name is not None and name != "none" and (config is None or name not in config.ladders):
             raise ValidationFailed(f"{rule.id}: alert_ladder {name} is not configured under alerts.ladders")
+        raw = rule.extra.get("reminders")
+        if raw is None or rule.computed is not None:
+            continue
+        if not isinstance(raw, list) or not raw:
+            raise ValidationFailed(f"{rule.id}: reminders must be a non-empty list of offsets such as -7d")
+        if config is None or name == "none":
+            raise ValidationFailed(f"{rule.id}: reminders need an alert ladder to run on")
+        offsets = rule_reminders(rule)
+        if any(o >= timedelta(0) for o in offsets):
+            raise ValidationFailed(f"{rule.id}: reminders come before the due time, e.g. -7d")
+        if list(offsets) != sorted(set(offsets)):
+            raise ValidationFailed(f"{rule.id}: reminders must be distinct and listed earliest first")
+        if len(config.ladder(rule)) > MAX_LEVELS:
+            raise ValidationFailed(f"{rule.id}: reminders and ladder together exceed {MAX_LEVELS} levels")
+
