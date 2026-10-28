@@ -63,6 +63,9 @@ def _sources(root: Path, key: str, seen: frozenset[str] = frozenset()) -> tuple[
     checklists = folder / "checklists.yaml"
     if checklists.is_file():
         files.append(checklists)
+    notifications = folder / "notifications.yaml"   # read by the platform notifier; part of the revision all the same
+    if notifications.is_file():
+        files.append(notifications)
     return files, raw, raw.get("demo_only") is True or raw.get("status") == "unverified_demo"
 
 
