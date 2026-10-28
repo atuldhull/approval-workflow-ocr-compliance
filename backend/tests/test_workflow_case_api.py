@@ -97,10 +97,14 @@ def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
                   "wf.transition_applied", "wf.deficiency_item_responded", "wf.compliance_submitted", "wf.stage_exited", "wf.stage_entered",
                   "wf.deficiency_item_decided", "wf.deficiency_closed",
                   "wf.transition_applied", "wf.stage_exited", "wf.stage_entered"]
-    assert [r["event_type"] for r in rows if r["event_type"].startswith("dl.")] == ["dl.deadline_opened"] * 3
+    # the processing clock pauses while the institution answers, and resumes after; the response clock is met
+    assert [r["event_type"] for r in rows if r["event_type"].startswith("dl.")] == [
+        "dl.deadline_opened", "dl.deadline_paused", "dl.deadline_opened", "dl.deadline_closed", "dl.deadline_resumed",
+        "dl.deadline_opened"]
     assert [r["event_type"] for r in rows] == [
         "wf.application_created", "dl.deadline_opened", "wf.application_submitted", "wf.stage_entered",
-        "dl.deadline_opened", "wf.transition_applied", "wf.deficiency_recorded", "wf.stage_exited", "wf.stage_entered",
+        "dl.deadline_paused", "dl.deadline_opened", "wf.transition_applied", "wf.deficiency_recorded", "wf.stage_exited",
+        "wf.stage_entered", "dl.deadline_closed", "dl.deadline_resumed",
         "wf.transition_applied", "wf.deficiency_item_responded", "wf.compliance_submitted", "wf.stage_exited", "wf.stage_entered",
         "wf.deficiency_item_decided", "wf.deficiency_closed",
         "dl.deadline_opened", "evc.request_created",

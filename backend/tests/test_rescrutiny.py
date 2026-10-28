@@ -96,7 +96,7 @@ def test_five_items_three_accepted_two_carried_and_response_lineage(api):
         assert item["response_history"][0]["state"] == "REJECTED"
     suffix = timeline(api, case_id)[len(before_reject):]
     assert [e["event_type"] for e in suffix] == ["wf.deficiency_item_decided"] * 2 + [
-        "wf.deficiency_superseded", "dl.deadline_opened", "wf.transition_applied",
+        "wf.deficiency_superseded", "dl.deadline_paused", "dl.deadline_opened", "wf.transition_applied",
         "wf.deficiency_recorded", "wf.stage_exited", "wf.stage_entered"]
     assert suffix[2]["payload"]["next_deficiency_id"] == second["deficiency_id"]
     second = comply(api, case_id, second)
