@@ -119,7 +119,7 @@ MATRIX = [
     ("confirm an unreviewed fact", "POST", "/api/document-facts/{fact_proposed}/confirm", None,
      expect(CASE_OFFICERS, code=409)),
 
-    # ---- Person 2: compliance. {letter} is an LoA for Sunrise's case with two obligations. ----
+    # ---- Person 2: compliance. {letter} is an LoA for Sunrise's case with its obligations. ----
     # the second bureau role finds the same LoA already registered
     ("register an LoA", "POST", "/api/compliance/letters", lambda w: {"json": letter_body(w["app"], "2026-27")},
      expect({"bureau_officer": 201, "bureau_head": 409})),
@@ -138,6 +138,15 @@ MATRIX = [
     # the verifier's note: officers who may verify and the owning institution; oversight-only roles see has_note only
     ("an evidence note", "GET", "/api/compliance/evidence/{evidence}/note", None,
      expect(CASE_OFFICERS + ("inst_sunrise",))),
+    # the regional officer records the lease deed's date first; the bureau then finds that version recorded
+    ("record a validity date", "POST", "/api/compliance/validity",
+     lambda w: {"json": {"document_version_id": w["version"], "valid_until": "2031-03-31"}},
+     expect({"ro_south": 201, "bureau_officer": 409, "bureau_head": 409})),
+    ("record an undertaking", "POST", "/api/compliance/obligations",
+     lambda w: {"json": {"application_id": w["app"], "kind": "UNDERTAKING", "title": "Synthetic undertaking",
+                         "evidence_required": "A synthetic receipt", "source_clause": "2.25(f)",
+                         "due_date": "2099-01-01"}},
+     expect(("ro_south", "bureau_officer", "bureau_head"), code=201)),
 
     # ---- Person 2: alerts and demo timers. {alert} is the level-0 reminder to the Southern regional office. ----
     ("alerts", "GET", "/api/alerts", None, expect(ALL)),
@@ -223,7 +232,7 @@ class World(dict):
         letter = self.ok(self.client.post("/api/compliance/letters", headers=REGISTRAR,
                                           json=letter_body(self["app"])))
         self["letter"] = letter["id"]
-        self["obligation"], self["obligation_open"] = letter["obligation_ids"]
+        self["obligation"], self["obligation_open"] = letter["obligation_ids"][:2]
 
     _obligation = _obligation_open = _letter
 

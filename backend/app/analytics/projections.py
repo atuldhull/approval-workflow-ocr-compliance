@@ -178,6 +178,7 @@ class ComplianceProjection:
     name = "compliance"
     owner = "Compliance events, projection in analytics"
     handles = frozenset({("cmp.letter_registered", 1), ("cmp.obligation_created", 1),
+                         ("cmp.obligation_created", 2),
                          ("cmp.evidence_submitted", 1), ("cmp.evidence_verified", 1)})
     compared_fields = ("kind", "application_id", "type", "status", "obligation_id", "deadline_id", "due_date")
 
