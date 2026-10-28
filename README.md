@@ -300,13 +300,13 @@ Results at the time of writing (28 October 2026, on this branch):
 
 | Check | Result |
 |---|---|
-| Backend suite (Python 3.12, PostgreSQL 16) | 7066 passed, 1 skipped (Cerbos parity, run separately) |
+| Backend suite (Python 3.12, PostgreSQL 16; `backend/tests` and `tests`) | 11146 passed, 1 skipped (Cerbos parity, run separately) |
 | Cerbos 0.40.0 parity and role matrix | 56 passed |
-| Frontend unit tests (Vitest) | 191 passed |
+| Frontend unit tests (Vitest) | 218 passed |
 | Contract-approval rule tests | 27 passed |
 | `smoke_demo.py --docker` (real ClamAV and Tesseract) | 54 / 54 |
 | `smoke_security.py` (real Keycloak and Cerbos) | 38 / 38 |
-| Browser run, 8 roles at 1440 px and 390 px | 138 page visits, 446 link and history checks, 0 console errors, 0 failed requests |
+| Browser run, 8 roles at 1440 px and 390 px | 148 page visits, 546 link and history checks, 0 console errors, 0 failed requests |
 
 ## Tech stack
 
