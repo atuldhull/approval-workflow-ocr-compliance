@@ -12,6 +12,7 @@ resourcePolicy:
     - application.read
     - application.submit
     - auth.me
+    - case.file_appeal
     - case.submit
     - case.submit_compliance
     - case.timeline
@@ -46,6 +47,10 @@ resourcePolicy:
     - case.advance_to_shc
     - case.complete_evc
     - case.record_deficiency
+    - case.sac_not_recommend
+    - case.sac_recommend
+    - case.sac_refer_evc
+    - case.sac_refer_scrutiny
     - case.start_rescrutiny
     - case.timeline
     - committee.create
@@ -113,12 +118,18 @@ resourcePolicy:
     - case.advance
     - case.advance_to_evc
     - case.advance_to_shc
+    - case.close_appeal_window
     - case.complete_evc
     - case.issue_eoa
     - case.issue_loa
     - case.issue_lod
     - case.reject
+    - case.return_to_sac
     - case.revert
+    - case.sac_not_recommend
+    - case.sac_recommend
+    - case.sac_refer_evc
+    - case.sac_refer_scrutiny
     - case.start_rescrutiny
     - case.timeline
     - committee.create
@@ -161,6 +172,9 @@ resourcePolicy:
     - audit.checkpoint.read
     - audit.replay
     - auth.me
+    - case.issue_eoa
+    - case.issue_loa
+    - case.issue_lor
     - case.timeline
     - committee.read
     - compliance.evidence.verify
@@ -217,6 +231,7 @@ resourcePolicy:
     actions:
     - application.read
     - auth.me
+    - case.close_appeal_window
     - case.timeline
     - committee.read
     - deadline.read

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.platform.replay import UNRECORDED, EventRecord
 
 # transition targets that are stages; the others (APPROVED, REJECTED, WITHDRAWN) end the route
-STAGES = frozenset({"SELF_DISCLOSURE", "SCRUTINY", "RESCRUTINY", "DEFICIENT", "EVC", "SHC", "EC", "COUNCIL"})
+STAGES = frozenset({"SELF_DISCLOSURE", "SCRUTINY", "RESCRUTINY", "DEFICIENT", "EVC", "SHC", "EC", "COUNCIL", "SAC"})
 
 
 class ApplicationsProjection:
@@ -281,6 +281,12 @@ NOT_PROJECTED = {
     "doc.document_scanned": "Scan results are kept on the document version by the documents module.",
     "doc.fact_reviewed": "OCR reviews are kept by the documents module with their two-person check.",
     "doc.fact_confirmed": "Confirmed facts are kept by the documents module with their two-person check.",
+    "wf.appeal_window_opened": "The appeal record is kept by the workflow; the case's stage and status follow "
+                               "wf.transition_applied.",
+    "wf.appeal_filed": "The appeal record is kept by the workflow; filing moves the case to SAC by a transition.",
+    "wf.appeal_recommended": "The SAC recommendation is kept on the workflow's appeal record.",
+    "wf.appeal_decided": "The Council's decision on an appeal is a transition; its letter is a cmp.letter_registered.",
+    "wf.appeal_lapsed": "A lapsed appeal window closes the case by a transition; its clock by dl.deadline_closed.",
 }
 
 ALL = (ApplicationsProjection(), DeadlinesProjection(), DeficienciesProjection(), CommitteesProjection(),
