@@ -89,7 +89,7 @@ export default function InboxView({ who, onNavigate }) {
                     {URGENT.has(n.template) && <span className="badge warn">Urgent</span>}
                     {!n.read_at && (
                       <button className="secondary small" disabled={busy !== null} onClick={() => markRead(n.id)}
-                        aria-label={`Mark "${n.subject}" from ${when(n.created_at)} as read`}>
+                        aria-label={`Mark read: "${n.subject}" from ${when(n.created_at)} as read`}>
                         {busy === n.id ? "Marking…" : "Mark read"}
                       </button>
                     )}

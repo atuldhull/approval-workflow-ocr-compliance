@@ -67,7 +67,8 @@ export default function HeroCanvas({ progressRef, subscribe, reduced, narrow, on
     // Compile every shader before the first frame, off the main thread where the browser supports it, so the
     // first scroll into a new phase does not stall on a shader compile.
     const start = () => { if (disposed) return; ready = true; el.dataset.ready = "true"; current = progressRef.current - 1e-9; invalidate(); };
-    Promise.resolve(renderer.compileAsync ? renderer.compileAsync(world.scene, world.camera) : null).then(start, start);
+    const compiled = Promise.resolve(renderer.compileAsync ? renderer.compileAsync(world.scene, world.camera) : null);
+    compiled.then(start, start);
     el.dataset.rendered = "true";
 
     return () => {
@@ -78,10 +79,12 @@ export default function HeroCanvas({ progressRef, subscribe, reduced, narrow, on
       io?.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       renderer.domElement.removeEventListener("webglcontextlost", lost);
-      world.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
       renderer.domElement.remove();
+      // Three r170 polls material programs during compileAsync. Releasing them before that
+      // promise settles can make its timer dereference a disposed program on rapid unmount.
+      // Detach immediately; finish releasing GPU resources when the compiler is done.
+      const release = () => { world.dispose(); renderer.dispose(); renderer.forceContextLoss(); };
+      compiled.then(release, release);
     };
   }, [progressRef, subscribe, reduced, narrow, onFailure]);
   return <div className="sc-canvas" ref={host} />;

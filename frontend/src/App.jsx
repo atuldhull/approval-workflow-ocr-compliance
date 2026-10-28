@@ -1,3 +1,4 @@
+import Atmosphere, {AtmosphereControl,useAtmosphereMode} from './product/Atmosphere.jsx';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_USERS, SESSION_EXPIRED, api, publicApi } from "./api.js";
 import { clearSession, completeSignIn, hasSession, signIn, signOut } from "./auth/oidc.js";
@@ -5,7 +6,7 @@ import { Sidebar, TopBar } from "./components/Layout.jsx";
 import { ErrorBox, Loading } from "./components/ui.jsx";
 import { navFor } from "./nav.js";
 import { WORLDS, useMotionRoot, useReveal, useScrollVar } from "./motion.js";
-import { ShowcaseLink } from "./showcase/entry.jsx"; // public walk-through at #showcase (see SHOWCASE_REPORT.md)
+import { ShowcaseLink, isShowcaseHash } from "./showcase/entry.jsx"; // public walk-through at #showcase (see SHOWCASE_REPORT.md)
 import OverviewView from "./views/OverviewView.jsx";
 import ApplicationsView from "./views/ApplicationsView.jsx";
 import AuditView from "./views/AuditView.jsx";
@@ -87,6 +88,7 @@ export function Workspace({ who, me, config, identityControl }) {
   const restoringScroll = useRef(false);
   const scrollFrame = useRef(0);
   const reduced = useMotionRoot();
+  const [atmosphereMode,setAtmosphereMode]=useAtmosphereMode();
   useScrollVar();
   useReveal(contentRef, shown);
 
@@ -108,6 +110,8 @@ export function Workspace({ who, me, config, identityControl }) {
 
   useEffect(() => {
     const restore = (event) => {
+      // Public presentation routes belong to ShowcaseGate, including hash navigation and Back.
+      if (isShowcaseHash(window.location.hash)) return;
       clearTimeout(timer.current);
       cancelAnimationFrame(scrollFrame.current);
       const key = window.location.hash.slice(1).split('?')[0];
@@ -168,15 +172,17 @@ export function Workspace({ who, me, config, identityControl }) {
   return (
     <div className={`shell${collapsed ? " collapsed" : ""}`} data-world={world.world}>
       <a className="skip-link" href="#content">Skip to content</a>
-      <Backplate world={world.world} />
+      
       <Sidebar items={items} current={view} onNavigate={navigate} collapsed={collapsed}
         onToggleCollapse={toggleCollapse} title={navTitle} />
       <div className="main">
+        <Atmosphere key={shown} route={shown} mode={atmosphereMode}/>
         <TopBar me={me} who={who} config={config} identityControl={<>{identityControl}<ShowcaseLink /></>} title={navTitle} view={view} />
         <main className={`content world-${world.motion} phase-${phase}`} id="content" tabIndex={-1} ref={contentRef}>
           <header className="page-head" key={`head-${shown}`}>
             <h1>{title}</h1>
             {SUBTITLES[shown] && <p className="page-sub">{SUBTITLES[shown]}</p>}
+            <AtmosphereControl mode={atmosphereMode} onChange={setAtmosphereMode}/>
           </header>
           {View && (
             <View key={`${shown}-${me.user_id}`} who={who} me={me} onNavigate={navigate}
@@ -185,24 +191,6 @@ export function Workspace({ who, me, config, identityControl }) {
           )}
         </main>
       </div>
-    </div>
-  );
-}
-
-// The atmosphere behind each world: a faint field, one soft light in the world's hue, and a motif drawn
-// from the world's subject. aria-hidden, behind everything, scroll-parallaxed (MOTION.md).
-function Backplate({ world }) {
-  return (
-    <div className="backplate" data-world={world} aria-hidden="true">
-      <div className="bp-field" />
-      <div className="bp-light" />
-      <svg className="bp-motif" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
-        <path d="M-40 640 C 220 640, 260 260, 520 260 S 820 560, 1240 300" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M-40 700 C 260 700, 320 380, 600 380 S 900 640, 1240 420" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-        <circle cx="520" cy="260" r="5" fill="currentColor" />
-        <circle cx="600" cy="380" r="3.5" fill="currentColor" opacity="0.7" />
-        <circle cx="1040" cy="372" r="4" fill="currentColor" opacity="0.8" />
-      </svg>
     </div>
   );
 }

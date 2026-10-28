@@ -129,28 +129,28 @@ export function DossierFigure() {
           role under each and a time axis.
         </title>
         <defs>
-          <linearGradient id="sc-board" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#6a523a" /><stop offset="1" stopColor="#4a3827" /></linearGradient>
+          <linearGradient id="sc-board" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#284b35" /><stop offset="1" stopColor="#06110C" /></linearGradient>
           <linearGradient id="sc-paper" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#f1e8d6" /><stop offset="1" stopColor="#ddd1b8" /></linearGradient>
         </defs>
         <ellipse cx="300" cy="520" rx="250" ry="38" fill="#000" opacity="0.35" />
         <path d="M70 470 L330 540 L560 450 L300 390 Z" fill="url(#sc-board)" />
-        <path d="M70 470 L300 390 L250 230 L30 300 Z" fill="#4e3b29" opacity="0.9" />
+        <path d="M70 470 L300 390 L250 230 L30 300 Z" fill="#153220" opacity="0.9" />
         <g className="sc-fig-sheets">
           {sheets.map((i) => (
             <g key={i} className="sc-fig-sheet" style={{ "--i": i }}>
               <path d="M110 455 L330 515 L520 440 L300 385 Z" fill="url(#sc-paper)" stroke="#bfae8d" strokeWidth="1" />
-              <path d="M150 452 L300 492" stroke="#5B4632" strokeWidth="3" opacity="0.6" />
+              <path d="M150 452 L300 492" stroke="#263b2d" strokeWidth="3" opacity="0.6" />
               {[0, 1, 2].map((r) => <path key={r} d={`M${190 + r * 24} ${440 - r * 8} L${330 + r * 24} ${478 - r * 8}`} stroke="#5b4a35" strokeWidth="3" opacity="0.35" />)}
-              {i < 3 && <rect x="0" y="0" width="70" height="22" transform={`translate(${330 - i * 20} ${438 - i * 4}) skewY(-22) skewX(28)`} fill="none" stroke="#CB792C" strokeWidth="2.5" />}
+              {i < 3 && <rect x="0" y="0" width="70" height="22" transform={`translate(${330 - i * 20} ${438 - i * 4}) skewY(-22) skewX(28)`} fill="none" stroke="#A31C1B" strokeWidth="2.5" />}
             </g>
           ))}
         </g>
         <g className="sc-fig-route">
-          <path d="M540 560 L930 560" stroke="#b8925a" strokeWidth="3" />
-          {Array.from({ length: 25 }, (_, k) => <path key={k} d={`M${540 + k * 16} 572 L${540 + k * 16} ${k % 6 ? 578 : 586}`} stroke="#b8925a" strokeWidth="1.2" opacity="0.7" />)}
+          <path d="M540 560 L930 560" stroke="#b5c7ba" strokeWidth="3" />
+          {Array.from({ length: 25 }, (_, k) => <path key={k} d={`M${540 + k * 16} 572 L${540 + k * 16} ${k % 6 ? 578 : 586}`} stroke="#b5c7ba" strokeWidth="1.2" opacity="0.7" />)}
           {milestones.map(([t, role, cond], i) => (
             <g key={t} transform={`translate(${560 + i * 88} 560)`}>
-              <circle r="11" fill={cond ? "none" : "#2c2823"} stroke="#b8925a" strokeWidth={cond ? 2 : 3} strokeDasharray={cond ? "4 3" : undefined} />
+              <circle r="11" fill={cond ? "none" : "#2c2823"} stroke="#b5c7ba" strokeWidth={cond ? 2 : 3} strokeDasharray={cond ? "4 3" : undefined} />
               <text y={i % 2 ? -26 : -44} className="sc-fig-label" textAnchor="middle">{t}</text>
               <text y={i % 2 ? 64 : 44} className="sc-fig-role" textAnchor="middle">{role}</text>
             </g>

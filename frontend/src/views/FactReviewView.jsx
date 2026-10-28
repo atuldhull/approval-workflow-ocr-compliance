@@ -1,3 +1,4 @@
+import {useInstrumentDepth} from '../product/depth.js';
 import { useRef, useState } from "react";
 import { api, newIdempotencyKey } from "../api.js";
 import { Icon } from "../components/Icons.jsx";
@@ -53,10 +54,11 @@ export default function FactReviewView({ who, me }) {
   if (docs.error) return <ErrorBox error={docs.error} onRetry={docs.reload} />;
 
   if (versions.length === 0) {
-    return <Empty>No document in your scope has a version that passed the malware scan, so there is nothing to review.</Empty>;
+    return <div className="fact-review"><EvidenceProtocol /><Empty>No document in your scope has a version that passed the malware scan, so there is nothing to review.</Empty></div>;
   }
   return (
     <div className="fact-review">
+      <EvidenceProtocol />
       <div className="toolbar">
         <label className="inline grow">
           Version to review
@@ -392,3 +394,11 @@ function ConfirmFact({ fact, who, onChanged }) {
   );
 }
 
+
+function EvidenceProtocol() {
+  const depth=useInstrumentDepth();
+  return <section ref={depth} className="evidence-protocol" aria-label="Evidence review protocol">
+    <header><span className="eyebrow">EVIDENCE DESK / REVIEW PROTOCOL</span><h2>Read independently. <br/>Confirm together.</h2><p>Process structure, not a claim of completed review.</p></header>
+    <ol><li><span>01</span><strong>Source document</strong><small>Only scan-cleared versions can enter review.</small></li><li><span>02</span><strong>Your reading first</strong><small>Commit before the machine proposal is revealed.</small></li><li><span>03</span><strong>A second officer</strong><small>Independent confirmation preserves four-eyes review.</small></li></ol>
+  </section>;
+}

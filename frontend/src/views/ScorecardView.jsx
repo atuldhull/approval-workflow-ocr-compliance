@@ -130,7 +130,7 @@ export default function ScorecardView({ who }) {
           const verdict = OUTCOME[item.outcome];
           const measuredTone = outcomeTone(item);
           return (
-            <article key={item.key} className={`score tone-${tone}`} role="listitem" aria-labelledby={`score-${item.key}`}>
+            <div key={item.key} className={`score tone-${tone}`} role="listitem" aria-labelledby={`score-${item.key}`}>
               <div className="score-check">
                 <h2 id={`score-${item.key}`}>{item.title}</h2>
                 <p className="badges"><Badge tone="neutral">{label}</Badge></p>
@@ -155,7 +155,7 @@ export default function ScorecardView({ who }) {
                     : <span className="muted small">{item.result ? "No verdict: a measurement" : "Not evaluated"}</span>}
                 {sourceUnverified(item) && <p className="muted small">Against an unverified transcription, not the official handbook.</p>}
               </div>
-            </article>
+            </div>
           );
         })}
       </div>

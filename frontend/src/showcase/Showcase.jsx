@@ -9,6 +9,7 @@ import Tour from "./Tour.jsx";
 import { Challenge, Deadlines, Evidence, WorkspaceReveal } from "./Chapters.jsx";
 import { isNarrow, rememberFlat, rememberedFlat, webglAvailable } from "./scroll.js";
 import "./showcase.css";
+import "./luxury.css";
 
 // #showcase                → top
 // #showcase/<chapter>      → that chapter (challenge, route, evidence, deadlines, audit, workspace)
@@ -113,8 +114,8 @@ export default function Showcase() {
 
   return (
     <div className={`sc-root${tour ? " has-tour" : ""}`} data-motion={reduced ? "reduced" : "full"} data-render={spatial ? "spatial" : "standard"}>
-      <a className="sc-skip" href="#content" onClick={(e) => { e.preventDefault(); enterWorkspace(); }}>Skip to the workspace</a>
       <header className="sc-bar">
+        <a className="sc-skip" href="#showcase-main" onClick={(e) => { e.preventDefault(); enterWorkspace(); }}>Skip to the workspace</a>
         <a className="sc-brand" href={SHOWCASE_HASH} onClick={(e) => { e.preventDefault(); go("top"); replaceHash(SHOWCASE_HASH); }}>
           <img src="/approval-mark.svg" alt="" width="22" height="26" />
           <span><strong>AICTE Approval Operations</strong><small>Workflow · OCR · Compliance</small></span>

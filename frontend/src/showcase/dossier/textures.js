@@ -96,7 +96,7 @@ export function drawSheet(index, W = 896) {
   ctx.textAlign = "left";
   ctx.font = `${44 * k}px ${SERIF}`;
   ctx.fillText(sheet.title, m, m + 70 * k);
-  ctx.fillStyle = "#5B4632"; ctx.fillRect(m, m + 96 * k, W - 2 * m, 3 * k);
+  ctx.fillStyle = "#263b2d"; ctx.fillRect(m, m + 96 * k, W - 2 * m, 3 * k);
   ctx.fillStyle = "rgba(42,35,26,0.35)"; ctx.fillRect(m, m + 104 * k, W - 2 * m, 1 * k);
 
   let y = m + 150 * k;
@@ -177,7 +177,7 @@ export function drawCover(W = 896) {
   const rand = rng(7);
   const k = W / 896;
   const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, "#6a523a"); g.addColorStop(1, "#4e3b29");
+  g.addColorStop(0, "#284b35"); g.addColorStop(1, "#153220");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   // board weave
   ctx.globalAlpha = 0.06;
@@ -194,12 +194,12 @@ export function drawCover(W = 896) {
   ctx.strokeStyle = "#3b2c1e"; ctx.lineWidth = 2 * k; ctx.strokeRect(m + 12 * k, 182 * k, W - 2 * m - 24 * k, 496 * k);
   ctx.fillStyle = "#2b2016"; ctx.font = `${50 * k}px ${SERIF}`;
   ctx.fillText("Application Dossier", m + 40 * k, 262 * k);
-  ctx.font = `600 ${14 * k}px ${MONO}`; ctx.fillStyle = "#5B4632";
+  ctx.font = `600 ${14 * k}px ${MONO}`; ctx.fillStyle = "#263b2d";
   ctx.fillText("ILLUSTRATIVE SAMPLE · INDEPENDENT PROTOTYPE", m + 40 * k, 298 * k);
   const rows = [["File no.", "SAMPLE-0000 · not an AICTE file number"], ["Subject", "New programme / level"], ["Institution", "Sample Institute of Technology"], ["Year", "2027–28"]];
   rows.forEach(([a, b], i) => {
     const yy = 370 * k + i * 76 * k;
-    ctx.fillStyle = "#5B4632"; ctx.font = `600 ${13 * k}px ${MONO}`; ctx.fillText(a.toUpperCase(), m + 40 * k, yy);
+    ctx.fillStyle = "#263b2d"; ctx.font = `600 ${13 * k}px ${MONO}`; ctx.fillText(a.toUpperCase(), m + 40 * k, yy);
     ctx.fillStyle = "#1f1710"; ctx.font = `${24 * k}px ${SANS}`; ctx.fillText(b, m + 200 * k, yy + 2 * k);
     ctx.fillStyle = "rgba(59,44,30,0.45)"; ctx.fillRect(m + 200 * k, yy + 16 * k, W - 2 * m - 250 * k, 1.5 * k);
   });
@@ -216,7 +216,7 @@ export function drawCover(W = 896) {
 export function drawBoard(W = 512) {
   const [c, ctx] = canvas(W, W);
   const rand = rng(3);
-  ctx.fillStyle = "#57432f"; ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = "#193422"; ctx.fillRect(0, 0, W, W);
   grain(ctx, W, W, rand, 0.08, 6000, true);
   grain(ctx, W, W, rand, 0.12, 6000);
   return c;
@@ -237,7 +237,7 @@ export function drawDivider(text, color, W = 512) {
 }
 
 // A printed label for a milestone or a role marker.
-export function drawLabel(title, caption = "", { W = 640, color = "#F4D9A0", sub = "#c5bba9" } = {}) {
+export function drawLabel(title, caption = "", { W = 640, color = "#e5e7dd", sub = "#c5bba9" } = {}) {
   const H = Math.round(W / 4);
   const [c, ctx] = canvas(W, H);
   // shrink to fit, so no label is ever cut off at the canvas edge

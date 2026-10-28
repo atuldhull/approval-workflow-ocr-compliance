@@ -17,8 +17,8 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { SHEET_COUNT, drawBoard, drawContactShadow, drawCover, drawDivider, drawLabel, drawSheet } from "./textures.js";
 
 const C = {
-  mocha: 0x5b4632, champagne: 0xf4d9a0, amber: 0xcb792c, ink: 0x141310,
-  paper: 0xe9dfca, brass: 0xb8925a, stone: 0x2c2823, teal: 0x5aa39b, graphite: 0x23211d,
+  mocha: 0x183b29, champagne: 0xe3e8db, amber: 0xa31c1b, ink: 0x06110c,
+  paper: 0xe8e6dc, brass: 0xb9c8bc, stone: 0x171717, teal: 0x8bb79e, graphite: 0x252a26,
 };
 
 const smooth = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -117,11 +117,11 @@ export function buildDossierScene(renderer, { narrow = false } = {}) {
   scene.environmentIntensity = 0.32;
 
   // a soft spot pool over the dossier gives the product-shot falloff; the directional key carries the shadows
-  const pool = new THREE.SpotLight(0xffe0b0, 26, 0, 0.42, 0.95, 1.1);
+  const pool = new THREE.SpotLight(0xe3eadb, 26, 0, 0.42, 0.95, 1.1);
   pool.position.set(-2.4, 9.5, 4.2);
   pool.target.position.set(0.2, 0, 0.1);
   scene.add(pool, pool.target);
-  const key = new THREE.DirectionalLight(0xffe2b8, 1.6);
+  const key = new THREE.DirectionalLight(0xedf1e7, 1.6);
   key.position.set(-4.2, 8.5, 5.2);
   key.castShadow = true;
   key.shadow.mapSize.set(narrow ? 1024 : 2048, narrow ? 1024 : 2048);
@@ -131,7 +131,7 @@ export function buildDossierScene(renderer, { narrow = false } = {}) {
   Object.assign(key.shadow.camera, { left: -5, right: 9, top: 6, bottom: -6, near: 1, far: 30 });
   scene.add(key, key.target);
   key.target.position.set(1.5, 0, 0);
-  const fill = new THREE.HemisphereLight(0xcfd6d2, 0x1b1712, 0.35);
+  const fill = new THREE.HemisphereLight(0xcfd6d2, 0x06110c, 0.35);
   const rim = new THREE.DirectionalLight(C.amber, 2.4);
   rim.position.set(5, 2.4, -6);
   scene.add(fill, rim);
@@ -162,7 +162,7 @@ export function buildDossierScene(renderer, { narrow = false } = {}) {
   // dividers: section cards with side tabs, sitting in the folder between sheet groups
   const dividerMats = [
     mat({ color: 0xffffff, map: tex(drawDivider("PART B", "#3c5a55")), roughness: 0.8 }),
-    mat({ color: 0xffffff, map: tex(drawDivider("PART D", "#9a7843")), roughness: 0.8 }),
+    mat({ color: 0xffffff, map: tex(drawDivider("PART D", "#a31c1b")), roughness: 0.8 }),
   ];
   const dividers = [0.95, 0.15].map((a, i) => {
     const g = geo(new THREE.ExtrudeGeometry(roundedRect(SW + 0.04, SH + 0.02, 0.03, { side: "right", a: a - 0.42 + i * 0.1, b: a + i * 0.1, d: 0.16 }), { depth: 0.006, bevelEnabled: false, curveSegments: 4 }));

@@ -98,7 +98,7 @@ function ObligationTimeline({ state, openId, onOpen }) {
                 <button key={o.id} className={`axis-mark tone-${TIMELINE_TONE[o.status] ?? "neutral"}${openId === o.id ? " is-selected" : ""}`}
                   aria-pressed={openId === o.id} onClick={() => onOpen(o.id)}
                   aria-label={`${sentence(o.kind)}, case ${internalRef(o.application_id)}, due ${dateIST(o.due_date)}, ${obligationStatusOf(o.status).label}`}>
-                  {sentence(o.kind)} <code>{internalRef(o.application_id)}</code>
+                  {sentence(o.kind)}, case <code>{internalRef(o.application_id)}</code>
                 </button>
               ))}
             </span>

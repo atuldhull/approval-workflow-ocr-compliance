@@ -1,0 +1,8 @@
+import {useId} from 'react';
+import {stageLabel} from '../components/RouteJourney.jsx';
+// The sculpture is a second, decorative reading of the supplied route; controls remain in the register.
+export function DossierSculpture({route=[],current,label='PRESCRIBED ROUTE'}) {
+ const uid=useId().replaceAll(':','');
+ return <div className="dossier-sculpture" aria-hidden="true"><div className="dossier-halo"/><svg viewBox="0 0 600 400" className="dossier-geometry"><defs><linearGradient id={uid} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#9da99c"/><stop offset=".18" stopColor="#354b3c"/><stop offset=".65" stopColor="#102218"/><stop offset="1" stopColor="#06110c"/></linearGradient><linearGradient id={uid+'red'}><stop stopColor="#df6b59"/><stop offset=".4" stopColor="#a31c1b"/><stop offset="1" stopColor="#3c0d0d"/></linearGradient></defs><ellipse cx="320" cy="338" rx="210" ry="30" fill="#000" opacity=".45"/>{route.slice(0,8).map((s,i)=><g key={s.stage} className="dossier-leaf" style={{'--leaf':i}} transform={`translate(${100+i*28} ${100-i*7}) rotate(-24 100 120)`}><path d="M0 0H105L122 16H170V242H0Z" fill={`url(#${uid})`} stroke="#829181" strokeWidth=".8"/><path d="M0 0H105L122 16H170V30H0Z" fill={s.stage===current?`url(#${uid}red)`:'#435d49'}/><text x="13" y="55" fill="#e6e9dc" fontSize="10" fontFamily="monospace">{String(i+1).padStart(2,'0')} / {stageLabel(s.stage)}</text>{[80,98,116,134,152,190,208].map(y=><path key={y} d={`M14 ${y}H${y===152?90:150}`} stroke="#869a83" strokeWidth=".7" opacity=".6"/>)}{s.stage===current&&<text x="14" y="231" fill="#f7d1c4" fontSize="9" fontFamily="monospace">RECORDED POSITION</text>}</g>)}</svg><span className="sculpture-caption">{label} / MATERIAL STUDY<br/>Layers represent stages, not completed work.</span></div>
+}
+
