@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 
 from app.compliance import service
-from app.compliance.rules import obligations_for
+from app.compliance.rules import OBLIGATIONS_BY_LETTER, obligations_for
 from app.documents.models import DocumentVersion, Fact
 from app.platform.registry import port
 from contracts.enums import LetterType, ObligationKind
@@ -48,7 +48,8 @@ def kinds(letter):
 
 
 def test_obligation_templates_per_letter_type():
-    assert kinds(replace(LETTER, letter_type=LetterType.LOA)) == [ObligationKind.DEPOSIT, ObligationKind.AFFIDAVIT]
+    assert kinds(replace(LETTER, letter_type=LetterType.LOA)) == [
+        ObligationKind.DEPOSIT, ObligationKind.AFFIDAVIT, ObligationKind.UNDERTAKING]
     assert kinds(LETTER) == [ObligationKind.LETTER_CONDITION]
     assert kinds(replace(LETTER, lists_deficiencies=False)) == []
     for other in (LetterType.LOD, LetterType.LOR, LetterType.CORRIGENDUM):
@@ -57,10 +58,17 @@ def test_obligation_templates_per_letter_type():
 
 def test_every_template_rule_exists_in_the_default_ruleset(client):
     rules = port(RulesetPort).get(port(RulesetPort).default_key()).deadline_rules
-    for rule_id in ("LOA_DEPOSIT_AFFIDAVIT_15D", "NO_ADMISSION_AFFIDAVIT_7D", "LOA_VALIDITY_2Y", "EOA_DEFICIENCY_6M"):
+    for rule_id in ("DEPOSIT_15D", "AFFIDAVIT3_REMAINING_1M", "NO_ADMISSION_AFFIDAVIT_7D", "LOA_VALIDITY_2Y",
+                    "EOA_DEFICIENCY_6M"):
         assert rules[rule_id].duration is not None
-    for rule_id in ("LOA_DEPOSIT_AFFIDAVIT_15D", "NO_ADMISSION_AFFIDAVIT_7D", "LOA_VALIDITY_2Y"):
-        assert rules[rule_id].source_status == "demo_assumption"
+    # official APH values, each with its clause
+    assert {r: (rules[r].source_status, rules[r].clause) for r in (
+        "DEPOSIT_15D", "AFFIDAVIT3_REMAINING_1M", "NO_ADMISSION_AFFIDAVIT_7D", "LOA_VALIDITY_2Y")} == {
+        "DEPOSIT_15D": ("verified", "2.25(f)"), "AFFIDAVIT3_REMAINING_1M": ("verified", "Affidavit 3 item 5"),
+        "NO_ADMISSION_AFFIDAVIT_7D": ("verified", "1.10(b)(i)"), "LOA_VALIDITY_2Y": ("verified", "1.10(b)(ii)")}
+    # the earlier demo rule is no longer opened but still resolves for clocks opened under it
+    assert rules["LOA_DEPOSIT_AFFIDAVIT_15D"].source_status == "demo_assumption"
+    assert all(t.rule_id != "LOA_DEPOSIT_AFFIDAVIT_15D" for ts in OBLIGATIONS_BY_LETTER.values() for t in ts)
 
 
 def test_a_confirmed_fact_provides_the_issue_date():

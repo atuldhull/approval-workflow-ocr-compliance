@@ -563,8 +563,8 @@ def test_an_obligation_alert_names_the_application_it_belongs_to(env):
         obligations = {o.id: o for o in s.scalars(select(Obligation)).all()}
     traced = [a for a in env.get("/api/alerts", headers=AUDITOR).json() if a["subject_type"] == "obligation"]
     assert traced, "the overdue demo obligation raised no alert"
-    # five days overdue: reminder, breach and the first escalation have all been raised for the demo
-    assert {a["level"] for a in traced} == {0, 1, 2}
+    # five days overdue: the deposit rule's three reminders, the breach and the first escalation have been raised
+    assert {a["level"] for a in traced} == {0, 1, 2, 3, 4}
     assert {a["role"] for a in traced} == {"INSTITUTION", "RO_OFFICER", "BUREAU_OFFICER"}
     for a in traced:
         o = obligations[UUID(a["subject_id"])]

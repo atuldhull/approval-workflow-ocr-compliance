@@ -6,16 +6,17 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.compliance import service
+from app.compliance import service, validity
 from app.compliance.models import ApprovalLetter, Evidence, Obligation
 from app.deadlines.models import Deadline
+from app.documents.models import DocumentVersion
 from app.platform.auth import current_principal
 from app.platform.db import new_session
 from app.platform.idempotency import idempotency_key, idempotent_response
 from app.platform.registry import port
 from contracts.enums import DeadlineStatus, LetterType, ObligationKind, Role
 from contracts.errors import NotFound
-from contracts.ports import AuthzPort, CasePort
+from contracts.ports import AuthzPort, CasePort, RulesetPort
 from contracts.types import LetterIn, Principal, ResourceRef
 
 router = APIRouter(tags=["compliance"])
@@ -85,6 +86,44 @@ class ObligationOut(BaseModel):
     # read from the obligation's clock: RUNNING, BREACHED, MET, ...; overdue = its clock ran out and it is not met
     deadline_status: str | None = None
     overdue: bool = False
+    # DOCUMENT_VALIDITY: the document version, the date it is valid until and where that date comes from
+    # (DOCUMENT_FACT, OFFICER_RECORDED, APH_PERIOD); validity_state is VALID, EXPIRING_SOON, EXPIRED,
+    # RENEWAL_UNDER_REVIEW or RENEWED, and days_left counts from today on the system clock
+    document_id: UUID | None = None
+    document_version_id: UUID | None = None
+    document_version_no: int | None = None
+    doc_type: str | None = None
+    valid_until: str | None = None
+    validity_basis: str | None = None
+    validity_state: str | None = None
+    days_left: int | None = None
+    # land lease only: first academic year an EoA is blocked (APH 2.1(e)) and whether the live lease covered the
+    # longest course when the application was submitted (6.17(a))
+    eoa_stop_year: str | None = None
+    live_lease_ok: bool | None = None
+    # an obligation an officer recorded: what it asks for and the evidence that meets it
+    title: str | None = None
+    evidence_required: str | None = None
+    # penalty tiers the rule lists, for the competent authority; never applied by the system
+    penalty_notes: list[str] = []
+
+
+class ObligationRecordIn(BaseModel):
+    application_id: UUID
+    kind: ObligationKind
+    title: str = Field(min_length=1, max_length=200)
+    evidence_required: str = Field(min_length=1, max_length=500)
+    source_clause: str | None = Field(default=None, max_length=32)
+    due_date: date | None = None
+    rule_id: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]*$")
+    anchor_date: date | None = None
+
+
+class ValidityRecordIn(BaseModel):
+    document_version_id: UUID
+    valid_until: date | None = None
+    issue_date: date | None = None
+    max_course_duration_years: int | None = Field(default=None, ge=1, le=10)
 
 
 class LetterOut(BaseModel):
@@ -116,14 +155,40 @@ def _evidence_out(e: Evidence) -> EvidenceOut:
                        verified_at=_iso(e.verified_at), reason_code=e.reason_code, has_note=e.note_ref is not None)
 
 
-def _obligation_out(o: Obligation, evidence: list[Evidence] = (), clock: str | None = None) -> ObligationOut:
+class _Reading:
+    """What every obligation in one response is read against: today on the system clock and the pinned rules."""
+
+    def __init__(self, session, obligations):
+        rules = port(RulesetPort).get(port(RulesetPort).default_key()).deadline_rules
+        self.today, self.window, self.rules = service._today(), validity.expiring_window_days(), rules
+        ids = [o.document_version_id for o in obligations if o.document_version_id is not None]
+        self.version_no = dict(session.execute(select(DocumentVersion.document_version_id, DocumentVersion.version_no)
+                                               .where(DocumentVersion.document_version_id.in_(ids))).all()) if ids else {}
+
+
+def _obligation_out(o: Obligation, reading: _Reading, evidence: list[Evidence] = (),
+                    clock: str | None = None) -> ObligationOut:
+    is_validity = o.kind == ObligationKind.DOCUMENT_VALIDITY and o.valid_until is not None
     return ObligationOut(
         id=o.id, application_id=o.application_id, institution_id=o.institution_id, region=o.region, kind=o.kind,
         source_letter_id=o.source_letter_id, source_clause=o.source_clause, source_status=o.source_status,
         state_origin=o.state_origin, rule_id=o.rule_id, deadline_id=o.deadline_id, due_date=_iso(o.due_date),
         status=o.status, met_at=_iso(o.met_at), evidence=[_evidence_out(e) for e in evidence],
         deadline_status=clock, overdue=clock == DeadlineStatus.BREACHED and o.status != "MET",
+        document_id=o.document_id, document_version_id=o.document_version_id,
+        document_version_no=reading.version_no.get(o.document_version_id), doc_type=o.doc_type,
+        valid_until=_iso(o.valid_until), validity_basis=o.validity_basis,
+        validity_state=validity.validity_state(o, reading.today, reading.window) if is_validity else None,
+        days_left=(o.valid_until - reading.today).days if is_validity else None,
+        eoa_stop_year=o.eoa_stop_year, live_lease_ok=o.live_lease_ok, title=o.title,
+        evidence_required=o.evidence_required, penalty_notes=service.penalty_notes(reading.rules.get(o.rule_id)),
     )
+
+
+def _read_one(session, o: Obligation) -> ObligationOut:
+    evidence = session.scalars(select(Evidence).where(Evidence.obligation_id == o.id)
+                               .order_by(Evidence.submitted_at, Evidence.id)).all()
+    return _obligation_out(o, _Reading(session, [o]), evidence, _clocks(session, [o]).get(o.deadline_id))
 
 
 def _clocks(session, obligations) -> dict[UUID, str]:
@@ -195,12 +260,14 @@ def get_letter(letter_id: UUID, principal: Principal = Depends(current_principal
 
 @router.get("/compliance/obligations", response_model=list[ObligationOut])
 def list_obligations(application_id: UUID | None = None, region: str | None = None, status: str | None = None,
-                     principal: Principal = Depends(current_principal)):
+                     kind: ObligationKind | None = None, principal: Principal = Depends(current_principal)):
     with new_session() as session:
         filters = _scope(session, principal, application_id, region)
         q = select(Obligation).filter_by(**filters).order_by(Obligation.due_date.nulls_last(), Obligation.id)
         if status:
             q = q.where(Obligation.status == status)
+        if kind:
+            q = q.where(Obligation.kind == kind)
         obligations = session.scalars(q).all()
         # each row carries its evidence, as the single read does, so a list never shows "none submitted" for a met one
         evidence: dict[UUID, list[Evidence]] = {o.id: [] for o in obligations}
@@ -209,7 +276,8 @@ def list_obligations(application_id: UUID | None = None, region: str | None = No
                                      .order_by(Evidence.submitted_at, Evidence.id)):
                 evidence[e.obligation_id].append(e)
         clocks = _clocks(session, obligations)
-        return [_obligation_out(o, evidence[o.id], clocks.get(o.deadline_id)) for o in obligations]
+        reading = _Reading(session, obligations)
+        return [_obligation_out(o, reading, evidence[o.id], clocks.get(o.deadline_id)) for o in obligations]
 
 
 @router.get("/compliance/obligations/{obligation_id}", response_model=ObligationOut)
@@ -219,9 +287,29 @@ def get_obligation(obligation_id: UUID, principal: Principal = Depends(current_p
         if o is None:
             raise NotFound("obligation not found")
         port(AuthzPort).check(principal, "compliance.read", service.resource(o))
-        evidence = session.scalars(select(Evidence).where(Evidence.obligation_id == o.id)
-                                   .order_by(Evidence.submitted_at, Evidence.id)).all()
-        return _obligation_out(o, evidence, _clocks(session, [o]).get(o.deadline_id))
+        return _read_one(session, o)
+
+
+@router.post("/compliance/obligations", response_model=ObligationOut, status_code=status.HTTP_201_CREATED)
+def record_obligation(body: ObligationRecordIn, principal: Principal = Depends(current_principal),
+                      key: str | None = Depends(idempotency_key)):
+    """An officer records an undertaking (or another obligation) with its clause, due date or rule, and the
+    evidence that meets it."""
+    return idempotent_response(
+        principal, key, "POST", "/compliance/obligations", {}, body.model_dump(mode="json"),
+        lambda uow: (uow.session, service.record_obligation(uow, **body.model_dump())),
+        lambda r: _read_one(*r).model_dump(mode="json"), status_code=201)
+
+
+@router.post("/compliance/validity", response_model=ObligationOut, status_code=status.HTTP_201_CREATED)
+def record_validity(body: ValidityRecordIn, principal: Principal = Depends(current_principal),
+                    key: str | None = Depends(idempotency_key)):
+    """An officer records the date a document version is valid until (or its issue date, for a document the APH
+    gives a validity period); this opens its DOCUMENT_VALIDITY obligation."""
+    return idempotent_response(
+        principal, key, "POST", "/compliance/validity", {}, body.model_dump(mode="json"),
+        lambda uow: (uow.session, validity.record_validity(uow, **body.model_dump())),
+        lambda r: _read_one(*r).model_dump(mode="json"), status_code=201)
 
 
 @router.post("/compliance/obligations/{obligation_id}/evidence", response_model=EvidenceOut,

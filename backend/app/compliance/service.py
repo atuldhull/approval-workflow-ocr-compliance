@@ -8,13 +8,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from app.compliance.models import ApprovalLetter, Evidence, Obligation
-from app.compliance.rules import LETTER_VALIDITY_RULES, obligations_for
-from app.compliance.vocab import Decision, ObligationStatus, RejectionReason
+from app.compliance.rules import LETTER_VALIDITY_RULES, RECORDED_DUE_DATE_RULE, obligations_for
+from app.compliance.vocab import Decision, ObligationStatus, RejectionReason, StateOrigin
 from app.deadlines.models import Deadline
 from app.documents.models import DocumentVersion, Fact
 from app.platform.models import CaseNote
 from app.platform.registry import port
-from contracts.enums import DeadlineStatus, FactState, LetterType, Role
+from contracts.enums import DeadlineStatus, FactState, LetterType, ObligationKind, Role
 from contracts.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from contracts.ports import AuthzPort, CasePort, ClockPort, DeadlinePort, LedgerPort, NotesPort, RulesetPort, UnitOfWork
 from contracts.types import Anchor, CaseRef, EventIn, LetterIn, Principal, ResourceRef, SubjectRef
@@ -173,21 +173,31 @@ def register_letter(uow: UnitOfWork, letter: LetterIn) -> ApprovalLetter:
 
 def _create_obligation(uow: UnitOfWork, letter: ApprovalLetter, kind: str, rule_id: str, clause: str | None,
                        source_status: str, origin: str, anchor: Anchor, key: str) -> Obligation:
-    ob = Obligation(
+    return add_obligation(uow, Obligation(
         application_id=letter.application_id, institution_id=letter.institution_id, region=letter.region,
         kind=kind, source_letter_id=letter.id, source_clause=clause, source_status=source_status,
         state_origin=origin, rule_id=rule_id, status=ObligationStatus.OPEN, created_at=port(ClockPort).now(),
-    )
+    ), anchor, key)
+
+
+def add_obligation(uow: UnitOfWork, ob: Obligation, anchor: Anchor, key: str) -> Obligation:
+    """Stores a new obligation, opens the clock of its rule from `anchor` and records cmp.obligation_created v2
+    (v1 schemas stay for events written before the document and validity fields existed)."""
     uow.session.add(ob)
     uow.session.flush()
-    ob.deadline_id, ob.due_date = _open_clock(uow, SubjectRef("obligation", ob.id), rule_id, anchor, key)
+    ob.deadline_id, ob.due_date = _open_clock(uow, SubjectRef("obligation", ob.id), ob.rule_id, anchor, key)
     uow.session.flush()
     port(LedgerPort).append(uow, EventIn(
-        aggregate_type="obligation", aggregate_id=ob.id, event_type="cmp.obligation_created", ruleset_rev=key,
+        aggregate_type="obligation", aggregate_id=ob.id, event_type="cmp.obligation_created", event_version=2,
+        ruleset_rev=key,
         payload={"obligation_id": ob.id, "application_id": ob.application_id, "institution_id": ob.institution_id,
                  "kind": ob.kind, "source_letter_id": ob.source_letter_id, "source_clause": ob.source_clause,
                  "source_status": ob.source_status, "state_origin": ob.state_origin, "rule_id": ob.rule_id,
-                 "deadline_id": ob.deadline_id, "due_date": ob.due_date.isoformat() if ob.due_date else None},
+                 "deadline_id": ob.deadline_id, "due_date": ob.due_date.isoformat() if ob.due_date else None,
+                 "document_id": ob.document_id, "document_version_id": ob.document_version_id,
+                 "doc_type": ob.doc_type, "valid_until": ob.valid_until.isoformat() if ob.valid_until else None,
+                 "validity_basis": ob.validity_basis, "eoa_stop_year": ob.eoa_stop_year,
+                 "live_lease_ok": ob.live_lease_ok},
     ))
     return ob
 
@@ -210,6 +220,10 @@ def submit_evidence(uow: UnitOfWork, obligation_id: UUID, document_version_id: U
         raise ValidationFailed("document_version_id is not a document of this obligation's application")
     if version.status not in EVIDENCE_READY_STATUSES:
         raise ValidationFailed(f"document version is {version.status}; only scanner-approved versions can be evidence")
+    if ob.kind == ObligationKind.DOCUMENT_VALIDITY:
+        # a renewal is a newer version of the same document; its expiry is read and confirmed like any fact
+        if version.document_id != ob.document_id or version.document_version_id == ob.document_version_id:
+            raise ValidationFailed("a renewal must be a new version of the same document")
     if session.scalar(select(Evidence.id).where(Evidence.obligation_id == ob.id,
                                                 Evidence.document_version_id == version.document_version_id)):
         raise Conflict("this document version was already submitted for this obligation")
@@ -286,6 +300,11 @@ def verify_evidence(uow: UnitOfWork, evidence_id: UUID, decision: str, reason_co
                  "institution_id": ob.institution_id, "decision": ev.status, "reason_code": ev.reason_code,
                  "obligation_status": ob.status},
     ))
+    if decision == Decision.ACCEPTED and ob.kind == ObligationKind.DOCUMENT_VALIDITY:
+        from app.compliance import validity  # validity builds on this module
+
+        # the accepted renewal opens the next validity record from its own confirmed expiry date
+        validity.renewal_accepted(uow, ev.document_version_id)
     return ev
 
 
@@ -329,3 +348,86 @@ def _close_clock(uow: UnitOfWork, ob: Obligation) -> None:
     # dl.deadline_breached event stays in the ledger; closing it also stops its escalation
     if live is not None:
         port(DeadlinePort).close(uow, SubjectRef("obligation", ob.id), ob.rule_id, DeadlineStatus.MET)
+
+
+# ---- obligations an officer records ----
+
+CLAUSE = re.compile(r"^[0-9A-Za-z.()/ -]{1,32}$")
+MAX_TITLE, MAX_EVIDENCE_REQUIRED = 200, 500
+RECORDABLE_KINDS = frozenset(ObligationKind) - {ObligationKind.DOCUMENT_VALIDITY}
+
+
+def record_obligation(uow: UnitOfWork, application_id: UUID, kind: str, title: str, evidence_required: str,
+                      source_clause: str | None = None, due_date: date | None = None, rule_id: str | None = None,
+                      anchor_date: date | None = None) -> Obligation:
+    """An authorised officer records an undertaking (or another obligation) for a case: the clause it comes from,
+    what it asks, the evidence that meets it, and either the due date it states or a recordable rule that times it
+    from `anchor_date` (default today). Document validity is recorded against a document version instead."""
+    session = uow.session
+    case: CaseRef = port(CasePort).lookup(session, application_id)
+    port(AuthzPort).check(uow.principal, "compliance.obligation.record",
+                          ResourceRef("compliance", owner_institution_id=case.institution_id, region=case.region))
+    try:
+        kind = ObligationKind(kind)
+    except ValueError:
+        raise ValidationFailed(f"unknown obligation kind {kind}") from None
+    if kind not in RECORDABLE_KINDS:
+        raise ValidationFailed("document validity is recorded against a document version, not here")
+    title, evidence_required = (title or "").strip(), (evidence_required or "").strip()
+    if not title or len(title) > MAX_TITLE:
+        raise ValidationFailed(f"title is required, up to {MAX_TITLE} characters")
+    if not evidence_required or len(evidence_required) > MAX_EVIDENCE_REQUIRED:
+        raise ValidationFailed(f"evidence_required is required, up to {MAX_EVIDENCE_REQUIRED} characters")
+    if (due_date is None) == (rule_id is None):
+        raise ValidationFailed("give exactly one of due_date or rule_id")
+
+    key = port(RulesetPort).default_key()
+    rules = port(RulesetPort).get(key).deadline_rules
+    today = _today()
+    if rule_id is not None:
+        rule = rules.get(rule_id)
+        if rule is None or not rule.extra.get("recordable") or rule.duration is None:
+            recordable = sorted(r.id for r in rules.values() if r.extra.get("recordable"))
+            raise ValidationFailed(f"rule_id must be one of the recordable rules {recordable}")
+        anchor_day = anchor_date or today
+        if anchor_day > today:
+            raise ValidationFailed("anchor_date is in the future")
+    else:
+        rule = rules.get(RECORDED_DUE_DATE_RULE)
+        if rule is None:
+            raise ValidationFailed(f"no deadline rule {RECORDED_DUE_DATE_RULE} in {key}")
+        if anchor_date is not None:
+            raise ValidationFailed("anchor_date goes with rule_id; a stated due date is its own anchor")
+        if due_date < today:
+            raise ValidationFailed("due_date is in the past")
+        anchor_day = due_date
+    clause = (source_clause or "").strip() or rule.clause
+    if not clause or not CLAUSE.match(clause):
+        raise ValidationFailed("source_clause is required: up to 32 letters, digits, spaces and . ( ) / -")
+
+    return add_obligation(uow, Obligation(
+        application_id=case.application_id, institution_id=case.institution_id, region=case.region, kind=kind,
+        source_clause=clause, source_status=rule.source_status, state_origin=StateOrigin.OFFICER_CONFIRMED,
+        rule_id=rule.id, status=ObligationStatus.OPEN, created_at=port(ClockPort).now(), title=title,
+        evidence_required=evidence_required, recorded_by=uow.principal.user_id,
+    ), _anchor(anchor_day, None), key)
+
+
+def penalty_notes(rule) -> list[str]:
+    """APH penalty tiers a rule lists, as notes for the competent authority. The system never applies them."""
+    tiers = (rule.extra.get("penalty_tiers") or []) if rule is not None else []
+    if not tiers:
+        return []
+    month = {f"{m:02d}": n for m, n in enumerate(
+        ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+         "November", "December"), start=1)}
+
+    def day(md: str) -> str:
+        return f"{int(md[3:])} {month.get(md[:2], md[:2])}"
+
+    clause = f" (cl. {rule.clause})" if rule.clause else ""
+    notes = [f"If late: {t['pct']}% penalty up to {day(str(t['until']))}{clause}" for t in tiers]
+    if rule.extra.get("beyond_last_tier") == "approval_withdrawn":
+        notes.append(f"After {day(str(tiers[-1]['until']))} the approval is withdrawn{clause}")
+    notes.append("For the competent authority to decide; this system does not apply penalties")
+    return notes

@@ -109,25 +109,33 @@ def obligation_of(client, letter, kind, h=BUREAU):
 
 # ---- registration ----
 
-def test_loa_creates_deposit_and_affidavit_obligations_with_due_dates(client, loa):
+def test_loa_creates_deposit_affidavit_and_affidavit3_obligations_with_due_dates(client, loa):
     app_id, letter = loa
     assert letter["letter_type"] == "LOA" and letter["region"] == "Southern"
-    assert letter["valid_until"] == "2027-08-31"  # 24 months, demo assumption
-    assert len(letter["obligation_ids"]) == 2
+    assert letter["valid_until"] == "2027-08-31"  # two academic years (cl. 1.10(b)(ii)), counted as 24 months
+    assert len(letter["obligation_ids"]) == 3
     for kind in ("DEPOSIT", "AFFIDAVIT"):
         o = obligation_of(client, letter, kind)
         assert o["due_date"] == "2025-09-15"  # issue date + 15 calendar days
-        assert o["rule_id"] == "LOA_DEPOSIT_AFFIDAVIT_15D"
-        assert o["source_status"] == "demo_assumption" and o["source_clause"] == "1.12"
+        assert o["rule_id"] == "DEPOSIT_15D"
+        assert o["source_status"] == "verified" and o["source_clause"] == "2.25(f)"
         assert o["state_origin"] == "RULE_DEFAULT" and o["status"] == "OPEN"
         assert o["source_letter_id"] == letter["id"]
+        # the penalty tiers are shown as notes for the competent authority, never applied
+        assert o["penalty_notes"][:2] == ["If late: 10% penalty up to 31 May (cl. 2.25(f))",
+                                          "If late: 20% penalty up to 31 July (cl. 2.25(f))"]
+        assert "does not apply penalties" in o["penalty_notes"][-1]
+    o = obligation_of(client, letter, "UNDERTAKING")
+    assert (o["rule_id"], o["due_date"], o["source_status"], o["source_clause"], o["penalty_notes"]) == (
+        "AFFIDAVIT3_REMAINING_1M", "2025-09-30", "verified", "Affidavit 3 item 5", [])
     with new_session() as s:
         clocks = s.scalars(select(Deadline).order_by(Deadline.rule_id)).all()
     assert sorted((d.subject_type, d.rule_id) for d in clocks) == [
-        ("approval_letter", "LOA_VALIDITY_2Y"), ("obligation", "LOA_DEPOSIT_AFFIDAVIT_15D"),
-        ("obligation", "LOA_DEPOSIT_AFFIDAVIT_15D")]
-    assert [e.event_type for e in events()] == [
-        "cmp.letter_registered", "cmp.obligation_created", "cmp.obligation_created"]
+        ("approval_letter", "LOA_VALIDITY_2Y"), ("obligation", "AFFIDAVIT3_REMAINING_1M"),
+        ("obligation", "DEPOSIT_15D"), ("obligation", "DEPOSIT_15D")]
+    found = events()
+    assert [e.event_type for e in found] == ["cmp.letter_registered"] + ["cmp.obligation_created"] * 3
+    assert {e.event_version for e in found[1:]} == {2}
 
 
 def test_eoa_listing_deficiencies_creates_the_six_month_condition(client):
@@ -427,7 +435,8 @@ def test_demo_letters_are_dated_from_the_demo_clock_with_one_overdue(client):
         assert len(letters) == 3 and all(f.startswith("F.No. DEMO-SEED/") for f in letters)
         overdue = 0
         for f_no, a in letters.items():
-            due = {o.due_date for o in s.scalars(select(Obligation).where(Obligation.source_letter_id == a.id))}
+            due = {o.due_date for o in s.scalars(select(Obligation).where(
+                Obligation.source_letter_id == a.id, Obligation.kind.in_(("DEPOSIT", "AFFIDAVIT"))))}
             assert len(due) == 1 and a.issue_date <= today
             if "OVERDUE" in f_no:
                 overdue += 1
@@ -459,7 +468,7 @@ def test_caller_rollback_removes_letter_obligations_clocks_and_events_together(c
     with pytest.raises(RuntimeError):
         with unit_of_work(officer) as uow:
             port(CompliancePort).register_letter(uow, letter)
-            assert uow.session.scalar(select(func.count()).select_from(Obligation)) == 2
+            assert uow.session.scalar(select(func.count()).select_from(Obligation)) == 3
             raise RuntimeError("caller fails after registering")
     assert count(ApprovalLetter) == 0 and count(Obligation) == 0 and count(Deadline) == 0
     assert len(events("")) == before

@@ -21,6 +21,9 @@ ISSUE_DATE_SOURCES = ("PORTAL_EVENT", "CONFIRMED_FACT")
 OBLIGATION_KINDS = ("UNDERTAKING", "AFFIDAVIT", "LETTER_CONDITION", "DEPOSIT", "DOCUMENT_VALIDITY", "RECURRING_FILING")
 SOURCE_STATUSES = ("verified", "verified_letter_text", "demo_assumption")
 STATE_ORIGINS = ("OFFICER_CONFIRMED", "RULE_DEFAULT")
+# where a DOCUMENT_VALIDITY obligation's expiry date comes from: a fact two officers confirmed from the document,
+# an officer recording it, or a period the APH sets counted from the document's issue date
+VALIDITY_BASES = ("DOCUMENT_FACT", "OFFICER_RECORDED", "APH_PERIOD")
 OBLIGATION_STATUSES = ("OPEN", "EVIDENCE_SUBMITTED", "MET")
 EVIDENCE_STATUSES = ("SUBMITTED", "ACCEPTED", "REJECTED")
 
@@ -93,8 +96,25 @@ class Obligation(Base):
             "(status = 'MET') = (met_evidence_id IS NOT NULL AND met_at IS NOT NULL AND met_by IS NOT NULL)",
             name="ck_cmp_obligation_met",
         ),
+        CheckConstraint("validity_basis IS NULL OR " + _in("validity_basis", VALIDITY_BASES),
+                        name="ck_cmp_obligation_validity_basis"),
+        # a validity record names the document version, its type and the date it is valid until
+        CheckConstraint(
+            "kind <> 'DOCUMENT_VALIDITY' OR (document_id IS NOT NULL AND document_version_id IS NOT NULL "
+            "AND doc_type IS NOT NULL AND valid_until IS NOT NULL AND validity_basis IS NOT NULL)",
+            name="ck_cmp_obligation_document_validity",
+        ),
+        CheckConstraint("validity_basis IS DISTINCT FROM 'DOCUMENT_FACT' OR validity_fact_id IS NOT NULL",
+                        name="ck_cmp_obligation_validity_fact"),
+        CheckConstraint("eoa_stop_year IS NULL OR eoa_stop_year ~ '^[0-9]{4}-[0-9]{2}$'",
+                        name="ck_cmp_obligation_eoa_stop_year"),
         Index("uq_cmp_obligation_letter_kind", "source_letter_id", "kind", unique=True,
               postgresql_where=text("source_letter_id IS NOT NULL")),
+        # one validity record per document version, and one still to be met per document of an application
+        Index("uq_cmp_obligation_validity_version", "document_version_id", unique=True,
+              postgresql_where=text("kind = 'DOCUMENT_VALIDITY'")),
+        Index("uq_cmp_obligation_validity_live", "application_id", "doc_type", unique=True,
+              postgresql_where=text("kind = 'DOCUMENT_VALIDITY' AND status <> 'MET'")),
         Index("ix_cmp_obligation_application", "application_id", "created_at"),
         Index("ix_cmp_obligation_region_status", "region", "status"),
         {"schema": SCHEMA},
@@ -121,6 +141,24 @@ class Obligation(Base):
     met_evidence_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     met_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     met_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # DOCUMENT_VALIDITY: the document version it is about, the date it is valid until and where that comes from
+    document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("doc.document.document_id", ondelete="RESTRICT"))
+    document_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("doc.document_version.document_version_id", ondelete="RESTRICT"))
+    doc_type: Mapped[str | None] = mapped_column(Text)
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    validity_basis: Mapped[str | None] = mapped_column(Text)
+    validity_fact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("doc.fact.fact_id", ondelete="RESTRICT"))
+    # land lease only (APH 2.1(e), 6.17(a)): first academic year an EoA is blocked, and whether the live lease
+    # covered the longest course when the application was submitted
+    eoa_stop_year: Mapped[str | None] = mapped_column(Text)
+    live_lease_ok: Mapped[bool | None] = mapped_column(Boolean)
+    # an obligation an officer records: what it asks for and what evidence meets it
+    title: Mapped[str | None] = mapped_column(Text)
+    evidence_required: Mapped[str | None] = mapped_column(Text)
+    recorded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
 class Evidence(Base):
