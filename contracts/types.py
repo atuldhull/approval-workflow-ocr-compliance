@@ -66,10 +66,16 @@ class VerifyResult:
 
 @dataclass(frozen=True)
 class OutboundMessage:
-    alert_id: UUID
+    """A message about exactly one thing: a deadline alert, or a recorded domain event (by its event id)."""
+    alert_id: UUID | None
     channel: str  # "email" | "sms" | "in_app"
     template: str
     recipient_ref: UUID
+    source_event_id: UUID | None = None
+
+    def __post_init__(self):
+        if (self.alert_id is None) == (self.source_event_id is None):
+            raise ValueError("an outbound message refers to an alert or to a source event, not both or neither")
 
 
 @dataclass(frozen=True)
