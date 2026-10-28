@@ -1,9 +1,13 @@
 # analytics (Person 3)
 
-- `projections.py` - read models rebuilt from `plat.domain_event` (applications, deadlines). Registered for replay
-  in `wiring.py`; replay compares them with the live tables (`POST /api/audit/replay`).
-- `service.py` - `GET /api/analytics/dashboard`: totals, stages, regions, ageing, deadlines, alert delivery. A regional
-  officer always gets their own region. Sections without data are `NOT_AVAILABLE` with the dependency named.
+- `projections.py` - read models rebuilt from `plat.domain_event` (applications, deadlines, deficiencies, committees,
+  EVC requests, compliance). Registered for replay in `wiring.py`, together with the event types deliberately not
+  projected; replay compares them with the live tables (`POST /api/audit/replay`).
+- `service.py` - `GET /api/analytics/dashboard`: totals, stages, regions, ageing, deadlines (open, overdue, met late),
+  officer workload (committees and tasks per officer and committee), the EVC queue, compliance (obligations by status
+  and kind, overdue, evidence awaiting an officer) and alert delivery (for a region: messages of alerts raised there).
+  A regional officer always gets their own region. A section whose figures cannot be worked out is `NOT_AVAILABLE`
+  with the reason.
 - `scorecard.py` - `GET /api/analytics/scorecard`. Every item has `kind` and `method` (how it was measured) apart
   from `result`, `outcome` (PASS / ATTENTION / FAIL, or none for a plain measurement) and `finding`:
   - verified now over every live record: ledger integrity, replay, document scanning (verdict counts; no version used

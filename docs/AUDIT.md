@@ -78,10 +78,20 @@ Owners register projectors for their events (`replay.register` in their `wiring.
 seq order inside a **READ ONLY** transaction, so it cannot write, queue notifications or call providers. It compares
 the result with the live tables field by field and returns machine-readable differences.
 
-| Projection | Events | Compared | Not compared (no event yet) |
-|---|---|---|---|
-| `applications` (analytics) | `wf.application_created` v1, `wf.application_submitted` v1 | institution, category, year, status, current stage, ruleset | stage changes after submission, decisions |
-| `deadlines` (analytics) | `dl.deadline_opened` v1 | subject, rule, clock kind and owner, due date | MET / BREACHED / paused / extended |
+| Projection | Events | Compared |
+|---|---|---|
+| `applications` (analytics) | `wf.application_created`, `wf.application_submitted` v1/v2, `wf.transition_applied`, `wf.stage_entered`, `wf.stage_exited` | institution, category, year, status, current stage, ruleset |
+| `deadlines` (analytics) | `dl.deadline_opened`, `dl.deadline_paused`, `dl.deadline_resumed`, `dl.deadline_breached`, `dl.deadline_closed` | subject, rule, clock kind and owner, due date, due version, status |
+| `deficiencies` (analytics) | `wf.deficiency_recorded`, `wf.deficiency_item_responded`, `wf.compliance_submitted`, `wf.deficiency_item_decided`, `wf.deficiency_closed`, `wf.deficiency_superseded` | case, round, status, the state of every item |
+| `committees` (analytics) | `wf.committee_formed`, `wf.task_assigned`, `wf.observation_added`, `wf.report_version_added` | case, type, members; per task its committee, assignee, title and observation count; report versions |
+| `evc` (analytics) | `evc.request_created`, `evc.assignment_proposed`, `evc.assignment_published`, `evc.schedule_discarded`, `evc.request_completed`, `evc.request_cancelled` | case, status, due by, deadline |
+| `compliance` (analytics) | `cmp.letter_registered`, `cmp.obligation_created`, `cmp.evidence_submitted`, `cmp.evidence_verified` | letter type; obligation kind, status, deadline, due date; evidence status |
+| `alerts` (deadlines) | `dl.alert_raised`, `dl.alert_escalated`, `dl.alert_acknowledged` | deadline, level, role, due version, status |
+
+Some stored events are deliberately not folded by any projection: checklist item updates, the EVC expert pool,
+availability, conflicts of interest and proposed runs, and the documents module's uploads, scans and OCR reviews
+(`NOT_PROJECTED` in `backend/app/analytics/projections.py`). Replay lists them under `not_projected` with the reason
+instead of as unhandled gaps; they are kept and verified by their own modules.
 
 The report gives one `verdict`:
 
@@ -93,8 +103,8 @@ The report gives one `verdict`:
 
 A projector's `live()` may mark a value as `replay.UNRECORDED` when the live record changed in a way no stored event
 describes. That field is skipped for that record and reported as a `CHANGED_WITHOUT_EVENT` gap, so the verdict is at
-most `CONSISTENT_SUBSET`. The deadlines projection uses it for due dates moved by a pause and resume
-(`due_version > 1`), which emit no event yet.
+most `CONSISTENT_SUBSET`. The deadlines projection uses it for clocks whose status, due date or version changed before
+the deadline lifecycle events existed (no `dl.deadline_paused/resumed/breached/closed` event for that clock).
 
 Checking nothing is never verification: no projectors selected (`NO_PROJECTORS`), a requested projector that is not
 registered (`UNKNOWN_PROJECTOR`) and a projection that compares no fields (`NO_FIELDS_COMPARED`) are all gaps.

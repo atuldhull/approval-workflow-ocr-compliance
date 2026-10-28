@@ -1,7 +1,7 @@
 """Signed checkpoints, tamper detection against them, redaction, and side-effect-free replay."""
 import json
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -420,6 +420,22 @@ def test_full_replay_of_todays_events_is_verified_complete(client):
     submit_one(client)
     r = replay.replay()
     assert (r["ok"], r["verdict"], r["gaps"]) == (True, "VERIFIED_COMPLETE", [])
+
+
+def test_events_not_projected_by_design_are_listed_with_their_reason_not_as_gaps(client):
+    from app.analytics.projections import NOT_PROJECTED
+    app_id = submit_one(client)
+    item = EventRecord(10**9, datetime.now(timezone.utc), "application", UUID(app_id),
+                              "wf.application_item_updated", 1, {"application_id": app_id, "item_key": "DEMO_ITEM",
+                                                                 "state": "PROVIDED", "document_ref": None})
+    with new_session() as s:
+        stored = list(replay.stored_events(s))
+    r = replay.replay(events=stored + [item])
+    assert "wf.application_item_updated" not in r["unhandled_event_types"]
+    assert r["not_projected"]["wf.application_item_updated"] == {
+        "events": 1, "reason": NOT_PROJECTED["wf.application_item_updated"]}
+    assert "wf.application_item_updated.v1" not in r["schemas_without_projector"]
+    assert r["verdict"] == "VERIFIED_COMPLETE", r
 
 
 def test_a_subset_of_projectors_is_never_called_complete(client):

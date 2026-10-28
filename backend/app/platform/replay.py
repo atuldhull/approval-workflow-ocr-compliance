@@ -59,10 +59,17 @@ class Projector(Protocol):
 
 
 _projectors: dict[str, Projector] = {}
+_not_projected: dict[str, str] = {}   # event type -> why no projection folds it
 
 
 def register(projector: Projector) -> None:
     _projectors[projector.name] = projector
+
+
+def not_projected(event_type: str, reason: str) -> None:
+    """Declare that stored events of this type are deliberately not folded by any projection. Replay then lists
+    them with the reason instead of reporting them as unhandled; they are still read and counted."""
+    _not_projected[event_type] = reason
 
 
 def projectors() -> dict[str, Projector]:
@@ -110,11 +117,13 @@ def diff(replayed: dict[str, dict], live: dict[str, dict], fields: tuple[str, ..
     return out
 
 
-def project(events: Iterable[EventRecord], selected: dict[str, Projector]) -> tuple[dict, dict, Counter, Counter, list]:
+def project(events: Iterable[EventRecord], selected: dict[str, Projector],
+            declared: Counter | None = None) -> tuple[dict, dict, Counter, Counter, list]:
     """Pure fold over events. Deterministic: same events in, same state out.
 
     An event a projector cannot read (missing or wrongly typed fields - tampering, or a schema the projector
     misreads) is recorded in `unreadable` and skipped, so one bad row cannot take down every report.
+    Events of a type declared with not_projected() are counted in `declared` (when given), never as unhandled.
     """
     states = {n: {} for n in selected}
     applied: Counter = Counter()
@@ -138,7 +147,11 @@ def project(events: Iterable[EventRecord], selected: dict[str, Projector]) -> tu
             elif ev.event_type in {t for t, _ in p.handles}:
                 skipped[name][f"{ev.event_type}.v{ev.event_version}"] += 1
         if not handled and ev.event_type not in known_types:
-            unhandled[ev.event_type] += 1
+            if ev.event_type in _not_projected:
+                if declared is not None:
+                    declared[ev.event_type] += 1
+            else:
+                unhandled[ev.event_type] += 1
     return states, applied, unhandled, skipped, unreadable
 
 
@@ -147,8 +160,10 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
     unknown = sorted(set(names or ()) - set(_projectors))
     with new_session() as session:
         session.execute(text("SET TRANSACTION READ ONLY"))
+        declared: Counter = Counter()
         try:
-            states, applied, unhandled, skipped, unreadable = project(events if events is not None else stored_events(session), selected)
+            states, applied, unhandled, skipped, unreadable = project(
+                events if events is not None else stored_events(session), selected, declared)
             results = []
             for name, p in selected.items():
                 live = p.live(session)
@@ -164,7 +179,9 @@ def replay(names: list[str] | None = None, events: Iterable[EventRecord] | None 
                 results.append(r)
         finally:
             session.rollback()
-    return summarise(results, unhandled, selected, unknown, unreadable)
+    report = summarise(results, unhandled, selected, unknown, unreadable)
+    report["not_projected"] = {et: {"events": n, "reason": _not_projected[et]} for et, n in sorted(declared.items())}
+    return report
 
 
 def known_schemas() -> set[tuple[str, int]]:
@@ -199,7 +216,7 @@ def summarise(results: list[ProjectionResult], unhandled: Counter, selected: dic
         if r.status == "NO_LIVE_MODEL":
             gaps.append({"kind": "NO_LIVE_MODEL", "projection": r.name})
     handled = {h for p in selected.values() for h in p.handles}
-    without_projector = sorted(f"{et}.v{v}" for et, v in known_schemas() - handled)
+    without_projector = sorted(f"{et}.v{v}" for et, v in known_schemas() - handled if et not in _not_projected)
     gaps += [{"kind": "UNREADABLE_EVENT", **u} for u in unreadable[:MAX_DIFFS]]
     # a stored event a projector cannot read is an integrity-level finding, never a pass
     if unreadable or any(r.status == "MISMATCH" for r in results):

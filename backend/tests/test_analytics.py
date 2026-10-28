@@ -9,6 +9,8 @@ SUNRISE_H = headers("INSTITUTION", SUNRISE)
 NORTHFIELD_H = headers("INSTITUTION", NORTHFIELD, user="00000000-0000-4000-9000-000000000004")
 BUREAU = headers("BUREAU_HEAD", user="00000000-0000-4000-9000-000000000007")
 RO_SOUTH = {**headers("RO_OFFICER", user="00000000-0000-4000-9000-000000000005"), "X-Demo-Region": "Southern"}
+RO_NORTH = {**headers("RO_OFFICER", user="00000000-0000-4000-9000-000000000008"), "X-Demo-Region": "Northern"}
+BUREAU_OFFICER = "00000000-0000-4000-9000-000000000006"
 
 
 def file(client, h, inst, submit=True, category="NEW_PROGRAMME"):
@@ -39,11 +41,53 @@ def test_national_dashboard_reconciles_with_filed_applications(client):
     assert section(body, "alerts")["status"] == "AVAILABLE"
 
 
-def test_missing_data_is_labelled_not_invented(client):
+def test_every_section_is_computed_and_names_no_team(client):
+    file(client, SUNRISE_H, SUNRISE)
     body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
-    for key in ("workload", "evc", "compliance"):
-        s = section(body, key)
-        assert s["status"] == "NOT_AVAILABLE" and s["depends_on"] and "data" not in s
+    assert [s["key"] for s in body["sections"]] == [
+        "applications", "ageing", "deadlines", "workload", "evc", "compliance", "alerts"]
+    for s in body["sections"]:
+        assert s["status"] == "AVAILABLE" and "data" in s and "depends_on" not in s, s
+    assert "Person" not in json.dumps(body) and "entered at submission" not in json.dumps(body)
+
+
+def test_workload_counts_committees_and_tasks_by_officer_within_the_region(client):
+    alice, bob = "00000000-0000-4000-9000-000000000001", "00000000-0000-4000-9000-000000000002"
+    committee_h = headers("SCRUTINY_COMMITTEE", user=alice)
+    south = file(client, SUNRISE_H, SUNRISE)
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    formed = client.post(f"/api/cases/{south}/committees", headers=committee_h, json={"type": "SCRUTINY", "members": [
+        {"user_ref": alice, "role": "CHAIR"}, {"user_ref": bob, "role": "MEMBER"}]})
+    assert formed.status_code == 201, formed.text
+    for title in ("REVIEW_DOCUMENTS", "PREPARE_REPORT"):
+        assert client.post(f"/api/committees/{formed.json()['id']}/tasks", headers=committee_h,
+                           json={"title_key": title, "assignee_user_ref": bob}).status_code == 201
+    work = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "workload")["data"]
+    assert (work["committees"], work["open_tasks"], work["officers"]) == (1, 2, 2)
+    assert work["by_officer"] == [{"user_ref": bob, "open_tasks": 2, "committees": 1},
+                                  {"user_ref": alice, "open_tasks": 0, "committees": 1}]
+    assert work["by_committee"] == {"SCRUTINY": {"committees": 1, "open_tasks": 2, "cases": 1}}
+    assert section(client.get("/api/analytics/dashboard", headers=RO_SOUTH).json(), "workload")["data"]["open_tasks"] == 2
+    north = section(client.get("/api/analytics/dashboard", headers=RO_NORTH).json(), "workload")["data"]
+    assert (north["committees"], north["open_tasks"], north["by_officer"]) == (0, 0, [])
+
+
+def test_compliance_counts_obligations_overdue_and_evidence_awaiting_an_officer(client):
+    app_id = file(client, SUNRISE_H, SUNRISE)
+    letter = client.post("/api/compliance/letters", headers=headers("BUREAU_OFFICER", user=BUREAU_OFFICER), json={
+        "application_id": app_id, "institution_id": str(SUNRISE), "letter_type": "LOA", "academic_year": "2025-26",
+        "issue_date": "2025-08-31", "issue_date_source": "PORTAL_EVENT", "lists_deficiencies": False,
+        "f_no": "F.No. DEMO/SOUTH/2025/00042"})
+    assert letter.status_code == 201, letter.text
+    body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
+    cmp = section(body, "compliance")["data"]
+    obligations = len(letter.json()["obligation_ids"])
+    assert cmp["obligations"] == obligations and cmp["by_status"] == {"OPEN": obligations}
+    assert cmp["overdue"] == obligations          # issued in 2025: every 15-day clock has run out
+    assert cmp["letters"] == {"LOA": 1} and cmp["awaiting_verification"] == 0
+    assert section(body, "deadlines")["data"]["overdue"] >= obligations
+    north = section(client.get("/api/analytics/dashboard", headers=RO_NORTH).json(), "compliance")["data"]
+    assert north["obligations"] == 0 and north["letters"] == {}
 
 
 def test_regional_officer_sees_only_their_region(client):
@@ -52,7 +96,9 @@ def test_regional_officer_sees_only_their_region(client):
     body = client.get("/api/analytics/dashboard", headers=RO_SOUTH).json()
     assert body["scope"]["region"] == "Southern"
     assert section(body, "applications")["data"]["by_region"] == {"Southern": 1}
-    assert section(body, "alerts")["status"] == "NOT_AVAILABLE"
+    alerts = section(body, "alerts")
+    assert alerts["status"] == "AVAILABLE" and "Southern" in alerts["source"]
+    assert alerts["data"]["by_status"] == {"PENDING": 0, "SENDING": 0, "DELIVERED": 0, "DEAD": 0}
     assert client.get("/api/analytics/dashboard?region=Northern", headers=RO_SOUTH).status_code == 403
 
 
@@ -68,7 +114,7 @@ def test_ageing_follows_the_system_clock(client):
     assert buckets["8-30 days"] == 1 and buckets["0-7 days"] == 0
     clock.advance(25)
     deadlines = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "deadlines")["data"]
-    assert deadlines["due_date_passed"] == 1           # 30-day processing clock
+    assert deadlines["overdue"] == 1                   # 30-day processing clock
 
 
 def test_scorecard_without_answer_keys_shows_no_accuracy(client, tmp_path, monkeypatch):
@@ -101,7 +147,7 @@ def test_scorecard_evaluates_answer_keys_when_present(client, tmp_path, monkeypa
 
 
 def test_events_the_dashboard_does_not_understand_make_it_partial(client):
-    """If Person 1 stores a new kind of workflow event, stage counts must not silently go stale."""
+    """If a new kind of workflow event is stored, stage counts must not silently go stale."""
     from sqlalchemy import text
     from app.platform.db import get_engine
     file(client, SUNRISE_H, SUNRISE)
@@ -202,8 +248,9 @@ def test_an_empty_system_shows_zero_applications_and_no_invented_figures(client)
     body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
     apps = section(body, "applications")
     assert apps["data"]["total"] == 0 and apps["data"]["by_stage"] == {}
-    for key in ("workload", "evc", "compliance"):
-        assert "data" not in section(body, key)
+    # an empty system has real zeros, never estimates
+    assert section(body, "workload")["data"]["by_officer"] == [] and section(body, "evc")["data"]["requests"] == 0
+    assert section(body, "compliance")["data"]["obligations"] == 0 and section(body, "deadlines")["data"]["opened"] == 0
 
 
 def test_concurrent_requests_while_events_arrive_stay_consistent(client):
@@ -266,3 +313,44 @@ def test_dashboard_scale_with_synthetic_events(client, monkeypatch):
     assert rebuild_lookups == 300 + 3          # existence check once per application, regions once per institution
     assert len(lookups) == 3                   # cached: regions only, one per institution
     print(f"\n[observed] 300 applications: rebuild {t1 - t0:.3f}s, cached {t2 - t1:.3f}s")
+
+
+# ---- replay covers the case lifecycle ----
+
+def test_a_case_moved_through_deficiency_into_evc_replays_completely(client, monkeypatch):
+    """Stage moves, a deficiency round, clock pauses and closures and the EVC request all replay with nothing
+    unhandled, so the applications card is not partial just because a case moved."""
+    from app.platform import replay
+    from backend.tests.test_workflow_case_api import ITEM, RESPONSE, act, create
+    from app.workflow import guards
+    from app.workflow.commands import GuardFacts
+
+    facts = GuardFacts(open_item_count=0, checklist_complete=True, has_assignment=True,
+                       reason_codes=frozenset({"DEMO_MISSING_EVIDENCE"}), item_refs=frozenset({ITEM}),
+                       response_refs=frozenset({RESPONSE}), applicability={"SHC": False},
+                       live_clock_rules=frozenset({"AICTE_PROCESSING"}), second_approval_required=False)
+    monkeypatch.setattr(guards, "_fact_loader", lambda uow, case, cmd: facts)
+    ensure_intake_rules(client)
+    case_id = create(client)
+    assert act(client, case_id, "submit", 1).status_code == 200
+    assert act(client, case_id, "record_deficiency", 2, "SCRUTINY_COMMITTEE", reason_code="DEMO_MISSING_EVIDENCE",
+               payload={"item_keys": ["DEMO_CORE_REFERENCE"]}).status_code == 200
+    rounds = client.get(f"/api/cases/{case_id}/deficiencies", headers=SUNRISE_H).json()["rounds"]
+    item = rounds[0]["items"][0]
+    assert act(client, case_id, "submit_compliance", 3,
+               payload={"responses": [{"item_id": item["id"], "response_ref": str(RESPONSE)}]}).status_code == 200
+    assert client.post(f"/api/cases/{case_id}/deficiencies/{rounds[0]['id']}/review",
+                       headers=headers("SCRUTINY_COMMITTEE"), json={"expected_version": 4, "decisions": [
+                           {"item_id": item["id"], "state": "ACCEPTED", "reason_code": "DEMO_RESPONSE_ACCEPTED"}]}
+                       ).status_code == 200
+
+    report = replay.replay()
+    assert report["verdict"] == "VERIFIED_COMPLETE", report
+    assert report["unhandled_event_types"] == {}
+    assert {p["name"]: p["status"] for p in report["projections"]} == dict.fromkeys(
+        ("applications", "deadlines", "deficiencies", "committees", "evc", "compliance", "alerts"), "MATCH")
+    body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
+    apps = section(body, "applications")
+    assert apps["status"] == "AVAILABLE" and apps["data"]["by_stage"] == {"EVC": 1}
+    evc = section(body, "evc")["data"]
+    assert (evc["requests"], evc["open"], evc["by_status"]) == (1, 1, {"QUEUED": 1})
