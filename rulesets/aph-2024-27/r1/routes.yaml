@@ -73,7 +73,7 @@ resume_after:
   RESCRUTINY: SCRUTINY
 
 # DEMO ASSUMPTION TG-001..TG-006: workflow policies below await team/APH confirmation.
-# Event wf.transition_applied is PROPOSED only; this task does not emit it.
+# Every applied transition emits wf.transition_applied (contracts/events/wf/transition_applied.v1.json).
 templates:
   submit:
     action: submit
