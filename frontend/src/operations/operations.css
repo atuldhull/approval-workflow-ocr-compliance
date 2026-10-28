@@ -315,15 +315,17 @@
 
 /* ---------- compliance ---------- */
 .obligation-axis .card-head { margin-bottom: var(--s2); }
-.axis-track { position: relative; height: calc(48px + var(--stack, 1) * 26px); margin: 0 var(--s6); border-bottom: 1px solid var(--line-strong); }
-.axis-group { position: absolute; bottom: -7px; transform: translateX(-50%); display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; }
+.axis-track { position: relative; height: 22px; margin: var(--s2) var(--s6) var(--s4); border-bottom: 1px solid var(--line-strong); }
+.axis-group { position: absolute; bottom: -8px; transform: translateX(-50%); }
 .axis-dot { display: grid; place-items: center; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; border: 2px solid var(--text-3); background: var(--ink-2); font: 700 9px/1 var(--mono); color: var(--text); }
 .axis-dot.tone-attention { border-color: var(--amber); }
 .axis-dot.tone-info { border-color: var(--info); }
 .axis-dot.tone-ok { border-color: var(--ok); }
 .axis-dot.tone-bad { border-color: var(--bad); }
-.axis-date { position: absolute; top: calc(100% + 4px); font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
-.axis-items { display: flex; flex-direction: column-reverse; gap: 3px; align-items: center; margin-bottom: 4px; }
+.axis-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s2) var(--s4); }
+.axis-list li { display: grid; grid-template-columns: auto 1fr; gap: 4px var(--s2); align-items: center; align-content: start; }
+.axis-date { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+.axis-items { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; }
 .axis-mark { min-height: 22px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--ink-1); color: var(--text-2); font: 500 var(--fs-xs)/1.4 var(--ui); white-space: nowrap; }
 .axis-mark code { font-size: 10px; color: var(--text-3); }
 .axis-mark:hover { background: var(--ink-3); border-color: var(--line-strong); color: var(--text); }
@@ -396,9 +398,7 @@
   .alert-row > .actions { grid-column: 2; justify-content: flex-start; max-width: none; }
   .calendar { grid-template-columns: 44px repeat(5, minmax(84px, 1fr)); overflow-x: auto; }
   .evc-week { overflow-x: auto; }
-  .axis-track { margin: 0 var(--s2); }
-  .axis-items { display: none; }
-  .axis-track { height: 40px; }
+  .axis-track { margin: var(--s2) var(--s2) var(--s4); }
   .topbar .crumb-sep, .topbar .crumb-page { display: none; }
   .split-detail { max-height: none; }
 }

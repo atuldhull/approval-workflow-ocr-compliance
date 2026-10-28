@@ -361,14 +361,31 @@ const TIMELINE_TONE = { MET: "ok", OPEN: "attention", EVIDENCE_SUBMITTED: "info"
 // overdue comes from the obligation's own clock (breached and not met); it is not an obligation status
 const toneOf = (o) => (o.overdue ? "bad" : TIMELINE_TONE[o.status] ?? "neutral");
 
+// Markers closer than MIN_GAP percent are pushed apart in date order so each number stays readable; the order and
+// the clustering are kept, only the exact spacing gives way.
+const MIN_GAP = 2.6;
+function spread(positions) {
+  const out = [...positions];
+  let last = -Infinity;
+  out.forEach((p, i) => { if (p !== null) { out[i] = Math.max(p, last + MIN_GAP); last = out[i]; } });
+  const over = last - 100;
+  if (over > 0) {
+    let next = Infinity;
+    for (let i = out.length - 1; i >= 0; i--) if (out[i] !== null) { out[i] = Math.min(out[i] - over, next - MIN_GAP); next = out[i]; }
+  }
+  return out;
+}
+
 // Due dates of the listed obligations on one axis, so clustering and order are visible at a glance. Spacing follows
-// the dates; an obligation without a due date is counted but not placed. Selecting a marker opens the obligation.
+// the dates; an obligation without a due date is counted but not placed. The axis carries one numbered marker per
+// date and the obligations are listed under it by the same number, so nearby dates never overlap. Selecting an
+// obligation opens it.
 function ObligationTimeline({ state, openId, onOpen }) {
   const rows = (state.data ?? []).filter((o) => o.due_date);
   if (!rows.length) return null;
   const sorted = [...rows].sort((a, b) => a.due_date.localeCompare(b.due_date));
   const dates = [...new Set(sorted.map((o) => o.due_date))];
-  const positions = datePositions(dates.map((date) => ({ date })));
+  const positions = spread(datePositions(dates.map((date) => ({ date }))));
   // One marker per date; several obligations due the same day stack above it instead of overlapping.
   const groups = dates.map((date, i) => {
     const items = sorted.filter((o) => o.due_date === date);
@@ -385,11 +402,18 @@ function ObligationTimeline({ state, openId, onOpen }) {
           {undated > 0 && ` · ${undated} without a due date`}
         </span>
       </header>
-      <div className="axis-track" style={{ "--stack": Math.max(...groups.map((g) => g.items.length)) }}>
-        {groups.map((g) => g.position !== null && (
-          <div key={g.date} className="axis-group" style={{ left: `${g.position}%` }}>
-            <span className={`axis-dot tone-${g.tone}`} aria-hidden="true">{g.items.length > 1 ? g.items.length : ""}</span>
-            <span className="axis-date" aria-hidden="true">{dateIST(g.date)}</span>
+      <div className="axis-track" aria-hidden="true">
+        {groups.map((g, i) => g.position !== null && (
+          <div key={g.date} className="axis-group" style={{ left: `${g.position}%` }} title={dateIST(g.date)}>
+            <span className={`axis-dot tone-${g.tone}`}>{i + 1}</span>
+          </div>
+        ))}
+      </div>
+      <ol className="axis-list">
+        {groups.map((g, i) => (
+          <li key={g.date}>
+            <span className={`axis-dot tone-${g.tone}`} aria-hidden="true">{i + 1}</span>
+            <span className="axis-date">{dateIST(g.date)}</span>
             <span className="axis-items">
               {g.items.map((o) => (
                 <button key={o.id} className={`axis-mark tone-${toneOf(o)}${openId === o.id ? " is-selected" : ""}`}
@@ -399,9 +423,9 @@ function ObligationTimeline({ state, openId, onOpen }) {
                 </button>
               ))}
             </span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
       <ul className="axis-legend" aria-hidden="true">
         <li className="tone-bad">Overdue: due date passed, not met</li>
         <li className="tone-attention">Open: evidence needed</li>
