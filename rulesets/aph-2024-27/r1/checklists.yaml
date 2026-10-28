@@ -13,6 +13,15 @@ checklists:
       mandatory: true
     - item_key: DEMO_OPTIONAL_REFERENCE
       mandatory: false
+    # APH 2024-27 cl. 6.17: land lease deed (a), occupancy/completion certificate (g), structural stability
+    # certificate (h) and fire safety certificate (i) must be valid; their expiry is tracked once confirmed.
+    # Optional while the Annexure-2 list is an open question (Q3).
+    - item_key: LEASE_DEED
+      mandatory: false
+    - item_key: STRUCTURAL_STABILITY
+      mandatory: false
+    - item_key: FIRE_NOC
+      mandatory: false
   NRI_SEATS:
     status: DEMO_ASSUMPTION
     label: DEMO ASSUMPTION
@@ -169,6 +178,15 @@ checklists:
       mandatory: true
     - item_key: DEMO_OPTIONAL_REFERENCE
       mandatory: false
+    # APH 2024-27 cl. 6.17: land lease deed (a), occupancy/completion certificate (g), structural stability
+    # certificate (h) and fire safety certificate (i) must be valid; their expiry is tracked once confirmed.
+    # Optional while the Annexure-2 list is an open question (Q3).
+    - item_key: LEASE_DEED
+      mandatory: false
+    - item_key: BUILDING_COMPLETION
+      mandatory: false
+    - item_key: FIRE_NOC
+      mandatory: false
   CLOSURE_INSTITUTION:
     status: DEMO_ASSUMPTION
     label: DEMO ASSUMPTION
@@ -264,4 +282,13 @@ checklists:
     - item_key: DEMO_CORE_REFERENCE
       mandatory: true
     - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+    # APH 2024-27 cl. 6.17: land lease deed (a), occupancy/completion certificate (g), structural stability
+    # certificate (h) and fire safety certificate (i) must be valid; their expiry is tracked once confirmed.
+    # Optional while the Annexure-2 list is an open question (Q3).
+    - item_key: LEASE_DEED
+      mandatory: false
+    - item_key: BUILDING_COMPLETION
+      mandatory: false
+    - item_key: FIRE_NOC
       mandatory: false
