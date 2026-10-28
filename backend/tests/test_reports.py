@@ -1,4 +1,6 @@
 """Pendency report with a snapshot hash, report types, and the OCEL event-log export."""
+import csv
+import io
 import json
 
 from backend.tests.intake_test_helpers import ensure_intake_rules, provide_fixture_items
@@ -85,3 +87,95 @@ def test_export_rejects_unknown_formats_and_non_oversight_roles(client):
     assert client.post("/api/exports", headers=AUDITOR, json={"format": "csv"}).status_code == 422
     assert client.post("/api/exports", headers=RO_SOUTH, json={"format": "ocel2"}).status_code == 403
     assert client.post("/api/exports", headers=SUNRISE_H, json={"format": "ocel2"}).status_code == 403
+
+
+def test_the_catalogue_lists_every_report_with_its_columns_and_source(client):
+    listed = client.get("/api/reports", headers=BUREAU).json()
+    assert [r["type"] for r in listed] == ["pendency", "evc_status", "undertakings", "overdue", "region_performance"]
+    assert all(r["title"] and r["source"] and r["columns"] for r in listed)
+    assert client.get("/api/reports", headers=RO_SOUTH).status_code == 200
+    assert client.get("/api/reports", headers=SUNRISE_H).status_code == 403
+
+
+def register_loa(client, app_id, inst=SUNRISE, issued="2025-08-31"):
+    r = client.post("/api/compliance/letters", headers=headers("BUREAU_OFFICER", user="00000000-0000-4000-9000-000000000006"),
+                    json={"application_id": app_id, "institution_id": str(inst), "letter_type": "LOA",
+                          "academic_year": "2025-26", "issue_date": issued, "issue_date_source": "PORTAL_EVENT",
+                          "lists_deficiencies": False, "f_no": "F.No. DEMO/SOUTH/2025/00042"})
+    assert r.status_code == 201, r.text
+    return r.json()["obligation_ids"]
+
+
+def test_overdue_lists_every_late_clock_with_its_owner_and_days(client):
+    from app.deadlines.wiring import clock
+    south = file(client, SUNRISE_H, SUNRISE)
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    obligations = register_loa(client, south)
+    clock.advance(35)                                   # past the 30-day processing clocks too
+    body = client.get("/api/reports/overdue", headers=BUREAU).json()
+    rules = sorted(r["rule_id"] for r in body["rows"])
+    assert rules == sorted(["AICTE_PROCESSING"] * 2 + ["LOA_DEPOSIT_AFFIDAVIT_15D"] * len(obligations))
+    processing = next(r for r in body["rows"] if r["rule_id"] == "AICTE_PROCESSING" and r["region"] == "Southern")
+    assert processing["application_id"] == south and processing["case_ref"] == south[:8]
+    assert processing["owner_role"] == "RO_OFFICER" and processing["days_overdue"] == 5
+    assert processing["status"] == "RUNNING" and processing["escalation_level"] is None
+    loa = next(r for r in body["rows"] if r["rule_id"] == "LOA_DEPOSIT_AFFIDAVIT_15D")
+    assert loa["owner_role"] == "INSTITUTION" and loa["subject_type"] == "obligation" and loa["days_overdue"] > 400
+    assert body["rows"][0]["days_overdue"] >= body["rows"][-1]["days_overdue"]     # most overdue first
+    assert body["total"]["overdue"] == len(body["rows"]) and body["scope"]["as_of"]
+    regional = client.get("/api/reports/overdue", headers=RO_SOUTH).json()
+    assert {r["region"] for r in regional["rows"]} == {"Southern"}
+
+
+def test_undertakings_count_obligations_by_kind_and_overdue(client):
+    app_id = file(client, SUNRISE_H, SUNRISE)
+    obligations = register_loa(client, app_id)
+    body = client.get("/api/reports/undertakings", headers=BUREAU).json()
+    assert sum(r["obligations"] for r in body["rows"]) == len(obligations)
+    assert {(r["region"], r["status"]) for r in body["rows"]} == {("Southern", "OPEN")}
+    assert body["total"] == {"obligations": len(obligations), "overdue": len(obligations),
+                             "awaiting_verification": 0, "met_late": 0}
+    assert client.get("/api/reports/undertakings", headers={
+        **headers("RO_OFFICER", user="00000000-0000-4000-9000-000000000008"), "X-Demo-Region": "Northern"}
+        ).json()["rows"] == []
+
+
+def test_evc_status_and_region_performance_cover_every_region_in_scope(client):
+    from app.deadlines.wiring import clock
+    file(client, SUNRISE_H, SUNRISE)
+    clock.advance(4)
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    evc = client.get("/api/reports/evc_status", headers=BUREAU).json()
+    assert evc["rows"] == [] and evc["total"]["requests"] == 0 and evc["total"]["completion_rate"] is None
+    perf = client.get("/api/reports/region_performance", headers=BUREAU).json()
+    rows = {r["region"]: r for r in perf["rows"]}
+    assert (rows["Southern"]["in_process"], rows["Southern"]["median_age_days"]) == (1, 4)
+    assert (rows["Northern"]["in_process"], rows["Northern"]["median_age_days"]) == (2, 0)
+    assert rows["Southern"]["median_days_in_stage"] == 4 and rows["Southern"]["alerts_acknowledged_on_time"] is None
+    assert [r["region"] for r in client.get("/api/reports/region_performance", headers=RO_SOUTH).json()["rows"]] == [
+        "Southern"]
+
+
+def test_every_report_downloads_as_csv_with_its_provenance(client):
+    file(client, SUNRISE_H, SUNRISE)
+    for report_type in ("pendency", "evc_status", "undertakings", "overdue", "region_performance"):
+        body = client.get(f"/api/reports/{report_type}", headers=BUREAU).json()
+        r = client.get(f"/api/reports/{report_type}?format=csv", headers=BUREAU)
+        assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+        assert r.headers["content-disposition"].startswith(f'attachment; filename="{report_type}-all-')
+        lines = r.text.splitlines()
+        assert lines[0].split(",") == [c["label"] for c in body["columns"]]
+        assert f"Snapshot hash,{body['snapshot_hash']}" in lines and r.headers["x-snapshot-hash"] == body["snapshot_hash"]
+    by_accept = client.get("/api/reports/pendency", headers={**BUREAU, "Accept": "text/csv"})
+    assert by_accept.headers["content-type"].startswith("text/csv") and "Southern,SCRUTINY,1" in by_accept.text
+    assert client.get("/api/reports/pendency?format=xml", headers=BUREAU).status_code == 422
+
+
+def test_csv_cells_are_never_read_as_formulas():
+    from app.analytics.reports import to_csv
+    body = {"title": "t", "source": "s", "scope": {"region": "=cmd"}, "columns": [{"key": "a", "label": "A"}],
+            "rows": [{"a": "=HYPERLINK(1)"}, {"a": -3}, {"a": None}], "ledger_head": {"seq": 1},
+            "snapshot_hash": "h"}
+    rows = list(csv.reader(io.StringIO(to_csv(body))))
+    assert rows[1:4] == [["'=HYPERLINK(1)"], ["-3"], [""]] and ["Region", "'=cmd"] in rows

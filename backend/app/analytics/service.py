@@ -5,8 +5,9 @@ out is returned as NOT_AVAILABLE with the reason, never as zeros or estimates.
 """
 import threading
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
+from statistics import median
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -95,6 +96,7 @@ def _regions(apps: dict[str, dict], known: set[str]) -> dict[str, str | None]:
 OPEN_CLOCK = ("RUNNING", "PAUSED", "BREACHED")
 OPEN_EVC = ("QUEUED", "PROPOSED", "PUBLISHED")
 TOP_OFFICERS = 10
+TOP_INSTITUTIONS = 10
 
 
 def _regional_delivery(region: str, now: datetime) -> dict:
@@ -135,6 +137,21 @@ def _alerts_raised(region: str | None) -> dict:
         if status in ("OPEN", "ESCALATED"):
             by_role[role] += n
     return {"by_status": dict(by_status), "open_by_role": dict(by_role)}
+
+
+def _by_institution(apps: dict, deadlines: dict, case_of, overdue) -> dict:
+    rows: dict[str, Counter] = defaultdict(Counter)
+    for a in apps.values():
+        row = rows[a["institution_id"]]
+        row["cases"] += 1
+        row["in_process"] += a["status"] == "IN_PROCESS"
+    for d in deadlines.values():
+        if d["status"] in OPEN_CLOCK and overdue(d):
+            rows[apps[case_of(d["subject_type"], d["subject_id"])]["institution_id"]]["overdue"] += 1
+    ordered = sorted(rows.items(), key=lambda kv: (-kv[1]["overdue"], -kv[1]["in_process"], kv[0]))
+    return {"institutions": len(rows),
+            "rows": [{"institution_id": k, "cases": c["cases"], "in_process": c["in_process"],
+                      "overdue": c["overdue"]} for k, c in ordered[:TOP_INSTITUTIONS]]}
 
 
 def dashboard(region: str | None) -> dict:
@@ -181,6 +198,22 @@ def dashboard(region: str | None) -> dict:
                 f"{n} {k} event(s)" for k, n in sorted(missed.items())) + ". Figures may be out of date.").strip()
         return section
 
+    # time in the current stage, from wf.stage_entered; a case with no recorded entry is counted, not guessed
+    in_stage: dict[str, list[int]] = defaultdict(list)
+    unrecorded_entry = 0
+    for a in in_process:
+        if a["current_stage"] is None:
+            continue
+        if a["stage_since"]:
+            in_stage[a["current_stage"]].append((now - datetime.fromisoformat(a["stage_since"])).days)
+        else:
+            unrecorded_entry += 1
+    stage_rows = [{"stage": st, "cases": len(days), "median_days": median(days), "max_days": max(days)}
+                  for st, days in in_stage.items()]
+    stage_age = Counter(_bucket(d) for days in in_stage.values() for d in days)
+    most = max(stage_rows, key=lambda r: (r["cases"], r["median_days"]), default=None)
+    slowest = max(stage_rows, key=lambda r: (r["median_days"], r["cases"]), default=None)
+
     # deadlines: every clock of a case in scope, including those of its obligations and letters
     clock_status = Counter(d["status"] for d in deadlines.values())
     open_clocks = [d for d in deadlines.values() if d["status"] in OPEN_CLOCK]
@@ -226,6 +259,21 @@ def dashboard(region: str | None) -> dict:
         {"key": "ageing", "title": "Time since submission (applications in process)", "status": "AVAILABLE",
          "source": "Replayed from workflow events",
          "data": {"buckets": {label: ageing.get(label, 0) for _, label in AGE_BUCKETS}}},
+        coverage({"key": "flow", "title": "Time in current stage and bottlenecks", "status": "AVAILABLE",
+         "source": "Replayed from workflow stage events",
+         "note": "Days since each case in process entered its current stage. The bottleneck is the stage holding the "
+                 "most cases; the slowest is the stage with the longest median time."
+                 + (f" {unrecorded_entry} case(s) have no recorded stage entry and are not timed." if unrecorded_entry
+                    else ""),
+         "data": {"buckets": {label: stage_age.get(label, 0) for _, label in AGE_BUCKETS},
+                  "by_stage": sorted(stage_rows, key=lambda r: (-r["cases"], r["stage"])),
+                  "bottleneck": most and most["stage"], "slowest": slowest and slowest["stage"],
+                  "not_timed": unrecorded_entry}}, "wf.", "applications"),
+        coverage({"key": "institutions", "title": "By institution", "status": "AVAILABLE",
+         "source": "Replayed from workflow and deadline events",
+         "note": "Institutions are shown by reference. Overdue: open clocks of the institution's cases that are "
+                 f"breached or past their due date. {IST_OFFSET_NOTE}",
+         "data": _by_institution(apps, deadlines, case_of, overdue)}, "wf.", "applications"),
         coverage({"key": "deadlines", "title": "Deadlines", "status": "AVAILABLE",
          "source": "Replayed from deadline events",
          "note": f"Overdue counts running clocks past their due date and clocks marked breached. {IST_OFFSET_NOTE}",

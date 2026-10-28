@@ -45,7 +45,7 @@ def test_every_section_is_computed_and_names_no_team(client):
     file(client, SUNRISE_H, SUNRISE)
     body = client.get("/api/analytics/dashboard", headers=BUREAU).json()
     assert [s["key"] for s in body["sections"]] == [
-        "applications", "ageing", "deadlines", "workload", "evc", "compliance", "alerts"]
+        "applications", "ageing", "flow", "institutions", "deadlines", "workload", "evc", "compliance", "alerts"]
     for s in body["sections"]:
         assert s["status"] == "AVAILABLE" and "data" in s and "depends_on" not in s, s
     assert "Person" not in json.dumps(body) and "entered at submission" not in json.dumps(body)
@@ -115,6 +115,34 @@ def test_ageing_follows_the_system_clock(client):
     clock.advance(25)
     deadlines = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "deadlines")["data"]
     assert deadlines["overdue"] == 1                   # 30-day processing clock
+
+
+def test_time_in_stage_and_bottlenecks_follow_stage_entries(client):
+    file(client, SUNRISE_H, SUNRISE)
+    clock.advance(10)
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    file(client, SUNRISE_H, SUNRISE, submit=False)
+    flow = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "flow")
+    assert flow["status"] == "AVAILABLE"
+    assert flow["data"]["by_stage"] == [{"stage": "SCRUTINY", "cases": 2, "median_days": 5, "max_days": 10}]
+    assert flow["data"]["bottleneck"] == flow["data"]["slowest"] == "SCRUTINY"
+    assert flow["data"]["buckets"] == {"0-7 days": 1, "8-30 days": 1, "31-60 days": 0, "over 60 days": 0}
+    assert flow["data"]["not_timed"] == 0
+    south = section(client.get("/api/analytics/dashboard", headers=RO_SOUTH).json(), "flow")["data"]
+    assert south["by_stage"] == [{"stage": "SCRUTINY", "cases": 1, "median_days": 10, "max_days": 10}]
+
+
+def test_institutions_are_listed_with_their_cases_and_overdue_clocks(client):
+    file(client, SUNRISE_H, SUNRISE)
+    file(client, SUNRISE_H, SUNRISE, submit=False)
+    file(client, NORTHFIELD_H, NORTHFIELD)
+    clock.advance(35)                                   # the 30-day processing clocks have run out
+    data = section(client.get("/api/analytics/dashboard", headers=BUREAU).json(), "institutions")["data"]
+    assert data["institutions"] == 2
+    assert {r["institution_id"]: (r["cases"], r["in_process"], r["overdue"]) for r in data["rows"]} == {
+        str(SUNRISE): (2, 1, 1), str(NORTHFIELD): (1, 1, 1)}
+    south = section(client.get("/api/analytics/dashboard", headers=RO_SOUTH).json(), "institutions")["data"]
+    assert [r["institution_id"] for r in south["rows"]] == [str(SUNRISE)]
 
 
 def test_scorecard_without_answer_keys_shows_no_accuracy(client, tmp_path, monkeypatch):
