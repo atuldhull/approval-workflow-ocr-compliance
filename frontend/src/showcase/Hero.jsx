@@ -76,11 +76,10 @@ export default function Hero({ reduced, spatial, onToggleSpatial, onFailure, onE
         </div>
         <div className="sc-hero-copy">
           <Beat i={0} beat={beat} reduced={reduced}>
-            <p className="sc-eyebrow">AICTE Approval Operations · Workflow · OCR · Compliance</p>
             <h1 id="sc-title" tabIndex={-1}>Every approval has a path. <span>Every decision needs evidence.</span></h1>
             <p className="sc-lede">
-              This prototype routes each application along the stages its category prescribes, turns uploaded documents into
-              facts two people confirm, and keeps every deadline and action on an audit record that can be checked.
+              Each application follows the stages its category prescribes, every document becomes facts two people confirm,
+              and every deadline lands on an audit record anyone can check.
             </p>
             <div className="sc-actions">
               <button type="button" className="sc-button primary" onClick={onExplore}>Explore how it works</button>
