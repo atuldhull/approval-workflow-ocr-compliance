@@ -13,6 +13,7 @@ from app.intake.models import Application
 from app.platform.db import new_session
 from app.workflow import demo_seed
 from app.workflow.facts import IST
+from app.workflow.models import Appeal
 from conftest import headers
 
 
@@ -40,7 +41,9 @@ def test_the_seed_reaches_every_stage_dated_from_the_demo_clock(api):
                 "SCRUTINY": ("IN_PROCESS", "SCRUTINY"), "DEFICIENT": ("IN_PROCESS", "DEFICIENT"),
                 "EVC-QUEUED-SOUTH": ("IN_PROCESS", "EVC"), "EVC-QUEUED-NORTH": ("IN_PROCESS", "EVC"),
                 "EVC-PUBLISHED": ("IN_PROCESS", "EVC"), "SHC": ("IN_PROCESS", "SHC"),
-                "LOA-OVERDUE": ("APPROVED", None), "LOA-SOUTH": ("APPROVED", None), "LOA-NORTH": ("APPROVED", None)}
+                "LOA-OVERDUE": ("APPROVED", None), "LOA-SOUTH": ("APPROVED", None), "LOA-NORTH": ("APPROVED", None),
+                "LOD-APPEAL-OPEN": ("IN_PROCESS", "SCRUTINY"), "APPEAL-AT-SAC": ("IN_PROCESS", "SAC"),
+                "RANDOM-INSPECTION": ("IN_PROCESS", "EVC")}
     with new_session() as s:
         for key, app_id in cases.items():
             row = s.get(Application, app_id)
@@ -48,10 +51,16 @@ def test_the_seed_reaches_every_stage_dated_from_the_demo_clock(api):
         assert row.submitted_at is not None
         evc = {r.application_id: r.status for r in s.scalars(select(EvcRequest))}
         assert evc[cases["EVC-QUEUED-SOUTH"]] == evc[cases["EVC-QUEUED-NORTH"]] == "QUEUED"
+        assert evc[cases["RANDOM-INSPECTION"]] == "QUEUED"
+        appeals = {a.application_id: a.status for a in s.scalars(select(Appeal))}
+        assert appeals == {cases["LOD-APPEAL-OPEN"]: "WINDOW_OPEN", cases["APPEAL-AT-SAC"]: "FILED"}
         assert evc[cases["EVC-PUBLISHED"]] == "PUBLISHED" and evc[cases["SHC"]] == "DONE"
 
-        # letters come from issue_loa on the approved cases only, dated on the (moved) demo clock
-        letters = {a.application_id: a for a in s.scalars(select(ApprovalLetter))}
+        # LoAs come from issue_loa on the approved cases only, dated on the (moved) demo clock; LoDs from issue_lod
+        rows = list(s.scalars(select(ApprovalLetter)))
+        letters = {a.application_id: a for a in rows if a.letter_type == "LOA"}
+        assert {a.application_id for a in rows if a.letter_type == "LOD"} == {cases["LOD-APPEAL-OPEN"],
+                                                                             cases["APPEAL-AT-SAC"]}
         assert set(letters) == {cases["LOA-OVERDUE"], cases["LOA-SOUTH"], cases["LOA-NORTH"]}
         assert letters[cases["LOA-OVERDUE"]].issue_date == today - timedelta(days=20)
         assert letters[cases["LOA-SOUTH"]].issue_date == today - timedelta(days=2)
@@ -62,6 +71,8 @@ def test_the_seed_reaches_every_stage_dated_from_the_demo_clock(api):
                          ("UNDERTAKING", "AFFIDAVIT3_REMAINING_1M")]
 
         clocks = {(d.subject_id, d.rule_id): d.status for d in s.scalars(select(Deadline))}
+        assert clocks[(cases["LOD-APPEAL-OPEN"], "APPEAL_7D")] == "RUNNING"
+        assert clocks[(cases["APPEAL-AT-SAC"], "APPEAL_7D")] == "MET"
         assert clocks[(cases["SCRUTINY-OVERDUE"], "AICTE_PROCESSING")] == "BREACHED"
         assert clocks[(cases["SCRUTINY-OVERDUE-NORTH"], "AICTE_PROCESSING")] == "BREACHED"
         assert clocks[(cases["SCRUTINY"], "AICTE_PROCESSING")] == "RUNNING"

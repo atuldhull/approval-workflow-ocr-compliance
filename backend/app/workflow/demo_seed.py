@@ -3,7 +3,7 @@
     python -m app.workflow.demo_seed      # needs DEMO_MODE=true; safe to rerun
 
 Every case is created, submitted and moved by the same HTTP actions the UI sends (committees, deficiency, EVC
-request, schedule proposal and publication, complete_evc, issue_loa), acting as the synthetic demo accounts, so
+request, schedule proposal and publication, complete_evc, issue_loa, issue_lod, file_appeal), acting as the synthetic demo accounts, so
 every row, clock, event and letter comes from the engine. Nothing is written to a table directly.
 
 Cases are dated from the demo clock (ClockPort), never from a calendar date. A case meant to look older is driven
@@ -41,6 +41,9 @@ AVAILABILITY_TO = 45
 # Stops, in the order a case passes them.
 SCRUTINY_STAGE, DEFICIENT, EVC_QUEUED, EVC_PUBLISHED, SHC, APPROVED = (
     "SCRUTINY", "DEFICIENT", "EVC_QUEUED", "EVC_PUBLISHED", "SHC", "APPROVED")
+# The appeal path (on a scrutiny-only route, so scrutiny decides): LoD issued with the appeal window open, and an
+# appeal filed and waiting at the SAC. ONLY_EVC is an AICTE-initiated visit, queued on submission.
+LOD_WINDOW, APPEAL_AT_SAC, ONLY_EVC = "LOD_WINDOW", "APPEAL_AT_SAC", "ONLY_EVC"
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,7 @@ class DemoCase:
     stop: str
     days_ago: int = 0     # how long ago (demo clock) the case was driven to its stop
     shc: bool = False     # forms an SHC workspace, so SHC applies after the visit
+    category: str = "NEW_PROGRAMME"
 
 
 # Oldest first, so the event log stays in time order. A region's schedule is proposed for every request queued in
@@ -59,6 +63,8 @@ DEMO_CASES = (
     DemoCase("SCRUTINY-OVERDUE-NORTH", NORTHFIELD, SCRUTINY_STAGE, days_ago=33),
     DemoCase("LOA-OVERDUE", SUNRISE, APPROVED, days_ago=20),              # deposit and affidavit 5 days overdue
     DemoCase("DEFICIENT", NORTHFIELD, DEFICIENT, days_ago=10),            # reply window open, 5 days left
+    DemoCase("APPEAL-AT-SAC", NORTHFIELD, APPEAL_AT_SAC, days_ago=5, category="CHANGE_OF_NAME"),
+    DemoCase("LOD-APPEAL-OPEN", RIVERBEND, LOD_WINDOW, days_ago=3, category="CHANGE_OF_NAME"),  # 4 days left
     DemoCase("LOA-SOUTH", SUNRISE, APPROVED, days_ago=2),
     DemoCase("LOA-NORTH", NORTHFIELD, APPROVED, days_ago=2),
     DemoCase("EVC-QUEUED-SOUTH", SUNRISE, EVC_QUEUED, days_ago=1),
@@ -66,6 +72,7 @@ DEMO_CASES = (
     DemoCase("EVC-PUBLISHED", RIVERBEND, EVC_PUBLISHED),
     DemoCase("SHC", RIVERBEND, SHC, shc=True),
     DemoCase("SCRUTINY", NORTHFIELD, SCRUTINY_STAGE),
+    DemoCase("RANDOM-INSPECTION", SUNRISE, ONLY_EVC, category="RANDOM_INSPECTION"),  # queued, nothing publishes after
 )
 
 
@@ -183,7 +190,7 @@ def publish_region(d: Driver, region: str, key: str) -> None:
 def submit(d: Driver, case: DemoCase) -> str:
     year = academic_year(d.today() + timedelta(days=365))  # applications are for the coming academic year
     return d.post("/applications", institution_headers(case.institution_id), {
-        "institution_id": str(case.institution_id), "category": "NEW_PROGRAMME", "academic_year": year,
+        "institution_id": str(case.institution_id), "category": case.category, "academic_year": year,
         "submit": True, "dsc_present": True,
         "items": [{"item_key": "DEMO_CORE_REFERENCE", "state": "PROVIDED", "document_ref": str(case_ref(case.key))}]})["id"]
 
@@ -191,8 +198,21 @@ def submit(d: Driver, case: DemoCase) -> str:
 def drive(d: Driver, case: DemoCase) -> str:
     """Creates one case and moves it to its stop. Returns its id."""
     app_id = submit(d, case)
-    d.committee(app_id, "SCRUTINY", SCRUTINY)
+    if case.stop == ONLY_EVC:  # submission queues the visit request
+        return app_id
+    scrutiny = d.committee(app_id, "SCRUTINY", SCRUTINY)
     if case.stop == SCRUTINY_STAGE:
+        return app_id
+    if case.stop in (LOD_WINDOW, APPEAL_AT_SAC):
+        report = d.post(f"/committees/{scrutiny}/reports", SCRUTINY,
+                        {"content": "Fictional DEMO scrutiny report: the core requirement is not met."})["id"]
+        year = academic_year(d.today() + timedelta(days=365))
+        d.act(app_id, "issue_lod", BUREAU, {"decision_ref": report, "letter": {
+            "type": "LOD", "academic_year": year, "issue_date": d.today().isoformat(),
+            "issue_date_source": "PORTAL_EVENT", "lists_deficiencies": False, "f_no": f_no(case.key, year)}})
+        if case.stop == APPEAL_AT_SAC:
+            d.act(app_id, "file_appeal", institution_headers(case.institution_id),
+                  note="Fictional DEMO grounds: the requirement was met before the LoD.")
         return app_id
     if case.stop == DEFICIENT:
         d.act(app_id, "record_deficiency", SCRUTINY, {"item_keys": ["DEMO_CORE_REFERENCE"]},
