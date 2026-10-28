@@ -292,3 +292,27 @@ checklists:
       mandatory: false
     - item_key: FIRE_NOC
       mandatory: false
+  RANDOM_INSPECTION:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false
+  COMPLAINT_EVC:
+    status: DEMO_ASSUMPTION
+    label: DEMO ASSUMPTION
+    assumption_refs:
+    - INTAKE_ANNEXURE_2_UNKNOWN
+    - INTAKE_DSC_DEMO_POLICY
+    dsc_required: true
+    items:
+    - item_key: DEMO_CORE_REFERENCE
+      mandatory: true
+    - item_key: DEMO_OPTIONAL_REFERENCE
+      mandatory: false

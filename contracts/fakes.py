@@ -171,3 +171,12 @@ class FakeCompliance:
     def register_letter(self, uow, letter: LetterIn) -> UUID:
         self.letters.append(letter)
         return uuid4()
+
+
+class FakeDeadlineExpiry:
+    def __init__(self):
+        self.runs: list[int] = []
+
+    def run_due(self, limit: int) -> int:
+        self.runs.append(limit)
+        return 0

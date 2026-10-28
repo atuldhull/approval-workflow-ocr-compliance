@@ -14,7 +14,8 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.platform.db import unit_of_work
 from app.platform.registry import port
 from app.platform.settings import settings
-from app.workflow import guards, deficiency
+from app.workflow import appeal, guards, deficiency
+from app.workflow.evc_config import rule_for
 from app.workflow.commands import (
     ActionAvailability, CaseContext, ClosedDeadline, Command, Decision, OpenedDeadline, Options, Payload, Result,
     Spec, State, WorkflowConflict, WorkflowValidationFailed,
@@ -56,6 +57,7 @@ def plan_transition(case: CaseContext, command: Command, config: Options, *, pre
         raise WorkflowValidationFailed("INVALID_TRANSITION")
     if command.payload.target_stage is not None and action != "revert":
         raise WorkflowValidationFailed("UNEXPECTED_TARGET_STAGE")
+    guards.appeal_gate(case.facts.appeal_status, action)
     current_condition = dict(case.stages).get(case.state.current_stage)
     if current_condition == "as_applicable":
         selected = case.facts.applicability.get(case.state.current_stage)
@@ -291,7 +293,7 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
         raise WorkflowValidationFailed("EVC_CONFIG_UNAVAILABLE")
     if evc_config is not None:
         evc = _get_port(EvcPort)
-        kwargs = dict(ruleset_key=row.ruleset_key, rule_id=evc_config["rule_id"], action=decision.transition.action)
+        kwargs = dict(ruleset_key=row.ruleset_key, rule_id=rule_for(evc_config, row.route_id), action=decision.transition.action)
         if context.state.current_stage != "EVC" and decision.current_stage == "EVC":
             evc.enter(uow, case_ref, category=row.route_id, stage_visit_id=new_visit, anchor=Anchor(at=now), **kwargs)
         elif context.state.current_stage == "EVC" and (decision.current_stage != "EVC" or decision.transition.action == "complete_evc"):
@@ -328,6 +330,11 @@ def _handle(uow: UnitOfWork, command: Command) -> Result:
     event_version = 2 if decision.transition.action == "submit" else 1
     seqs = [ledger.append(uow, EventIn(event_type=event_type, event_version=event_version, payload=payload, **common))]
     seqs.extend(ledger.append(uow, event) for event in deficiency_events)
+    letter_type = decision.transition.letter["type"] if decision.transition.letter else None
+    seqs.extend(ledger.append(uow, event) for event in appeal.apply(
+        uow, row, context.state.source, decision.transition.action, command, now, common,
+        settings=metadata.source_metadata.get("appeal"), opened=opened, letter_ref=letter_ref, letter_type=letter_type,
+        note_ref=note_ref, note_hash=note_hash))
     if current:
         seqs.append(ledger.append(uow, EventIn(event_type="wf.stage_exited", payload=dict(
             application_id=row.application_id, stage_visit_id=current[0]["id"], stage=current[0]["stage"],

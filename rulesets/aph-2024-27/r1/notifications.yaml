@@ -34,6 +34,7 @@ events:
 rule_names:
   AICTE_PROCESSING: AICTE's processing time for a submitted application
   EVC_PROCESSING: the time to hold the expert visit
+  EVC_NEW_INSTITUTION: the time to hold the expert visit for a new institution
   INSTITUTION_RESPONSE: the institution's time to answer the deficiencies
   APPEAL_7D: the seven days to appeal a decision
   DEPOSIT_15D: the fifteen days to pay the security deposit

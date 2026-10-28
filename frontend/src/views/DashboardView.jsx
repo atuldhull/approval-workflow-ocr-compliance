@@ -34,7 +34,7 @@ const relabel = (data, label) => Object.fromEntries(Object.entries(data || {}).m
 
 const VALIDITY_ORDER = ["VALID", "EXPIRING_SOON", "EXPIRED", "RENEWAL_UNDER_REVIEW", "RENEWED"];
 
-const COMMITTEE_LABEL = { SCRUTINY: "Scrutiny", RESCRUTINY: "Re-scrutiny", EVC: "Expert visit", SHC: "Standing hearing", EC: "Executive", COUNCIL: "Council" };
+const COMMITTEE_LABEL = { SCRUTINY: "Scrutiny", RESCRUTINY: "Re-scrutiny", EVC: "Expert visit", SHC: "Standing hearing", EC: "Executive", COUNCIL: "Council", SAC: "Appellate (SAC)" };
 
 
 

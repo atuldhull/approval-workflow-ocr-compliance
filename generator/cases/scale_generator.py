@@ -73,7 +73,9 @@ def generate(seed: int, institutions: int = 300, applications: int = 600,
         raise ValueError("regions must be <= institutions and <= 9")
     rng = random.Random(seed)
     raw, deadlines, checklists = sources()
-    categories = sorted(raw["routes"])
+    # Applications filed by institutions; AICTE-initiated visits (initiated_by: AICTE, the Only-EVC routes) are not
+    # part of the application mix.
+    categories = sorted(c for c, route in raw["routes"].items() if route.get("initiated_by") != "AICTE")
     # Equal weights, Hamilton allocation: at most one application separates categories.
     mix = [category for i, category in enumerate(categories)
            for _ in range(applications // len(categories) + (i < applications % len(categories)))]
@@ -101,6 +103,7 @@ def generate(seed: int, institutions: int = 300, applications: int = 600,
         clocks.append(entry)
 
     for index, category in enumerate(mix):
+        evc_rule = raw["routes"][category].get("evc_rule_id", raw["evc"]["rule_id"])  # a route's own EVC timeline
         app_id = identity(seed, "application", index)
         institution = master[index % institutions]
         stage_list = [dict(stage=s, when="always") if isinstance(s, str) else dict(s)
@@ -159,7 +162,7 @@ def generate(seed: int, institutions: int = 300, applications: int = 600,
                     visited.append(plan[position + 1])  # final acceptance advances via YAML
                     continue
             if stage == "EVC":
-                clock_op(app_id, "OPEN", raw["evc"]["rule_id"], instant(clock.now()))
+                clock_op(app_id, "OPEN", evc_rule, instant(clock.now()))
                 planned = instant(clock.now())
                 delay_seconds = rng.randint(1, 4) * 86400
                 clock.tick(delay_seconds)
@@ -170,11 +173,11 @@ def generate(seed: int, institutions: int = 300, applications: int = 600,
             if position + 1 < len(plan):
                 advanced = operation("action", "advance", payload={})
                 if stage == "EVC":
-                    clock_op(app_id, "CLOSE", raw["evc"]["rule_id"], advanced, outcome="MET")
+                    clock_op(app_id, "CLOSE", evc_rule, advanced, outcome="MET")
                 visited.append(plan[position + 1])
         terminal = operation("action", "reject" if outcome == "REJECTED" else "withdraw", payload={})
         if plan[-1] == "EVC":
-            clock_op(app_id, "CLOSE", raw["evc"]["rule_id"], terminal, outcome="WAIVED")
+            clock_op(app_id, "CLOSE", evc_rule, terminal, outcome="WAIVED")
         clock_op(app_id, "CLOSE", "AICTE_PROCESSING", terminal, outcome="MET")
         workflows.append(dict(application_id=app_id, deficiency_loop_count=len(loops), deficiency_loops=loops,
             late_responses=late, evc_delays=delays, letters_to_issue=[], route_outcome=dict(at_clock=terminal,

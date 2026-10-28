@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.appeal_decided v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "appeal_id",
+    "outcome",
+    "letter_ref",
+    "decided_by",
+    "speaking_order_hash"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "appeal_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "LOA",
+        "EOA",
+        "LOR"
+      ]
+    },
+    "letter_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "decided_by": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "speaking_order_hash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

@@ -112,7 +112,7 @@ def test_valid_http_sequence_real_deadlines_ledger_and_timeline(api):
     assert "Fictional DEMO private note" not in json.dumps(rows)
     deadlines = api.get("/api/deadlines", params={"subject_id": case_id}, headers=headers("INSTITUTION", SUNRISE)).json()
     assert {d["rule_id"]: d["status"] for d in deadlines} == {
-        "AICTE_PROCESSING": "RUNNING", "INSTITUTION_RESPONSE": "MET", "EVC_PROCESSING": "RUNNING"}
+        "AICTE_PROCESSING": "RUNNING", "INSTITUTION_RESPONSE": "MET", "EVC_NEW_INSTITUTION": "RUNNING"}
     verify = api.get("/api/ledger/verify", headers=headers("AUDITOR"))
     assert verify.status_code == 200 and verify.json()["ok"]
 
@@ -208,7 +208,7 @@ def test_legacy_submit_is_adopted_without_duplicate_clocks_or_visits(api):
     events = api.get(f"/api/cases/{case_id}/timeline", headers=headers("INSTITUTION", SUNRISE)).json()
     assert sum(e["event_type"] == "wf.application_submitted" for e in events) == 1
     opened = [e for e in events if e["event_type"] == "dl.deadline_opened"]
-    assert [e["payload"]["rule_id"] for e in opened] == ["AICTE_PROCESSING", "EVC_PROCESSING"]
+    assert [e["payload"]["rule_id"] for e in opened] == ["AICTE_PROCESSING", "EVC_NEW_INSTITUTION"]
 
 
 def test_unknown_guard_facts_reject_without_leaving_partial_adoption(api, monkeypatch):

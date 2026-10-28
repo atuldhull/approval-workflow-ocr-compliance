@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.appeal_filed v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "appeal_id",
+    "filed_by",
+    "deadline_id"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "appeal_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "filed_by": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "deadline_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}

@@ -43,12 +43,24 @@ POLICY: dict[str, frozenset[Role]] = {
     "case.advance_to_evc": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
     "case.complete_evc": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
     "case.advance_to_shc": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
-    "case.issue_loa": frozenset({R.BUREAU_OFFICER}),
-    "case.issue_eoa": frozenset({R.BUREAU_OFFICER}),
+    # after an appeal the Council's final decision is recorded by the bureau head (routes.yaml sac_* templates)
+    "case.issue_loa": frozenset({R.BUREAU_OFFICER, R.BUREAU_HEAD}),
+    "case.issue_eoa": frozenset({R.BUREAU_OFFICER, R.BUREAU_HEAD}),
     "case.issue_lod": frozenset({R.BUREAU_OFFICER}),
     "case.reject": frozenset({R.BUREAU_OFFICER}),
     "case.withdraw": frozenset({R.INSTITUTION}),
     "case.revert": frozenset({R.BUREAU_OFFICER}),
+    # appeal against an LoD (APH cl. 1.11 / 2.24): the institution files its own; a lapsed window is closed by the
+    # deadline worker (SYSTEM) or recorded by an officer; SAC members record its recommendation; the Council's
+    # decision, final, is recorded by the bureau head, a Letter of Rejection with its speaking order
+    "case.file_appeal": frozenset({R.INSTITUTION}),
+    "case.close_appeal_window": frozenset({R.SYSTEM, R.BUREAU_OFFICER}),
+    "case.sac_recommend": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
+    "case.sac_not_recommend": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
+    "case.sac_refer_scrutiny": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
+    "case.sac_refer_evc": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
+    "case.return_to_sac": frozenset({R.BUREAU_OFFICER}),
+    "case.issue_lor": frozenset({R.BUREAU_HEAD}),
     "committee.create": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
     "committee.task.assign": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),
     "committee.observation.add": frozenset({R.SCRUTINY_COMMITTEE, R.BUREAU_OFFICER}),

@@ -21,6 +21,7 @@ class Stage(StrEnum):
     SHC = "SHC"
     EC = "EC"
     COUNCIL = "COUNCIL"
+    SAC = "SAC"  # Standing Appellate Committee: hears an appeal against an LoD (APH cl. 1.11, 2.24)
 
 
 class ApplicationStatus(StrEnum):

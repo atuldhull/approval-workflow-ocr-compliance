@@ -283,10 +283,12 @@ templates:
     letter:
       type: EOA
       lists_deficiencies: false
+  # An LoD keeps the case at its decision stage and opens the appeal window (appeal block below); the case is
+  # finally rejected only when the window lapses unappealed or the Council rejects the appeal.
   lod:
     action: issue_lod
     from_stage: $last
-    to_stage: REJECTED
+    to_stage: $current
     allowed_roles:
     - BUREAU_OFFICER
     guards:
@@ -306,6 +308,9 @@ templates:
       anchor: null
       outcome: WAIVED
       if_live: true
+    - op: open
+      rule_id: APPEAL_7D
+      anchor: letter.issue_date
     emits_event: wf.transition_applied
     letter:
       type: LOD
@@ -371,122 +376,266 @@ templates:
     aliases:
     - authorised_revert
 
-transitions: &standard [submit, advance, deficiency, compliance, rescrutiny, to_evc, evc_complete, evc_complete_last, to_shc, loa, eoa, lod, reject, withdraw, revert]
+  # ---- appeal against an LoD (APH 2024-27 cl. 1.11, p.25; cl. 2.24, p.45) ----
+  # The system records what people decide: the institution files, the SAC recommends and the Council decides.
+  appeal_file:
+    action: file_appeal
+    from_stage: $last
+    to_stage: SAC
+    allowed_roles: [INSTITUTION]
+    guards: [at_last_applicable_stage, appeal_window_open]
+    reason_codes_required: false
+    timers:
+    - {op: close, rule_id: APPEAL_7D, anchor: null, outcome: MET}
+    emits_event: wf.transition_applied
+    letter: null
+  # Driven by the APPEAL_7D clock (deadlines.yaml on_expiry): once it is breached the deadline worker closes the
+  # window as SYSTEM; an officer may record the same lapse. The LoD then stands as the final rejection.
+  appeal_lapse:
+    action: close_appeal_window
+    from_stage: $last
+    to_stage: REJECTED
+    allowed_roles: [SYSTEM, BUREAU_OFFICER]
+    guards: [at_last_applicable_stage, appeal_window_lapsed]
+    reason_codes_required: false
+    timers:
+    - {op: close, rule_id: APPEAL_7D, anchor: null, outcome: WAIVED}
+    emits_event: wf.transition_applied
+    letter: null
+  # cl. 1.11(d): the SAC recommends or does not recommend the case to the Council, or recommends a Scrutiny
+  # Committee / EVC. A member of the case's SAC committee records it, citing the SAC's latest report.
+  sac_recommend:
+    action: sac_recommend
+    from_stage: SAC
+    to_stage: SAC
+    allowed_roles: [SCRUTINY_COMMITTEE, BUREAU_OFFICER]
+    guards: [appeal_filed, actor_has_assignment, decision_authorised]
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+  sac_not_recommend:
+    action: sac_not_recommend
+    from_stage: SAC
+    to_stage: SAC
+    allowed_roles: [SCRUTINY_COMMITTEE, BUREAU_OFFICER]
+    guards: [appeal_filed, actor_has_assignment, decision_authorised]
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+  sac_refer_scrutiny:
+    action: sac_refer_scrutiny
+    from_stage: SAC
+    to_stage: SCRUTINY
+    allowed_roles: [SCRUTINY_COMMITTEE, BUREAU_OFFICER]
+    guards: [appeal_filed, actor_has_assignment, decision_authorised]
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages: [SCRUTINY]
+  sac_refer_evc:
+    action: sac_refer_evc
+    from_stage: SAC
+    to_stage: EVC
+    allowed_roles: [SCRUTINY_COMMITTEE, BUREAU_OFFICER]
+    guards: [appeal_filed, actor_has_assignment, decision_authorised]
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+    requires_stages: [EVC]
+  # cl. 1.11(d): after a referral the new reports are placed before another SAC, not decided again here.
+  sac_return:
+    action: return_to_sac
+    from_stage: $last
+    to_stage: SAC
+    allowed_roles: [BUREAU_OFFICER]
+    guards: [at_last_applicable_stage, appeal_referred_back, open_items_zero]
+    reason_codes_required: false
+    timers: []
+    emits_event: wf.transition_applied
+    letter: null
+  # cl. 1.11(e) / 2.24(f): the Council's decision on the SAC recommendation is final. BUREAU_HEAD records it.
+  sac_loa:
+    action: issue_loa
+    from_stage: SAC
+    to_stage: APPROVED
+    allowed_roles: [BUREAU_HEAD]
+    guards: [appeal_recommendation_recorded, decision_authorised, letter_type_matches_decision]
+    reason_codes_required: false
+    timers: &council_closes
+    - {op: close, rule_id: AICTE_PROCESSING, anchor: null, outcome: MET, if_live: true}
+    - {op: close, rule_id: INSTITUTION_RESPONSE, anchor: null, outcome: WAIVED, if_live: true}
+    emits_event: wf.transition_applied
+    letter: {type: LOA, lists_deficiencies: false}
+  sac_eoa:
+    action: issue_eoa
+    from_stage: SAC
+    to_stage: APPROVED
+    allowed_roles: [BUREAU_HEAD]
+    guards: [appeal_recommendation_recorded, decision_authorised, letter_type_matches_decision]
+    reason_codes_required: false
+    timers: *council_closes
+    emits_event: wf.transition_applied
+    letter: {type: EOA, lists_deficiencies: false}
+  # cl. 1.10(b): a Letter of Rejection carries a Speaking Order with the specific reasons; it is the command's
+  # note, kept as a protected note (hash in the ledger).
+  sac_lor:
+    action: issue_lor
+    from_stage: SAC
+    to_stage: REJECTED
+    allowed_roles: [BUREAU_HEAD]
+    guards: [appeal_recommendation_recorded, decision_authorised, letter_type_matches_decision, speaking_order_present]
+    reason_codes_required: false
+    timers: *council_closes
+    emits_event: wf.transition_applied
+    letter: {type: LOR, lists_deficiencies: false}
+
+transitions: &standard [submit, advance, deficiency, compliance, rescrutiny, to_evc, evc_complete, evc_complete_last, to_shc, loa, eoa, lod, reject, withdraw, revert,
+                        appeal_file, appeal_lapse, sac_recommend, sac_not_recommend, sac_refer_scrutiny, sac_refer_evc, sac_return,
+                        sac_loa, sac_eoa, sac_lor]
 
 routes:
   EOA_SELF_DISCLOSURE:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 1, page: 46, status: VERIFIED}
     label: Extension of Approval based on self-disclosure
     stages: [SELF_DISCLOSURE]
     transitions: *standard
   NRI_SEATS:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 2, page: 46, status: VERIFIED}
     label: Introduction/continuation of NRI seats
     stages: [SELF_DISCLOSURE]
     transitions: *standard
   CONVERSION_LEVEL:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 3, page: 46, status: VERIFIED}
     label: Conversion diploma to degree level or vice versa
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   CHANGE_OF_NAME:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 4, page: 46, status: VERIFIED}
     label: Change of name of institution / affiliating university / board / type
     stages: [SCRUTINY]
     transitions: *standard
   NEW_PROGRAMME:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 5, page: 46, status: VERIFIED}
     label: New programme / level in existing institution
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   MERGER:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 6, page: 46, status: VERIFIED}
     label: Merger of institutions
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   RESTORATION:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 7, page: 46, status: VERIFIED}
     label: EoA after a break / restoration of intake / hibernation
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   SUPERNUMERARY_SEATS:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 8, page: 46, status: VERIFIED}
     label: Supernumerary seats (foreign nationals / OCI / children of Indian workers in Gulf)
     stages: [SCRUTINY]
     transitions: *standard
   INCREASE_INTAKE:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 9, page: 46, status: VERIFIED}
     label: Increase in intake / additional course(s)
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   INTEGRATED_DUAL:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 10, page: 46, status: VERIFIED}
     label: Integrated / dual degree course
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   FELLOW_PROGRAMME:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 11, page: 46, status: VERIFIED}
     label: Fellow Programme in Management
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   COURSE_CHANGE_REDUCTION:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 12, page: 46, status: VERIFIED}
     label: Change of course name / merger of courses / reduction in intake
     stages: [SCRUTINY]
     transitions: *standard
   COLLABORATION_TWINNING:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 13, page: 46, status: VERIFIED}
     label: Collaboration and twinning programme
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   CHANGE_OF_SITE:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 14, page: 46, status: VERIFIED}
     label: Change of site / location
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   CLOSURE_INSTITUTION:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 15, page: 46, status: VERIFIED}
     label: Closure of the institution
     stages: [SCRUTINY]
     transitions: *standard
   CONVERSION_COED:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 16, page: 46, status: VERIFIED}
     label: Conversion women's to co-ed institution or vice versa
     stages: [SCRUTINY]
     transitions: *standard
   CLOSURE_PROGRAMME:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 17, page: 46, status: VERIFIED}
     label: Closure of programme(s) / course(s)
     stages: [SCRUTINY]
     transitions: *standard
   BANK_DETAILS:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 18, page: 46, status: VERIFIED}
     label: Change in bank details
     stages: [SCRUTINY]
     transitions: *standard
   TRUST_NAME:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 19, page: 46, status: VERIFIED}
     label: Change of name of trust / society / company
     stages: [SCRUTINY]
     transitions: *standard
   DEEMED_UNIVERSITY:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 20, page: 46, status: VERIFIED}
     label: Conversion into a deemed-to-be university
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
   ODL:
-    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: TABLE_2_3, clause: "2.23.4", row: 21, page: 46, status: VERIFIED}
     label: Online Learning / ODL courses
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}]
     transitions: *standard
-  # Chapter I route (sections 1.3-1.12), not part of Table 2.3
+  # Chapter I route (sections 1.3-1.12), not part of Table 2.3. Scrutiny, EVC, EC and the Council's ratification
+  # follow cl. 1.8-1.10 (p.23-24); the optional SHC step is not in Chapter I, so the stage list stays a demo assumption.
   NEW_INSTITUTION:
-    clause_citation: {source_document: APH_2024_27, locator: CHAPTER_I, clause: UNCONFIRMED, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
+    clause_citation: {source_document: APH_2024_27, locator: CHAPTER_I, clause: "1.8-1.11", page: 23, status: DEMO_ASSUMPTION, assumption_ref: INTAKE_CITATION_UNCONFIRMED}
     label: Setting up a new institution
     stages: [SCRUTINY, EVC, {stage: SHC, when: as_applicable}, EC, COUNCIL]
+    # its own EVC timeline (deadlines.yaml EVC_NEW_INSTITUTION); the APH sets no duration, so it is a demo value
+    evc_rule_id: EVC_NEW_INSTITUTION
+    transitions: *standard
+  # "Only EVC" routes: AICTE-initiated visits to an existing institution, opened by the institution's filing once
+  # AICTE has intimated it. SHC follows "as applicable", as everywhere an EVC is held (Table 2.3 pairing).
+  RANDOM_INSPECTION:
+    clause_citation: {source_document: APH_2024_27, locator: SECTION_2_3_5, clause: "2.3.5(a)", page: 31, status: VERIFIED}
+    label: EVC (inspection) of an existing institution selected at random
+    stages: [EVC, {stage: SHC, when: as_applicable}]
+    initiated_by: AICTE
+    transitions: *standard
+  # cl. 7.10(c)-(d): on a verified complaint the SCSC may have an EVC conducted, whose report goes before the SHC.
+  COMPLAINT_EVC:
+    clause_citation: {source_document: APH_2024_27, locator: SECTION_7_10, clause: "7.10(c)-(d)", page: 89, status: VERIFIED}
+    label: EVC on a verified complaint
+    stages: [EVC, {stage: SHC, when: as_applicable}]
+    initiated_by: AICTE
     transitions: *standard
 
+# APH 2024-27 cl. 1.11(a), p.25 / cl. 2.24(a), p.45 (verified): an aggrieved institution may appeal once, within
+# 7 days of the LoD, to the Council; the Standing Appellate Committee (SAC) hears it. Read by the workflow grammar
+# and engine: the trigger decision opens the window clock, and SAC is open to every route without being part of
+# its plan. While the window is open only the appeal actions apply; after a referral back the decision returns to
+# the SAC (return_to_sac), never to a second LoD.
 appeal:
-  trigger: decision.adverse_uploaded
+  trigger: issue_lod
   window: APPEAL_7D
   max_appeals: 1
+  stage: SAC
+  source: {source_document: APH_2024_27, clause: "1.11(a); 2.24(a)", page: 25, status: VERIFIED}

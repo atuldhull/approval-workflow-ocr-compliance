@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.appeal_window_opened v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "appeal_id",
+    "lod_letter_ref",
+    "deadline_id",
+    "rule_id",
+    "max_appeals"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "appeal_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "lod_letter_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "deadline_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "max_appeals": {
+      "type": "integer",
+      "const": 1
+    }
+  }
+}

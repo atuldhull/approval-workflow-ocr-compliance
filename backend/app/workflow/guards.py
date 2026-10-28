@@ -71,8 +71,9 @@ def read_facts(uow: UnitOfWork, case, command: Command) -> GuardFacts:
         facts = replace(facts, checklist_complete=not any(key != "DSC" for key in missing),
                         missing_item_keys=tuple(sorted(missing)), provided_item_keys=provided,
                         dsc_required=config["dsc_required"], dsc_present=bool(present))
+    from app.workflow.appeal import read_facts as appeal_facts
     from app.workflow.deficiency import read_facts as deficiency_facts
-    return deficiency_facts(uow, case, command, facts)
+    return appeal_facts(uow, case, deficiency_facts(uow, case, command, facts))
 
 
 def require(value, reason: str) -> None:
@@ -148,6 +149,19 @@ def next_stage(case: CaseContext) -> str | None:
         if selected:
             return stage
     return None
+
+
+# While an LoD's appeal window is open only the appeal itself or the window's lapse can follow; after the SAC refers
+# the case back, the decision belongs to the SAC and the Council again, never to a second LoD (APH cl. 1.11(d)).
+APPEAL_WINDOW_ACTIONS = frozenset({"file_appeal", "close_appeal_window"})
+REFERRED_BACK_BLOCKED = frozenset({"issue_loa", "issue_eoa", "issue_lod", "reject"})
+
+
+def appeal_gate(status: str | None, action: str) -> None:
+    if status == "WINDOW_OPEN" and action not in APPEAL_WINDOW_ACTIONS:
+        raise WorkflowValidationFailed("APPEAL_WINDOW_OPEN")
+    if status == "REFERRED_BACK" and action in REFERRED_BACK_BLOCKED:
+        raise WorkflowValidationFailed("APPEAL_REFERRED_BACK")
 
 
 def evaluate(context: Context) -> None:
@@ -273,3 +287,44 @@ def second_approval_if_required(c: Context) -> None:
         require(c.case.facts.second_approver_refs is not None, "APPROVAL_CONTEXT_UNAVAILABLE")
         require(c.command.payload.second_approver_ref in c.case.facts.second_approver_refs, "SECOND_APPROVAL_REQUIRED")
         require(c.command.payload.second_approver_ref != c.command.actor.user_id, "SECOND_APPROVER_MUST_DIFFER")
+
+
+@register("appeal_window_open")
+def appeal_window_open(c: Context) -> None:
+    if c.case.facts.appeal_status != "WINDOW_OPEN":
+        raise WorkflowValidationFailed("APPEAL_WINDOW_NOT_OPEN")
+    lapsed = c.case.facts.appeal_window_lapsed
+    require(None if lapsed is None else not lapsed, "APPEAL_WINDOW_CLOSED")
+
+
+@register("appeal_window_lapsed")
+def appeal_window_lapsed(c: Context) -> None:
+    if c.case.facts.appeal_status != "WINDOW_OPEN":
+        raise WorkflowValidationFailed("APPEAL_WINDOW_NOT_OPEN")
+    require(c.case.facts.appeal_window_lapsed, "APPEAL_WINDOW_STILL_OPEN")
+
+
+@register("appeal_filed")
+def appeal_filed(c: Context) -> None:
+    if c.case.facts.appeal_status != "FILED":
+        raise WorkflowValidationFailed("APPEAL_NOT_AWAITING_SAC")
+
+
+@register("appeal_recommendation_recorded")
+def appeal_recommendation_recorded(c: Context) -> None:
+    if c.case.facts.appeal_status not in {"RECOMMENDED", "NOT_RECOMMENDED"}:
+        raise WorkflowValidationFailed("SAC_RECOMMENDATION_REQUIRED")
+
+
+@register("appeal_referred_back")
+def appeal_referred_back(c: Context) -> None:
+    if c.case.facts.appeal_status != "REFERRED_BACK":
+        raise WorkflowValidationFailed("APPEAL_NOT_REFERRED_BACK")
+
+
+@register("speaking_order_present")
+def speaking_order_present(c: Context) -> None:
+    """APH cl. 1.10(b): a Letter of Rejection carries a speaking order with the specific reasons (the note)."""
+    if c.preview and c.command.note_body is None:
+        return
+    require(bool(c.command.note_body and c.command.note_body.strip()), "SPEAKING_ORDER_REQUIRED")

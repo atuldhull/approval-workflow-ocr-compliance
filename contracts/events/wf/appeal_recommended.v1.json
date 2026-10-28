@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wf.appeal_recommended v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application_id",
+    "appeal_id",
+    "hearing_no",
+    "recommendation",
+    "report_ref",
+    "recommended_by"
+  ],
+  "properties": {
+    "application_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "appeal_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "hearing_no": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "RECOMMEND",
+        "NOT_RECOMMEND",
+        "REFER_SCRUTINY",
+        "REFER_EVC"
+      ]
+    },
+    "report_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recommended_by": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}

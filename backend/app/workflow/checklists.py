@@ -38,11 +38,23 @@ class Document(Record):
 
 
 class Citation(Record):
+    """Where a route comes from. VERIFIED: the clause (and Table 2.3 row) was checked against the handbook text on
+    that PDF page. Anything else stays a DEMO_ASSUMPTION with the assumption it rests on."""
     source_document: Code
     locator: Code
-    clause: Code
-    status: Literal["DEMO_ASSUMPTION"]
-    assumption_ref: Code
+    clause: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9 .;()/_-]*$", max_length=40)]
+    status: Literal["DEMO_ASSUMPTION", "VERIFIED"]
+    row: Annotated[int, Field(strict=True, ge=1)] | None = None
+    page: Annotated[int, Field(strict=True, ge=1)] | None = None
+    assumption_ref: Code | None = None
+
+    @model_validator(mode="after")
+    def sourced(self):
+        if self.status == "VERIFIED" and (self.page is None or self.assumption_ref is not None):
+            raise ValueError("a verified citation names its page and rests on no assumption")
+        if self.status == "DEMO_ASSUMPTION" and self.assumption_ref is None:
+            raise ValueError("a demo-assumption citation names its assumption")
+        return self
 
 
 def validate_checklists(raw: dict, categories: set[str]) -> dict:

@@ -15,12 +15,22 @@ from acceptance.runtime_support import SUNRISE, headers, letter_for, snapshot, s
 
 
 def test_expected_csv_is_frozen_complete_and_honest_about_sources():
-    assert len(EXPECTED) == 22 and len({row.route_id for row in EXPECTED}) == 22
+    assert len(EXPECTED) == 24 and len({row.route_id for row in EXPECTED}) == 24
     assert {row.route_id for row in EXPECTED} == set(RAW["routes"])
     assert sum(row.source_table == "TABLE_2_3" for row in EXPECTED) == 21
     assert [row.route_id for row in EXPECTED if row.source_table == "CHAPTER_I"] == ["NEW_INSTITUTION"]
-    assert all(row.source_verification == "PRIMARY_SOURCE_UNAVAILABLE" and
-               row.assumption_ref == "ACCEPTANCE_SOURCE_UNVERIFIED" for row in EXPECTED)
+    # verified rows cite the handbook page and rest on no assumption; the one unconfirmed list names its assumption
+    for row in EXPECTED:
+        if row.route_id == "NEW_INSTITUTION":
+            assert (row.source_verification, row.assumption_ref) == ("STAGE_LIST_UNCONFIRMED", "NEW_INSTITUTION_SHC_UNCONFIRMED")
+        else:
+            assert row.source_verification.startswith("VERIFIED_APH_P") and row.assumption_ref == "NONE"
+    # the citation in routes.yaml agrees with the oracle's verification
+    for row in EXPECTED:
+        citation = RAW["routes"][row.route_id]["clause_citation"]
+        assert (citation["status"] == "VERIFIED") == row.source_verification.startswith("VERIFIED_APH_P")
+        if citation["status"] == "VERIFIED":
+            assert row.source_verification == f"VERIFIED_APH_P{citation['page']}"
 
 
 @pytest.mark.parametrize("expected", EXPECTED, ids=lambda row: row.route_id)

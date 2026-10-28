@@ -9,6 +9,14 @@ rules:
     anchor: evc.request_created
     duration: {value: 7, unit: calendar_days}
 
+  # DEMO ASSUMPTION: the EVC timeline of a new institution (routes.yaml evc_rule_id); the APH sets no duration.
+  - id: EVC_NEW_INSTITUTION
+    clock_kind: INTERNAL
+    clock_owner: COMMITTEE
+    source: {status: demo_assumption}
+    anchor: evc.request_created
+    duration: {value: 14, unit: calendar_days}
+
   - id: AICTE_PROCESSING
     clock_kind: INTERNAL
     clock_owner: AICTE

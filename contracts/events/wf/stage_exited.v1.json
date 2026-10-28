@@ -30,7 +30,8 @@
         "EVC",
         "SHC",
         "EC",
-        "COUNCIL"
+        "COUNCIL",
+        "SAC"
       ]
     },
     "exited_at": {
@@ -43,13 +44,21 @@
         "ADVANCE",
         "ADVANCE_TO_EVC",
         "ADVANCE_TO_SHC",
+        "CLOSE_APPEAL_WINDOW",
         "COMPLETE_EVC",
+        "FILE_APPEAL",
         "ISSUE_EOA",
         "ISSUE_LOA",
         "ISSUE_LOD",
+        "ISSUE_LOR",
         "RECORD_DEFICIENCY",
         "REJECT",
+        "RETURN_TO_SAC",
         "REVERT",
+        "SAC_NOT_RECOMMEND",
+        "SAC_RECOMMEND",
+        "SAC_REFER_EVC",
+        "SAC_REFER_SCRUTINY",
         "START_RESCRUTINY",
         "SUBMIT",
         "SUBMIT_COMPLIANCE",

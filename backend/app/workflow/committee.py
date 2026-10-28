@@ -19,7 +19,7 @@ from contracts.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from contracts.ports import AuthzPort, ClockPort, LedgerPort, NotesPort, UnitOfWork
 from contracts.types import EventIn, Principal, ResourceRef
 
-CommitteeType = Literal["SCRUTINY", "RESCRUTINY", "EVC", "SHC", "EC", "COUNCIL"]
+CommitteeType = Literal["SCRUTINY", "RESCRUTINY", "EVC", "SHC", "EC", "COUNCIL", "SAC"]
 MemberRole = Literal["CHAIR", "MEMBER", "SECRETARY"]
 TaskTitle = Literal["REVIEW_DOCUMENTS", "REVIEW_RESPONSES", "PREPARE_REPORT"]
 Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]

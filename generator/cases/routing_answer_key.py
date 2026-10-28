@@ -18,9 +18,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "docs" / "p1" / "expected_routes.csv"
 OUTPUT = ROOT / "generator" / "answer_keys" / "routing.json"
-SOURCE = ("Frozen docs/p1/expected_routes.csv: a manual transcription of APH 2024-27 Table 2.3 (21 categories) and "
-          "Chapter I (NEW_INSTITUTION). DEMO ASSUMPTION ACCEPTANCE_SOURCE_UNVERIFIED: the primary source was not "
-          "available, so no row is verified against the official handbook (PRIMARY_SOURCE_UNAVAILABLE).")
+SOURCE = ("Frozen docs/p1/expected_routes.csv, transcribed from APH 2024-27: the 21 Table 2.3 rows checked against "
+          "the handbook text (PDF p.46), the two Only-EVC routes from cl. 2.3.5(a) (p.31) and cl. 7.10 (p.89), and "
+          "Chapter I for NEW_INSTITUTION, whose optional SHC step is not in the handbook and stays a demo assumption "
+          "(NEW_INSTITUTION_SHC_UNCONFIRMED). Each row states its own verification.")
 
 
 def build(csv_path: Path = CSV_PATH) -> dict:
@@ -36,13 +37,13 @@ def build(csv_path: Path = CSV_PATH) -> dict:
             "evc": row["evc"] == "YES",
             "source_table": row["source_table"],
             "source_verification": row["source_verification"],
-            "assumption_ref": row["assumption_ref"],
+            "assumption_ref": None if row["assumption_ref"] == "NONE" else row["assumption_ref"],
         })
     return {
         "source": SOURCE,
-        "source_status": "DEMO_ASSUMPTION",
-        "source_verification": "PRIMARY_SOURCE_UNAVAILABLE",
-        "assumption_ref": "ACCEPTANCE_SOURCE_UNVERIFIED",
+        "source_status": "VERIFIED_PER_ROW",
+        "source_verification": "APH_2024_27_TEXT",
+        "assumption_ref": None,
         "generated_from": "docs/p1/expected_routes.csv",
         "generated_from_sha256": sha256(raw).hexdigest(),
         "cases": cases,

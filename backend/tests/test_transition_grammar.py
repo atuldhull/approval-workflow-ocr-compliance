@@ -56,13 +56,20 @@ def test_small_valid_fixture_loads(tmp_path):
     assert registry.route_for("X", "test@r1").stages[0].stage == "SCRUTINY"
 
 
+ONLY_EVC = {"RANDOM_INSPECTION": ["EVC", {"stage": "SHC", "when": "as_applicable"}],
+            "COMPLAINT_EVC": ["EVC", {"stage": "SHC", "when": "as_applicable"}]}
+
+
 def test_all_22_stage_lists_preserved_exactly():
     raw = _read(RULESETS / "aph-2024-27/r1/routes.yaml")
     before = json.loads((FIXTURES / "r1_stage_lists_before_1_1.json").read_text(encoding="utf-8"))
-    assert len(before) == len(raw["routes"]) == 22
-    assert {key: value["stages"] for key, value in raw["routes"].items()} == before
+    assert len(before) == 22 and len(raw["routes"]) == 24
+    # the two "Only EVC" routes (cl. 2.3.5(a), 7.10) are additions; the 22 earlier stage lists are unchanged
+    assert {key: value["stages"] for key, value in raw["routes"].items()} == {**before, **ONLY_EVC}
     assert raw["clocks"]["on_submit"] == ["AICTE_PROCESSING"]
-    assert raw["appeal"] == {"trigger": "decision.adverse_uploaded", "window": "APPEAL_7D", "max_appeals": 1}
+    assert {k: v for k, v in raw["appeal"].items() if k != "source"} == {
+        "trigger": "issue_lod", "window": "APPEAL_7D", "max_appeals": 1, "stage": "SAC"}
+    assert raw["appeal"]["source"]["status"] == "VERIFIED"
     assert all(spec["transitions"] == raw["transitions"] for spec in raw["routes"].values())
 
 
@@ -72,7 +79,8 @@ def compiled_r1():
     return raw, rules, validate_workflow(raw, parse_routes(raw["routes"]), rules)
 
 
-@pytest.mark.parametrize("category", list(json.loads((FIXTURES / "r1_stage_lists_before_1_1.json").read_text(encoding="utf-8"))))
+@pytest.mark.parametrize("category", list(json.loads((FIXTURES / "r1_stage_lists_before_1_1.json").read_text(encoding="utf-8")))
+                         + list(ONLY_EVC))
 def test_each_route_has_submission_and_typed_terminal(category):
     _, _, compiled = compiled_r1()
     edges = compiled.routes[category]
