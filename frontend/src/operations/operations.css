@@ -149,7 +149,7 @@
 .official-refs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px var(--s2); margin: 0; font-size: var(--fs-xs); }
 .official-refs dt { color: var(--text-3); }
 .official-refs dd { margin: 0 var(--s3) 0 0; color: var(--text-2); }
-.case-zone { margin-top: var(--s5); min-width: 0; }
+.case-zone { margin-top: var(--s5); min-width: 0; overflow-wrap: anywhere; }
 .case-zone > h3 { margin: 0 0 var(--s3); font-size: var(--fs-sm); color: var(--text-2); }
 .case-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s5); }
 .split-detail .case-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
