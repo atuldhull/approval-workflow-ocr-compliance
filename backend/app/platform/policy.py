@@ -76,6 +76,9 @@ POLICY: dict[str, frozenset[Role]] = {
     "compliance.read": OFFICERS | {R.INSTITUTION, R.AUDITOR},
     "compliance.evidence.submit": frozenset({R.INSTITUTION}),
     "compliance.evidence.verify": OFFICERS,
+    # officers handling a case record a document's validity date and obligations such as undertakings
+    "compliance.validity.record": frozenset({R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD}),
+    "compliance.obligation.record": frozenset({R.RO_OFFICER, R.BUREAU_OFFICER, R.BUREAU_HEAD}),
     # deadline alerts (Person 2). Institutions see and acknowledge only alerts about their own records; the
     # deadlines module also requires the acknowledging role to be the one the alert is addressed to.
     "alert.read": OFFICERS | {R.INSTITUTION, R.AUDITOR},
