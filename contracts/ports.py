@@ -88,6 +88,13 @@ class EvcPort(Protocol):
     def status(self, session: Session, application_id: UUID) -> str | None: ...
 
 
+@runtime_checkable
+class DeadlineExpiryPort(Protocol):
+    """Expiry actions of clocks a module opened (deadlines.yaml on_expiry), e.g. close_appeal_window. The deadline
+    worker calls it after marking clocks BREACHED; each action runs in its own unit of work."""
+    def run_due(self, limit: int) -> int: ...  # number of expiry actions applied
+
+
 # ---- provided by the deadlines / compliance modules ----
 
 @runtime_checkable

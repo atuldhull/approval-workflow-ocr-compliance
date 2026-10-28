@@ -26,13 +26,21 @@
         "advance",
         "advance_to_evc",
         "advance_to_shc",
+        "close_appeal_window",
         "complete_evc",
+        "file_appeal",
         "issue_eoa",
         "issue_loa",
         "issue_lod",
+        "issue_lor",
         "record_deficiency",
         "reject",
+        "return_to_sac",
         "revert",
+        "sac_not_recommend",
+        "sac_recommend",
+        "sac_refer_evc",
+        "sac_refer_scrutiny",
         "start_rescrutiny",
         "submit",
         "submit_compliance",
@@ -50,7 +58,8 @@
         "EVC",
         "SHC",
         "EC",
-        "COUNCIL"
+        "COUNCIL",
+        "SAC"
       ]
     },
     "to_state": {
@@ -64,6 +73,7 @@
         "SHC",
         "EC",
         "COUNCIL",
+        "SAC",
         "APPROVED",
         "REJECTED",
         "WITHDRAWN"
