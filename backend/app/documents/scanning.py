@@ -41,7 +41,7 @@ class ScannerUnavailable(RuntimeError):
 
 @runtime_checkable
 class MalwareScanner(Protocol):
-    scanner_key: str  # recorded in doc.document_scanned; the v1 schema allows "clamav"
+    scanner_key: str  # recorded in doc.document_scanned; the v1 schema allows "clamav" and "demo_seed"
 
     def scan(self, source: BinaryIO) -> ScanResult: ...
 

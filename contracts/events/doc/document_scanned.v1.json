@@ -9,7 +9,7 @@
     "version_id": {"type": "string", "format": "uuid"},
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "verdict": {"type": "string", "enum": ["CLEAN", "INFECTED"]},
-    "scanner": {"type": "string", "enum": ["clamav"]},
+    "scanner": {"type": "string", "enum": ["clamav", "demo_seed"], "description": "demo_seed: the demo seed's own synthetic files, accepted only in demo mode"},
     "signature": {"type": "string", "pattern": "^[A-Za-z0-9._:/-]{1,200}$", "description": "malware signature name; only when INFECTED"}
   }
 }
