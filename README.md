@@ -33,14 +33,18 @@ written to a hash-chained, signed and replayable audit ledger.
 
 | | |
 |---|---|
+| ![Bureau head dashboard with the operations pulse and the alert queue](docs/screenshots/dashboard.png) | ![Public showcase opening on the application dossier](docs/screenshots/showcase.png) |
+| Dashboard: stage counts rebuilt from the audit event log, a case route to inspect, alerts that need the role | Showcase at `#showcase`: a guided walk-through of the product that ends in the workspace |
 | ![Scrutiny committee recording a deficiency on a case](docs/screenshots/scrutiny-deficiency.png) | ![Regional officer planning expert visits with the CP-SAT optimiser](docs/screenshots/evc-scheduling.png) |
-| Case under scrutiny: deficiency round, committee workspace, demo-assumption labels | EVC scheduling: visit requests, CP-SAT or earliest-deadline-first planning, simulated panel selection |
+| Case under scrutiny: the prescribed route, deficiency round, committee workspace, demo-assumption labels | EVC scheduling: visit requests, CP-SAT or earliest-deadline-first planning, simulated panel selection |
 | ![Fact review with blind entry before the OCR reading is revealed](docs/screenshots/fact-review-blind-entry.png) | ![Deadline alerts with escalation levels and acknowledgement](docs/screenshots/deadline-alerts.png) |
 | Fact review: the officer types the value first; the OCR reading is revealed only after that | Alerts: escalation ladder per deadline, acknowledgement by the addressed role |
 | ![Audit view: hash chain, signed checkpoint and replay](docs/screenshots/audit.png) | ![Scorecard listing how each check was measured](docs/screenshots/scorecard.png) |
 | Audit: hash chain, signed checkpoint held by a witness, replay of read models | Scorecard: each check says how it was measured and what it found |
 
-All screenshots come from the end-to-end run described under [Tests](#tests) and show synthetic data.
+All screenshots come from the end-to-end run described under [Tests](#tests) and show synthetic data. The
+background atmosphere can be set to Auto, Full, Reduced or Static from the control at the top of each screen, and
+stays still when the system asks for reduced motion.
 
 ## Problem statement coverage
 
@@ -163,7 +167,8 @@ ClamAV downloads its signatures on first start, which takes a few minutes; until
 **Demo sign-in (default).** The top bar has an "Acting as" switcher with these synthetic roles: Institution
 (Sunrise), Institution (Northfield), Scrutiny committee, Regional officer Southern, Regional officer Northern, Bureau
 officer, Bureau head and Auditor. The same bar shows `DEMO SIGN-IN`, `Synthetic data` and `SIMULATED TIME`, with
-`+7 days`, `+30 days` and `Run timers now` for time travel.
+`+7 days`, `+30 days` and `Run timers now` for time travel. The Atmosphere control beside each page title and
+"Pause animations" in the sidebar turn the background effects and transitions down or off.
 
 **Real sign-in (optional).** Keycloak, Cerbos and Mailpit (captured demo email at http://localhost:8025), with the
 eight matching demo accounts listed in [infra/keycloak/README.md](infra/keycloak/README.md):

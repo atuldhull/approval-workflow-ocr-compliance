@@ -10,25 +10,43 @@ cover a form or a table.
 
 ## Colour roles
 
-Colour encodes hierarchy and meaning. Tokens live in `src/styles.css` (`:root`).
+Colour encodes hierarchy and meaning. The palette is built from three anchors: charcoal `#171717`, forest
+`#06110C` and crimson `#A31C1B`. Token names live in `src/styles.css` (`:root`); the values in use are set by the
+product layer in `src/product/` (`product.css`, then `luxury.css`, `atelier.css` and `atmosphere.css`, loaded in that
+order from `main.jsx`). The token names are older than the palette, so `--brass` now holds crimson and `--teal`
+holds sage.
 
-| Role | Tokens | Used for |
-|---|---|---|
-| Ink / graphite | `--ink-0` … `--ink-4`, `--line`, `--line-strong` | Chrome (sidebar, top bar), page, panels, hover, selected rows, hairlines |
-| Ivory / stone text | `--text`, `--text-2`, `--text-3` | Primary, secondary and supporting text (`--text-3` keeps ≥ 4.5:1 on panels) |
-| Reading paper | `--paper`, `--paper-ink`, `--paper-muted` | The document reading surface only |
-| Brass (material) | `--brass`, `--brass-strong`, `--brass-soft` | Selection, focus ring, primary buttons, the witness layer |
-| Amber (attention) | `--amber`, `--amber-soft` | Current stage, next deadline, "needs you", open obligations, sample data |
-| Teal (technical relation) | `--teal`, `--teal-soft` | Hash chain continuity, recorded events, evidence links |
-| Info blue | `--info` | In-process cases, unverified evidence, the replay layer |
-| Status | `--ok`, `--warn`, `--bad` (+ `-soft`) | Recorded outcomes, always with a word |
+| Role | Tokens | Value | Used for |
+|---|---|---|---|
+| Forest / charcoal ink | `--ink-0` … `--ink-4`, `--line`, `--line-strong` | `#06110C` → `#303B32` | Chrome (sidebar, top bar), page, panels, hover, selected rows, hairlines |
+| Ivory text | `--text`, `--text-2`, `--text-3` | `#F1F0E8`, `#C0C9BF`, `#A1AFA3` | Primary, secondary and supporting text (`--text-3` keeps ≥ 4.5:1 on panels) |
+| Reading paper | `--paper`, `--paper-ink` | `#E9E8DF`, `#232A24` | The document reading surface only |
+| Crimson (selection) | `--brass`, `--brass-strong`, `--brass-soft` | `#A31C1B`, `#D44E46` | Selection, the active navigation item, primary buttons, the current stage marker |
+| Amber (attention) | `--amber`, `--warn` | `#EFC58B` | Next deadline, "needs you", open obligations, demo-assumption notices |
+| Sage (technical relation) | `--teal` | `#A3CBB2` | Hash chain continuity, recorded events, evidence links |
+| Info blue | `--info` | `#B3CBE4` | In-process cases, unverified evidence, the replay layer |
+| Status | `--ok`, `--warn`, `--bad` | `#A5D1AD`, `#EFC58B`, `#FFAAA0` | Recorded outcomes, always with a word |
 
 Rules: a status is never shown by colour alone (badges carry a dot and a word); green appears only for a recorded
-positive outcome; amber is not used for decoration; brass marks what the user selected, never a result.
+positive outcome; amber is not used for decoration; crimson marks what the user selected or should press, never a
+result.
+
+## Atmosphere
+
+Each screen sits on a quiet forest field with one soft light and a faint line drawing taken from the screen's
+subject (`src/product/Atmosphere.jsx`, `atmosphere.css`). The layer is `aria-hidden`, has `pointer-events: none`
+and never covers a control. The Atmosphere select beside the page title offers Auto, Full, Reduced and Static; the
+choice is kept in `localStorage` (`awoc.atmosphere`). Under `prefers-reduced-motion` every mode is still.
+
+A few screens add an illustrative instrument above their working surface: the operations pulse on the dashboard,
+the route sculpture on a case, the trust trace on Audit and the review protocol on Fact review
+(`src/product/Instruments.jsx`, `DossierSculpture.jsx`). They read the same API data as the screen, never run an
+action, and never show a stage as done unless the server says so.
 
 ## Type
 
-- Georgia — page titles (22px), the open record's title in an inspector, the case title. Nowhere else.
+- Georgia — page titles (set large, beside the one-sentence description), section headlines in the instruments,
+  the open record's title in an inspector, the case title. Nowhere else.
 - Hanken Grotesk (bundled) — interface text: 13.5px body, 12.5px secondary, 11.5px labels. Labels are sentence
   case; there are no tracked uppercase eyebrows.
 - JetBrains Mono (bundled) — internal references, hashes, file names, sequence numbers, times on the EVC grid.
@@ -38,7 +56,7 @@ positive outcome; amber is not used for decoration; brass marks what the user se
 ## Space, shape, states
 
 Spacing 4/8/12/16/24/32/48 (`--s1`…`--s7`); panel radius 6px, controls 4px; sidebar 220px (60px rail); top bar
-52px. Focus is a 2px brass ring offset from the surface. Buttons: primary (brass), secondary (raised graphite),
+52px. Focus is a 2px light sage ring offset from the surface. Buttons: primary (crimson), secondary (raised forest),
 ghost. Touch targets are at least 36px on phones (44px for navigation).
 
 Loading keeps the shape of what is coming (skeleton bars with a fixed minimum height, so content does not jump).

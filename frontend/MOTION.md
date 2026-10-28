@@ -13,6 +13,7 @@ Motion confirms what just happened; it never decorates or delays. All of it is C
 | Bars | Horizontal bars grow from zero once when rendered | 360ms |
 | Navigation indicator | Slides to the selected item | 180ms |
 | Loading | Skeleton bars pulse slowly; their size matches the content that replaces them | — |
+| Atmosphere | The background light drifts slowly behind the screen; it restarts when the route changes | ambient |
 
 There is no departure delay, no route-level zoom or iris, no blocking overlay, no click-zoom and no scroll-driven
 choreography. Scrolling never selects a record or changes a figure.
@@ -21,7 +22,9 @@ choreography. Scrolling never selects a record or changes a figure.
 
 `prefers-reduced-motion` and the in-app "Pause animations" switch (stored in `awoc.motion`) both apply: every
 animation and transition collapses to 1ms and the `motion` class is removed from `<html>`, so nothing is hidden
-waiting for an entrance.
+waiting for an entrance. The Atmosphere select (Auto, Full, Reduced, Static; stored in `awoc.atmosphere`) controls
+the background separately: Reduced and Static stop its drift, and under `prefers-reduced-motion` it is still in
+every mode.
 
 ## The audit figure
 
