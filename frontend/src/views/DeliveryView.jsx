@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { Badge, Card, Empty, ErrorBox, Inspector, Loading, StatTile, Toast, useApi, useSingleFlight, when } from "../components/ui.jsx";
 import Lifecycle from "../components/Lifecycle.jsx";
 import { STATUS, errorText, outcomeText } from "../deliveryText.js";
+import { templateLabel } from "../recordText.js";
 
 const pct = (r) => (r == null ? "—" : `${Math.round(r * 100)}%`);
 
@@ -128,12 +129,12 @@ export default function DeliveryView({ who, me }) {
             </thead>
             <tbody>
               {outbox.data.map((o) => {
-                const name = `${o.template} by ${o.channel}, queued ${when(o.created_at)}`;
+                const name = `${templateLabel(o.template)} by ${o.channel}, queued ${when(o.created_at)}`;
                 return (
                   <tr key={o.id} className={attempts?.id === o.id ? "current" : undefined}>
                     <td>{when(o.created_at)}</td>
                     <td>{o.channel}</td>
-                    <td>{o.template}</td>
+                    <td>{templateLabel(o.template)}</td>
                     <td><Badge tone={STATUS[o.status]?.tone}>{o.status}</Badge></td>
                     <td>{o.attempts}</td>
                     <td>{errorText(o.last_error) ?? "—"}</td>

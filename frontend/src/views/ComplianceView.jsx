@@ -63,6 +63,8 @@ export default function ComplianceView({ who, me, focusObligation }) {
 }
 
 const TIMELINE_TONE = { MET: "ok", OPEN: "attention", EVIDENCE_SUBMITTED: "info" };
+// overdue comes from the obligation's own clock (breached and not met); it is not an obligation status
+const toneOf = (o) => (o.overdue ? "bad" : TIMELINE_TONE[o.status] ?? "neutral");
 
 // Due dates of the listed obligations on one axis, so clustering and order are visible at a glance. Spacing follows
 // the dates; an obligation without a due date is counted but not placed. Selecting a marker opens the obligation.
@@ -75,7 +77,7 @@ function ObligationTimeline({ state, openId, onOpen }) {
   // One marker per date; several obligations due the same day stack above it instead of overlapping.
   const groups = dates.map((date, i) => {
     const items = sorted.filter((o) => o.due_date === date);
-    const tone = items.some((o) => o.status === "OPEN") ? "attention" : items.some((o) => o.status === "EVIDENCE_SUBMITTED") ? "info" : "ok";
+    const tone = items.some((o) => o.overdue) ? "bad" : items.some((o) => o.status === "OPEN") ? "attention" : items.some((o) => o.status === "EVIDENCE_SUBMITTED") ? "info" : "ok";
     return { date, items, position: positions[i], tone };
   });
   const undated = (state.data ?? []).length - rows.length;
@@ -95,9 +97,9 @@ function ObligationTimeline({ state, openId, onOpen }) {
             <span className="axis-date" aria-hidden="true">{dateIST(g.date)}</span>
             <span className="axis-items">
               {g.items.map((o) => (
-                <button key={o.id} className={`axis-mark tone-${TIMELINE_TONE[o.status] ?? "neutral"}${openId === o.id ? " is-selected" : ""}`}
+                <button key={o.id} className={`axis-mark tone-${toneOf(o)}${openId === o.id ? " is-selected" : ""}`}
                   aria-pressed={openId === o.id} onClick={() => onOpen(o.id)}
-                  aria-label={`${sentence(o.kind)}, case ${internalRef(o.application_id)}, due ${dateIST(o.due_date)}, ${obligationStatusOf(o.status).label}`}>
+                  aria-label={`${sentence(o.kind)}, case ${internalRef(o.application_id)}, due ${dateIST(o.due_date)}, ${obligationStatusOf(o.status).label}${o.overdue ? ", overdue" : ""}`}>
                   {sentence(o.kind)}, case <code>{internalRef(o.application_id)}</code>
                 </button>
               ))}
@@ -106,6 +108,7 @@ function ObligationTimeline({ state, openId, onOpen }) {
         ))}
       </div>
       <ul className="axis-legend" aria-hidden="true">
+        <li className="tone-bad">Overdue: due date passed, not met</li>
         <li className="tone-attention">Open: evidence needed</li>
         <li className="tone-info">Evidence submitted, unverified</li>
         <li className="tone-ok">Met</li>
@@ -162,7 +165,7 @@ function ObligationTable({ state, openId, onOpen }) {
               <td>{sentence(o.kind)}</td>
               <td><code title={INTERNAL_REF_TITLE}>{internalRef(o.application_id)}</code></td>
               <td className="nowrap">{o.due_date ? dateIST(o.due_date) : "No due date"}</td>
-              <td><Badge tone={s.tone}>{s.label}</Badge></td>
+              <td><Badge tone={s.tone}>{s.label}</Badge>{o.overdue && <> <Badge tone="bad">Overdue</Badge></>}</td>
               <td className="small">{evidenceSummary(o.evidence)}</td>
               <td>
                 <button className="secondary small" aria-expanded={openId === o.id} onClick={() => onOpen(openId === o.id ? null : o.id)}
@@ -214,7 +217,7 @@ function ObligationDetail({ who, me, id, onClose, onChanged }) {
         <>
           <dl className="facts">
             <dt>Status</dt><dd><Badge tone={obligationStatusOf(o.status).tone}>{obligationStatusOf(o.status).label}</Badge></dd>
-            <dt>Due</dt><dd>{o.due_date ? dateIST(o.due_date) : "No due date"}</dd>
+            <dt>Due</dt><dd>{o.due_date ? dateIST(o.due_date) : "No due date"}{o.overdue && <> <Badge tone="bad">Overdue</Badge></>}</dd>
             <dt>Case</dt><dd><code title={INTERNAL_REF_TITLE}>{internalRef(o.application_id)}</code></dd>
             <dt>Source</dt><dd><Badge tone={source.tone}>{source.label}</Badge> <span className="muted small">{source.detail}</span></dd>
             <dt>Origin</dt><dd>{ORIGIN[o.state_origin] ?? sentence(o.state_origin)}</dd>

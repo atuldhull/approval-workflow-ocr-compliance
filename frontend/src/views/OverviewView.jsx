@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons.jsx";
 import { STAGE_LABEL, RouteTrack, stageLabel } from "../components/RouteJourney.jsx";
 import { Badge, Empty, ErrorBox, Kpis, Loading, dateIST, useApi } from "../components/ui.jsx";
 import { sentence } from "../nav.js";
-import { obligationStatusOf } from "../recordText.js";
+import { obligationStatusOf, ruleLabel } from "../recordText.js";
 
 const ORDER = Object.keys(STAGE_LABEL);
 const MAX_DEADLINE_LOOKUPS = 12;
@@ -65,7 +65,7 @@ export default function OverviewView({ who, onNavigate }) {
         { label: "In process", value: inProcess.length },
         { label: "Drafts not yet submitted", value: drafts, tone: drafts ? "attention" : undefined },
         { label: "Next deadline", value: next ? dateIST(next.due_date) : deadlines ? "None running" : "…",
-          hint: next ? `${sentence(next.rule_id)} · ${internalRef(next.app)}` : undefined, tone: next ? "attention" : undefined },
+          hint: next ? `${ruleLabel(next.rule_id)} · ${internalRef(next.app)}` : undefined, tone: next ? "attention" : undefined },
         { label: "Obligations needing evidence", value: obligations.data ? openObligations.length : obligations.error ? "—" : "…" },
       ]} />
 
@@ -111,7 +111,7 @@ export default function OverviewView({ who, onNavigate }) {
                   <li key={`${d.app}-${d.id}`} className={i === 0 ? "is-next" : undefined}>
                     <span className="due-date num">{dateIST(d.due_date)}</span>
                     <span className="due-what">
-                      {sentence(d.rule_id)}
+                      {ruleLabel(d.rule_id)}
                       <span className="muted small"> · {sentence(appById[d.app]?.category)} <code title={INTERNAL_REF_TITLE}>{internalRef(d.app)}</code></span>
                     </span>
                     <button className="ghost small" onClick={() => openCase(d.app)}>Open case</button>

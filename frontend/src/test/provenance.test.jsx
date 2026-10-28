@@ -62,10 +62,10 @@ describe("official versus internal references", () => {
 describe("deadline provenance", () => {
   it("marks a configured assumption apart from a handbook clause", async () => {
     openCase();
-    const assumption = (await screen.findByText("AICTE processing")).closest(".clock");
+    const assumption = (await screen.findByText("AICTE's processing time for a submitted application")).closest(".clock");
     expect(within(assumption).getByText("Demo assumption")).toHaveClass("warn");
     expect(within(assumption).getByText(/not an AICTE date/)).toBeInTheDocument();
-    const clause = screen.getByText("Appeal 7d").closest(".clock");
+    const clause = screen.getByText("Seven days to appeal a decision").closest(".clock");
     expect(within(clause).getByText("Handbook clause")).toHaveClass("ok");
     expect(within(clause).getByText(/APH 2024-27 clause 2\.24\(a\) · rule set aph-2024-27 r1/)).toBeInTheDocument();
     expect(screen.getByText(/Calendar version: not supplied/)).toBeInTheDocument();

@@ -6,6 +6,7 @@ import { canAcknowledge } from '../views/AlertsView.jsx';
 import { useApi, ErrorBox, Loading } from '../components/ui.jsx';
 import { stageLabel } from '../components/RouteJourney.jsx';
 import { internalRef } from '../provenance.js';
+import { alertMeaning, alertStatusOf, ruleLabel } from '../recordText.js';
 
 
 export default function OperationsPulse({who, me, counts, onNavigate}) {
@@ -26,7 +27,7 @@ export default function OperationsPulse({who, me, counts, onNavigate}) {
       <p className="pulse-source">Route: selected case record. Figures: analytics stage projection across this scope, all categories; not counts for this case. Missing values are not zero. Earlier stages do not imply completion.</p>
     </div>
     <aside className="attention-desk"><span className="eyebrow">YOUR ACTION QUEUE</span><h2>Needs attention</h2><p className="muted small">Open or escalated alerts assigned to your role.</p><ErrorBox error={alerts.error} onRetry={alerts.reload}/>{alerts.loading && <Loading rows={2}/>}
-      {alerts.data && <><strong className="attention-number">{alerts.data.filter(a=>canAcknowledge(a,me.role)).length}</strong>{alerts.data.filter(a=>canAcknowledge(a,me.role)).slice(0,3).map(a=><button key={a.id} className="attention-row" onClick={()=>onNavigate?.('alerts')}><span>{a.rule_id ?? a.template}</span><span className="badge warn">{a.status}</span></button>)}{!alerts.data.some(a=>canAcknowledge(a,me.role)) && <p>No alerts await acknowledgement by this role.</p>}</>}
+      {alerts.data && <><strong className="attention-number">{alerts.data.filter(a=>canAcknowledge(a,me.role)).length}</strong>{alerts.data.filter(a=>canAcknowledge(a,me.role)).slice(0,3).map(a=><button key={a.id} className="attention-row" onClick={()=>onNavigate?.('alerts')}><span>{a.rule_id ? ruleLabel(a.rule_id) : alertMeaning(a.template)}</span><span className={`badge ${alertStatusOf(a.status).tone}`}>{alertStatusOf(a.status).label}</span></button>)}{!alerts.data.some(a=>canAcknowledge(a,me.role)) && <p>No alerts await acknowledgement by this role.</p>}</>}
       <button className="secondary" onClick={()=>onNavigate?.('alerts')}>View alert register →</button>
     </aside>
   </section>

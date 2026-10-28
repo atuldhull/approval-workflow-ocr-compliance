@@ -118,9 +118,56 @@ describe("dashboard", () => {
     sections: [
       { key: "applications", title: "Applications", status: "AVAILABLE", source: "events",
         data: { total: 3, by_status: { IN_PROCESS: 2, DRAFT: 1 }, by_stage: { SCRUTINY: 2 }, by_region: { Southern: 2, Northern: 1 } } },
-      { key: "workload", title: "Officer workload", status: "NOT_AVAILABLE", depends_on: "Person 1: case assignment data" },
+      { key: "workload", title: "Officer workload", status: "NOT_AVAILABLE", depends_on: "committee records for this region" },
     ],
   };
+  const OFFICER = DEMO_USERS.find((u) => u.role === "SCRUTINY_COMMITTEE");
+  const full = {
+    scope: { region: "Southern", as_of: "2026-10-24T10:00:00Z" },
+    sections: [
+      { key: "deadlines", title: "Deadlines", status: "AVAILABLE", source: "Replayed from deadline events",
+        data: { opened: 4, open: 3, overdue: 1, met: 1, met_late: 1, by_status: { RUNNING: 2, BREACHED: 1, MET: 1 },
+                by_rule: { AICTE_PROCESSING: 2, LOA_DEPOSIT_AFFIDAVIT_15D: 1 } } },
+      { key: "workload", title: "Officer workload", status: "AVAILABLE", source: "Replayed from committee events",
+        data: { committees: 1, open_tasks: 2, officers: 2,
+                by_officer: [{ user_ref: OFFICER.user, open_tasks: 2, committees: 1 },
+                             { user_ref: "abcdef12-0000-4000-9000-000000000099", open_tasks: 0, committees: 1 }],
+                by_committee: { SCRUTINY: { committees: 1, open_tasks: 2, cases: 1 } } } },
+      { key: "evc", title: "EVC queue", status: "AVAILABLE", source: "Replayed from EVC events",
+        data: { requests: 2, open: 2, overdue: 1, published_schedules: 1, upcoming_visits: 1, by_status: { QUEUED: 1, PUBLISHED: 1 } } },
+      { key: "compliance", title: "Compliance and obligations", status: "AVAILABLE", source: "Replayed from compliance and deadline events",
+        data: { obligations: 2, overdue: 2, awaiting_verification: 1, by_status: { OPEN: 1, EVIDENCE_SUBMITTED: 1 },
+                by_kind: { DEPOSIT: 1, AFFIDAVIT: 1 }, letters: { LOA: 1 } } },
+      { key: "alerts", title: "Alert delivery", status: "AVAILABLE", source: "Notification outbox joined to the deadline alerts raised in Southern",
+        data: { by_status: { PENDING: 1, SENDING: 0, DELIVERED: 3, DEAD: 0 }, first_tries_24h: 4, first_try_success_rate_24h: 0.75,
+                alerts: { by_status: { OPEN: 2, ESCALATED: 1 }, open_by_role: { RO_OFFICER: 3 } } } },
+    ],
+  };
+
+  it("renders workload, EVC, compliance and regional alert sections in words, not ids", async () => {
+    fakeServer({ "GET /api/analytics/dashboard": full });
+    render(<DashboardView who={OFFICER} />);
+    const deadlines = (await screen.findByRole("heading", { name: "Deadlines" })).closest("section");
+    expect(within(deadlines).getByRole("table", { name: "Open deadlines by rule" }))
+      .toHaveTextContent("Fifteen days after an LoA for the deposit proof and affidavit");
+    expect(within(deadlines).getByRole("table", { name: "Deadlines by state" })).toHaveTextContent("Overdue");
+    expect(within(deadlines).getByText("1 met late")).toBeInTheDocument();
+    const workload = screen.getByRole("heading", { name: "Officer workload" }).closest("section");
+    const officers = within(workload).getByRole("table", { name: "Workload by officer" });
+    expect(officers).toHaveTextContent(OFFICER.label);
+    expect(officers).toHaveTextContent("Officer abcdef12");
+    expect(within(workload).getByRole("table", { name: "Open tasks by committee" })).toHaveTextContent("Scrutiny");
+    const evc = screen.getByRole("heading", { name: "EVC queue" }).closest("section");
+    expect(within(evc).getByRole("table", { name: "EVC requests by status" })).toHaveTextContent("Visit published");
+    const compliance = screen.getByRole("heading", { name: "Compliance and obligations" }).closest("section");
+    expect(within(compliance).getByText("Evidence awaiting an officer")).toBeInTheDocument();
+    expect(within(compliance).getByText(/1 Letter of Approval \(LoA\)/)).toBeInTheDocument();
+    const alerts = screen.getByRole("heading", { name: "Alert delivery" }).closest("section");
+    expect(within(alerts).getByText("75%")).toBeInTheDocument();
+    expect(within(alerts).getByRole("table", { name: "Alerts by status" })).toHaveTextContent("Escalated to the next level");
+    expect(document.body.textContent).not.toMatch(/Person [123]|Waiting for|AICTE_PROCESSING|LOA_DEPOSIT/);
+    expect(screen.queryByText("Not available yet")).toBeNull();
+  });
 
   it("shows real totals and labels missing data instead of inventing it", async () => {
     fakeServer({ "GET /api/analytics/dashboard": body });
@@ -130,7 +177,7 @@ describe("dashboard", () => {
     expect(within(apps).getByRole("table", { name: "Applications by region" })).toHaveTextContent("Southern");
     const workload = screen.getByRole("heading", { name: "Officer workload" }).closest("section");
     expect(workload).toHaveTextContent("Not available yet");
-    expect(workload).toHaveTextContent("Waiting for: Person 1: case assignment data");
+    expect(workload).toHaveTextContent("Waiting for: committee records for this region");
     expect(within(workload).queryByText(/^\d+$/)).toBeNull();
   });
 
@@ -386,7 +433,7 @@ describe("delivery operations", () => {
     });
     const user = userEvent.setup();
     render(<DeliveryView who={BUREAU_HEAD} me={ME(BUREAU_HEAD)} />);
-    await user.click(await screen.findByRole("button", { name: /Requeue deadline.breached by email/ }));
+    await user.click(await screen.findByRole("button", { name: /Requeue Deadline missed by email/ }));
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);        // nothing sent yet
     await user.dblClick(screen.getByRole("button", { name: "Yes, requeue" }));
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
@@ -535,7 +582,7 @@ describe("redesign interactions", () => {
     render(<OverviewView who={SUNRISE} onNavigate={onNavigate} />);
     const path = await screen.findByRole("img", { name: "Scrutiny: 2, Expert visit: 1" });
     expect(path).toBeInTheDocument();
-    expect(screen.getAllByText("AICTE processing").length).toBeGreaterThan(0);   // acronym kept, not "Aicte"
+    expect(screen.getAllByText("AICTE's processing time for a submitted application").length).toBeGreaterThan(0);   // rule named in words, not its id
     await user.click(screen.getAllByRole("button", { name: "Open case" })[0]);
     expect(onNavigate).toHaveBeenCalledWith("applications", { caseId: "a1111111-x" });
   });

@@ -320,6 +320,14 @@ describe("compliance", () => {
     expect(screen.queryByRole("form", { name: "Submit evidence" })).toBeNull();
   });
 
+  it("marks an obligation whose clock ran out as overdue, beside its status", async () => {
+    fakeServer({ "GET /api/compliance/letters": [], "GET /api/compliance/obligations": [obligation({ deadline_status: "BREACHED", overdue: true })] });
+    render(<ComplianceView who={RO} me={ME(RO)} />);
+    const table = await screen.findByRole("table", { name: "Obligations" });
+    expect(within(table).getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /due .*, overdue$/ })).toHaveClass("tone-bad");
+  });
+
   it("other-reason rejections need a note", async () => {
     const u = userEvent.setup();
     const submitted = obligation({ status: "EVIDENCE_SUBMITTED", evidence: [{ id: "e1", obligation_id: OB, document_version_id: VERSION,

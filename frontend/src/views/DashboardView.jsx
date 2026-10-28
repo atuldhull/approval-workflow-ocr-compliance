@@ -2,11 +2,19 @@ import OperationsPulse from "../product/Instruments.jsx";
 
 import { useEffect } from "react";
 
+import { DEMO_USERS } from "../api.js";
+
 import { Icon } from "../components/Icons.jsx";
 
 import { STAGE_LABEL, stageLabel } from "../components/RouteJourney.jsx";
 
-import { Badge, BarList, Card, ErrorBox, Kpis, Loading, NotAvailable, StatTile, useApi, when } from "../components/ui.jsx";
+import { Badge, BarList, Card, Empty, ErrorBox, Kpis, Loading, NotAvailable, StatTile, useApi, when } from "../components/ui.jsx";
+
+import { sentence } from "../nav.js";
+
+import { alertStatusOf, deadlineStatusOf, letterLabel, obligationStatusOf, ruleLabel } from "../recordText.js";
+
+import { evcStatusOf } from "../workflowText.js";
 
 
 
@@ -18,9 +26,29 @@ const byStageOrder = (data) => Object.fromEntries(Object.entries(data || {})
 
 const stageKeys = (data) => Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [STAGE_LABEL[k] ?? k, v]));
 
+// Readable keys for a count map: rule ids, statuses and letter types become the words used on their own screens.
+
+const relabel = (data, label) => Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [label(k), v]));
+
+const COMMITTEE_LABEL = { SCRUTINY: "Scrutiny", RESCRUTINY: "Re-scrutiny", EVC: "Expert visit", SHC: "Standing hearing", EC: "Executive", COUNCIL: "Council" };
 
 
-function Section({ s }) {
+
+// Officers are references in the record; a demo session can name its demo users, otherwise the short reference shows.
+
+function officerName(ref, who, me) {
+
+  if (me && ref === me.user_id) return "You";
+
+  const user = who?.mode !== "oidc" ? DEMO_USERS.find((u) => u.user === ref) : null;
+
+  return user ? user.label : `Officer ${ref.slice(0, 8)}`;
+
+}
+
+
+
+function Section({ s, who, me }) {
 
   if (s.status === "NOT_AVAILABLE") {
 
@@ -78,13 +106,131 @@ function Section({ s }) {
 
           <div className="stats">
 
-            <StatTile label="Deadlines opened" value={d.opened} />
+            <StatTile label="Open clocks" value={d.open} />
 
-            <StatTile label="Due date passed" value={d.due_date_passed} hint="may include met deadlines" />
+            <StatTile label="Overdue" value={d.overdue} />
+
+            <StatTile label="Met" value={d.met} hint={d.met_late ? `${d.met_late} met late` : undefined} />
 
           </div>
 
-          <BarList data={d.by_rule} label="Deadlines by rule" />
+          <h3>By state</h3>
+
+          <BarList data={relabel(d.by_status, (k) => deadlineStatusOf(k).label)} label="Deadlines by state" />
+
+          <h3>Open clocks by rule</h3>
+
+          <BarList data={relabel(d.by_rule, ruleLabel)} label="Open deadlines by rule" />
+
+        </>
+
+      )}
+
+      {s.key === "workload" && (
+
+        <>
+
+          <div className="stats">
+
+            <StatTile label="Committees" value={d.committees} />
+
+            <StatTile label="Open tasks" value={d.open_tasks} />
+
+            <StatTile label="Officers" value={d.officers} />
+
+          </div>
+
+          <h3>By officer</h3>
+
+          {d.by_officer.length === 0 ? <Empty>No committee work on cases in process.</Empty> : (
+
+            <div className="table-wrap">
+
+              <table className="table" tabIndex={0} aria-label="Workload by officer">
+
+                <thead>
+
+                  <tr><th scope="col">Officer</th><th scope="col" className="num">Open tasks</th><th scope="col" className="num">Committees</th></tr>
+
+                </thead>
+
+                <tbody>
+
+                  {d.by_officer.map((o) => (
+
+                    <tr key={o.user_ref}>
+
+                      <th scope="row" title={o.user_ref}>{officerName(o.user_ref, who, me)}</th>
+
+                      <td className="num">{o.open_tasks}</td>
+
+                      <td className="num">{o.committees}</td>
+
+                    </tr>
+
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+          {d.officers > d.by_officer.length && <p className="source">The {d.by_officer.length} busiest of {d.officers} officers are listed.</p>}
+
+          <h3>By committee</h3>
+
+          <BarList data={Object.fromEntries(Object.entries(d.by_committee).map(([k, v]) => [COMMITTEE_LABEL[k] ?? sentence(k), v.open_tasks]))} label="Open tasks by committee" />
+
+        </>
+
+      )}
+
+      {s.key === "evc" && (
+
+        <>
+
+          <div className="stats">
+
+            <StatTile label="Open requests" value={d.open} />
+
+            <StatTile label="Overdue" value={d.overdue} />
+
+            <StatTile label="Published schedules" value={d.published_schedules} hint={`${d.upcoming_visits} visit(s) ahead`} />
+
+          </div>
+
+          <BarList data={relabel(d.by_status, (k) => evcStatusOf(k).label)} label="EVC requests by status" />
+
+        </>
+
+      )}
+
+      {s.key === "compliance" && (
+
+        <>
+
+          <div className="stats">
+
+            <StatTile label="Obligations" value={d.obligations} />
+
+            <StatTile label="Overdue" value={d.overdue} />
+
+            <StatTile label="Evidence awaiting an officer" value={d.awaiting_verification} />
+
+          </div>
+
+          <h3>By status</h3>
+
+          <BarList data={relabel(d.by_status, (k) => obligationStatusOf(k).label)} label="Obligations by status" />
+
+          <h3>By kind</h3>
+
+          <BarList data={relabel(d.by_kind, sentence)} label="Obligations by kind" />
+
+          {Object.keys(d.letters).length > 0 && <p className="source">Letters registered: {Object.entries(d.letters).map(([k, n]) => `${n} ${letterLabel(k)}`).join(", ")}.</p>}
 
         </>
 
@@ -92,29 +238,43 @@ function Section({ s }) {
 
       {s.key === "alerts" && (
 
-        <div className="stats">
+        <>
 
-          <StatTile label="Delivered" value={d.by_status.DELIVERED} />
+          <div className="stats">
 
-          <StatTile label="Waiting" value={d.by_status.PENDING + d.by_status.SENDING} />
+            <StatTile label="Delivered" value={d.by_status.DELIVERED} />
 
-          <StatTile label="Dead letters" value={d.by_status.DEAD} />
+            <StatTile label="Waiting" value={d.by_status.PENDING + d.by_status.SENDING} />
 
-          <StatTile
+            <StatTile label="Dead letters" value={d.by_status.DEAD} />
 
-            label="First-try success (24 h)"
+            <StatTile
 
-            value={d.first_try_success_rate_24h == null ? "—" : `${Math.round(d.first_try_success_rate_24h * 100)}%`}
+              label="First-try success (24 h)"
 
-          />
+              value={d.first_try_success_rate_24h == null ? "—" : `${Math.round(d.first_try_success_rate_24h * 100)}%`}
 
-        </div>
+            />
+
+          </div>
+
+          {d.alerts && (
+
+            <>
+
+              <h3>Alerts raised</h3>
+
+              <BarList data={relabel(d.alerts.by_status, (k) => alertStatusOf(k).label)} label="Alerts by status" />
+
+            </>
+
+          )}
+
+        </>
 
       )}
 
       {s.note && <p className="muted small">{s.note}</p>}
-
-      {s.depends_on && s.status === "PARTIAL" && <p className="muted small">Waiting for: {s.depends_on}</p>}
 
       <p className="source">Source: {s.source}</p>
 
@@ -282,9 +442,9 @@ export default function DashboardView({ who, me, onNavigate }) {
 
         ...(apps ? [{ label: "Applications", value: apps.total }, { label: "In process", value: apps.by_status.IN_PROCESS ?? 0 }] : []),
 
-        ...(deadlines ? [{ label: "Deadlines opened", value: deadlines.opened },
+        ...(deadlines ? [{ label: "Open deadlines", value: deadlines.open },
 
-          { label: "Due date passed", value: deadlines.due_date_passed, hint: "may include met deadlines", tone: deadlines.due_date_passed ? "attention" : undefined }] : []),
+          { label: "Overdue", value: deadlines.overdue, tone: deadlines.overdue ? "attention" : undefined }] : []),
 
         ...(alerts ? [{ label: "Dead letters", value: alerts.by_status.DEAD, tone: alerts.by_status.DEAD ? "bad" : undefined }] : []),
 
@@ -296,7 +456,7 @@ export default function DashboardView({ who, me, onNavigate }) {
 
         <Pendency who={who} />
 
-        {available.map((s) => <Section key={s.key} s={s} />)}
+        {available.map((s) => <Section key={s.key} s={s} who={who} me={me} />)}
 
       </div>
 

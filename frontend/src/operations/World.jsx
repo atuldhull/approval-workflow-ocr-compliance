@@ -3,6 +3,7 @@ import { useReducedMotion } from "../motion.js";
 import { datePositions } from "./semanticData.js";
 import { when } from "../components/ui.jsx";
 import { sentence } from "../nav.js";
+import { ruleLabel } from "../recordText.js";
 
 // Due dates arrive as plain dates; recorded moments (submission) as full timestamps, shown in IST like everywhere else.
 const showDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d)) || Number.isNaN(Date.parse(d)) ? String(d ?? "") : when(d));
@@ -84,7 +85,7 @@ function FlatFigure({ records, selected }) {
 export function DeadlineTimeline({ deadlines = [], submittedAt }) {
   const records = [
     ...(submittedAt ? [{ id: "submitted", date: submittedAt, label: "Submitted", status: "Recorded timestamp", kind: "event" }] : []),
-    ...deadlines.map((d) => ({ id: d.id, date: d.due_date, label: d.rule_id, status: d.status, kind: "due" })),
+    ...deadlines.map((d) => ({ id: d.id, date: d.due_date, label: ruleLabel(d.rule_id), status: d.status, kind: "due" })),
   ];
   const positions = datePositions(records);
   if (!records.length) return null;

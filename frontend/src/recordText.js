@@ -112,6 +112,7 @@ export const alertStatusOf = (s) => ALERT_STATUS[s] ?? { tone: "neutral", label:
 // Deadline rules in rulesets/aph-2024-27, in plain words. Unknown ids fall back to the id itself, readable.
 export const RULES = {
   AICTE_PROCESSING: "AICTE's processing time for a submitted application",
+  EVC_PROCESSING: "Time to hold the expert visit",
   INSTITUTION_RESPONSE: "Institution's time to answer a deficiency",
   APPEAL_7D: "Seven days to appeal a decision",
   DEPOSIT_15D: "Fifteen days to pay the security deposit",
@@ -135,6 +136,26 @@ export const ALERT_TEMPLATES = {
   "obligation.due": "A compliance item is due.",
 };
 export const alertMeaning = (t) => ALERT_TEMPLATES[t] ?? "A deadline alert from the approval system.";
+
+// Message templates by the subject line the notifier sends (backend/app/platform/providers.py TEMPLATES).
+export const TEMPLATE_NAMES = {
+  "deadline.reminder": "Deadline reminder",
+  "deadline.breached": "Deadline missed",
+  "deadline.escalated": "Deadline escalated",
+  "obligation.due": "Compliance item due",
+  "case.update": "Case updated",
+};
+export const templateLabel = (t) => TEMPLATE_NAMES[t] ?? (t ? sentence(t.replace(/\./g, "_")) : "Message");
+
+// A deadline clock's state. BREACHED: its due time passed while it was running; it may still be met, late.
+export const DEADLINE_STATUS = {
+  RUNNING: { tone: "ok", label: "Running" },
+  PAUSED: { tone: "neutral", label: "Paused" },
+  BREACHED: { tone: "bad", label: "Overdue" },
+  MET: { tone: "ok", label: "Met" },
+  WAIVED: { tone: "neutral", label: "Waived" },
+};
+export const deadlineStatusOf = (s) => DEADLINE_STATUS[s] ?? { tone: "neutral", label: sentence(s) || "Status not supplied" };
 
 const KB = 1024;
 export const fileSize = (n) => (n == null ? "—" : n < KB ? `${n} B` : n < KB * KB ? `${(n / KB).toFixed(1)} KB` : `${(n / KB / KB).toFixed(1)} MB`);

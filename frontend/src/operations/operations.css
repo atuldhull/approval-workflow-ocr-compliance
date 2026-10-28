@@ -321,6 +321,7 @@
 .axis-dot.tone-attention { border-color: var(--amber); }
 .axis-dot.tone-info { border-color: var(--info); }
 .axis-dot.tone-ok { border-color: var(--ok); }
+.axis-dot.tone-bad { border-color: var(--bad); }
 .axis-date { position: absolute; top: calc(100% + 4px); font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
 .axis-items { display: flex; flex-direction: column-reverse; gap: 3px; align-items: center; margin-bottom: 4px; }
 .axis-mark { min-height: 22px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--ink-1); color: var(--text-2); font: 500 var(--fs-xs)/1.4 var(--ui); white-space: nowrap; }
@@ -329,6 +330,7 @@
 .axis-mark.tone-attention { border-left: 2px solid var(--amber); }
 .axis-mark.tone-info { border-left: 2px solid var(--info); }
 .axis-mark.tone-ok { border-left: 2px solid var(--ok); }
+.axis-mark.tone-bad { border-left: 2px solid var(--bad); }
 .axis-mark.is-selected { border-color: var(--brass); background: var(--brass-soft); color: var(--text); }
 .obligation-axis { padding-bottom: var(--s5); }
 .axis-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--s4); margin: var(--s3) 0 0; padding: 0; font-size: var(--fs-xs); color: var(--text-3); }
@@ -336,6 +338,7 @@
 .axis-legend .tone-attention::before { border-color: var(--amber); }
 .axis-legend .tone-info::before { border-color: var(--info); background: var(--info); }
 .axis-legend .tone-ok::before { border-color: var(--ok); background: var(--ok); }
+.axis-legend .tone-bad::before { border-color: var(--bad); background: var(--bad); }
 .compliance-layout { margin: var(--s4) 0; }
 .compliance-layout > .card + .split-detail { margin-top: 0; }
 .unverified { color: var(--info); font-weight: 600; }
