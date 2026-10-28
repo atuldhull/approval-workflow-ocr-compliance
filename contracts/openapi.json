@@ -2468,10 +2468,35 @@
       },
       "InboxItem": {
         "properties": {
-          "alert_id": {
-            "format": "uuid",
-            "title": "Alert Id",
+          "action": {
+            "description": "what to do about it",
+            "title": "Action",
             "type": "string"
+          },
+          "alert_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the deadline alert this message is about, if it is an alert",
+            "title": "Alert Id"
+          },
+          "case_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "short case reference (first 8 characters of its id)",
+            "title": "Case Ref"
           },
           "created_at": {
             "format": "date-time",
@@ -2482,6 +2507,9 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "links": {
+            "$ref": "#/components/schemas/InboxLinks"
           },
           "read_at": {
             "anyOf": [
@@ -2495,12 +2523,30 @@
             ],
             "title": "Read At"
           },
+          "source_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the recorded event this message is about, if it is not an alert",
+            "title": "Source Event Id"
+          },
           "subject": {
             "title": "Subject",
             "type": "string"
           },
           "template": {
             "title": "Template",
+            "type": "string"
+          },
+          "text": {
+            "description": "what happened: the case, the rule in words and the due date (IST) when known",
+            "title": "Text",
             "type": "string"
           }
         },
@@ -2509,10 +2555,56 @@
           "alert_id",
           "template",
           "subject",
+          "text",
+          "action",
+          "links",
           "created_at",
           "read_at"
         ],
         "title": "InboxItem",
+        "type": "object"
+      },
+      "InboxLinks": {
+        "description": "Records the message is about, for the screen to open. Present only when the record was found.",
+        "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
+          "evc_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evc Request Id"
+          },
+          "obligation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Obligation Id"
+          }
+        },
+        "title": "InboxLinks",
         "type": "object"
       },
       "InstitutionOut": {
@@ -3396,9 +3488,16 @@
       "OutboxItem": {
         "properties": {
           "alert_id": {
-            "format": "uuid",
-            "title": "Alert Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
           },
           "attempts": {
             "title": "Attempts",
@@ -3464,6 +3563,18 @@
               }
             ],
             "title": "Next Attempt At"
+          },
+          "source_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Event Id"
           },
           "status": {
             "title": "Status",
@@ -15950,36 +16061,11 @@
         ]
       }
     },
-    "/api/reports/{report_type}": {
+    "/api/reports": {
       "get": {
-        "operationId": "get_report_api_reports__report_type__get",
+        "description": "The report types this deployment offers, with their titles, columns and what each is computed from.",
+        "operationId": "list_reports_api_reports_get",
         "parameters": [
-          {
-            "in": "path",
-            "name": "report_type",
-            "required": true,
-            "schema": {
-              "title": "Report Type",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "region",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z][A-Za-z -]{0,39}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Region"
-            }
-          },
           {
             "in": "header",
             "name": "x-demo-user",
@@ -16055,6 +16141,152 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Reports",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/reports/{report_type}": {
+      "get": {
+        "description": "A report scoped like pendency: national for oversight roles, a regional officer's own region otherwise.\nEvery report states the ledger head it was computed from and a snapshot hash of its body.",
+        "operationId": "get_report_api_reports__report_type__get",
+        "parameters": [
+          {
+            "description": "One of: evc_status, overdue, pendency, region_performance, undertakings.",
+            "in": "path",
+            "name": "report_type",
+            "required": true,
+            "schema": {
+              "description": "One of: evc_status, overdue, pendency, region_performance, undertakings.",
+              "title": "Report Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z][A-Za-z -]{0,39}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "description": "csv for a download; the default is JSON",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(json|csv)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "csv for a download; the default is JSON",
+              "title": "Format"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-institution",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-demo-region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {}
+            },
+            "description": "the report as JSON, or as CSV with format=csv or Accept: text/csv"
           },
           "422": {
             "content": {
